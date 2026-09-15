@@ -1,0 +1,77 @@
+# SpeakPower
+
+> Strategy, communication audits, public speaking coaching and narrative
+> architecture for founders, NGO leaders and corporate teams in Uganda and East
+> Africa — plus the websites, applications and internal systems the strategy
+> runs on. Founded and run by Otieno Thomas, Kampala, Uganda.
+
+SpeakPower diagnoses where communication breaks down, rebuilds it around a
+single data-backed thesis, and then builds the system the strategy needs in
+order to stay in daily use. The distinguishing claim is delivery: the strategy
+and the software come from the same person, so positioning ships as working
+infrastructure rather than as a document that decays.
+
+## Services
+
+- **Strategy & Market Development** — Go-to-market messaging built on market
+  research, audience behaviour and competitive positioning rather than
+  assumption. Delivered in person or virtually.
+- **Communication Audits** — A line-by-line review of decks and documents with a
+  structural diagnosis and a rebuilt draft, not just a list of notes. Virtual,
+  results in one session.
+- **Public Speaking Through Data** — Talk and pitch restructuring around the
+  evidence a specific audience needs, with rehearsal under realistic pressure.
+  Not generic tone and posture drills. In person or live virtual.
+- **Team Workshops** — Turning fragmented team messaging into cohesive
+  storytelling aligned to one brand narrative, with ongoing alignment check-ins.
+- **Narrative Architecture for Startups & Nonprofits** — Rebuilding an
+  organisation's story around a single defensible thesis ahead of a raise,
+  launch or donor campaign. Virtual, project-based.
+- **Digital Systems & Applications** — Designing and building the website, web
+  application, internal tool or data dashboard a communication strategy runs on,
+  written by the same person who produced the positioning. Project-based, design
+  through deployment.
+
+## The POLSSE framework
+
+Every engagement runs through the same five lenses, because a message that only
+works in one room is not ready yet.
+
+1. **Politics** — Speaking with clarity and influence in public and policy
+   spaces, where the message must survive being repeated by someone else to
+   people you will never meet.
+2. **Organizations** — Uniting teams around a single coherent message, so sales,
+   support and the founder all tell the same story.
+3. **Law** — Communicating ethically and compliantly; holding the line between
+   persuasive and misleading on purpose rather than by accident.
+4. **Security** — Protecting voice, data and reputation once a message leaves
+   the room it was said in.
+5. **Socioeconomics** — Turning speaking into social impact and economic
+   opportunity: why the message matters beyond the room.
+
+## Who it is for
+
+- Founders and startup teams refining positioning or preparing to raise.
+- NGO and development-sector leaders working on donor narratives and programme
+  communication.
+- Corporate teams needing internal message alignment or entering a new market.
+
+## How it differs from an agency
+
+An agency sells output — a campaign, an identity, a deliverable set. SpeakPower
+starts diagnostically: establishing what the data says about the audience and
+the market before any copy is written. Where an agency scopes a build and
+subcontracts it, here the same person produces the strategy and the software.
+
+## Delivery formats
+
+In person across Kampala and Uganda; live virtual for coaching, audits and team
+workshops; and periodic live online masterclass cohorts on a single topic.
+
+## Contact
+
+- Email: thomasotieno583@gmail.com
+- Phone / WhatsApp: +256 743 482 588
+- LinkedIn: https://www.linkedin.com/in/otieno-thomas-a39b1b21b/
+- Location: Kampala, Uganda
+- Site: https://speakpower-commits.github.io/SpeakPower-/

@@ -1,0 +1,121 @@
+/* ==========================================================================
+   SpeakPower — services page
+   Loaded after styles.css. Covers: service detail rows, delivery formats band.
+   ========================================================================== */
+
+/* ==========================================================================
+   SERVICE DETAIL ROWS
+   ========================================================================== */
+
+.service-detail {
+  display: grid;
+  grid-template-columns: minmax(0, 200px) minmax(0, 1fr);
+  gap: clamp(1rem, .6rem + 1.8vw, 3rem);
+  padding-block: clamp(2rem, 1.5rem + 1.8vw, 3.25rem);
+  border-top: 1px solid var(--line);
+}
+.service-detail:last-of-type { border-bottom: 1px solid var(--line); }
+
+.service-detail-label { position: relative; }
+
+.service-detail-label .index {
+  display: block;
+  font-family: var(--font-display);
+  font-size: clamp(2.2rem, 1.7rem + 1.8vw, 3.2rem);
+  font-weight: 600;
+  font-variation-settings: "opsz" 80;
+  line-height: 1;
+  letter-spacing: -.03em;
+  color: var(--clay);
+  opacity: .32;
+}
+
+.service-detail-label .format {
+  margin-top: .75rem;
+  font-family: var(--font-mono);
+  font-size: .71rem;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  line-height: 1.65;
+}
+
+.service-detail-body h3 { margin-bottom: .55rem; }
+.service-detail-body > p { color: var(--text-muted); }
+
+.service-detail-body ul {
+  margin: 1.25rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: .6rem;
+  max-width: var(--measure);
+}
+.service-detail-body li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: .75rem;
+  align-items: start;
+  font-size: .97rem;
+  color: var(--text-muted);
+}
+.service-detail-body li::before {
+  content: "";
+  width: 6px; height: 6px;
+  margin-top: .62em;
+  border-radius: 50%;
+  background: var(--clay);
+  flex: none;
+}
+
+/* The systems row is the differentiator — a quiet accent rail marks it out
+   without breaking the rhythm of the list. */
+.service-detail--feature {
+  position: relative;
+  padding-left: clamp(1rem, .5rem + 1.4vw, 1.75rem);
+  border-left: 3px solid var(--clay);
+  background:
+    linear-gradient(to right, rgba(180, 83, 31, .045), transparent 42%);
+}
+.service-detail--feature .index { opacity: .85; }
+
+/* ==========================================================================
+   DELIVERY FORMATS BAND
+   ========================================================================== */
+
+.formats-band {
+  padding: clamp(1.75rem, 1.2rem + 2.2vw, 3rem);
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+.formats-band h2 { margin-bottom: 0; }
+
+.formats-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  gap: clamp(1.25rem, .9rem + 1.4vw, 2.25rem);
+  margin-top: clamp(1.75rem, 1.3rem + 1.6vw, 2.5rem);
+}
+.formats-list > div {
+  padding-top: 1.1rem;
+  border-top: 2px solid var(--line-strong);
+}
+.formats-list h4 { margin-bottom: .45rem; color: var(--ink); }
+.formats-list p { color: var(--text-muted); font-size: .95rem; margin: 0; }
+
+/* ==========================================================================
+   RESPONSIVE
+   ========================================================================== */
+
+@media (max-width: 720px) {
+  .service-detail { grid-template-columns: 1fr; gap: .75rem; }
+
+  .service-detail-label {
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+  }
+  .service-detail-label .index { font-size: 2rem; }
+  .service-detail-label .format { margin-top: 0; }
+}

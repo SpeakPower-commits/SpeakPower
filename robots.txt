@@ -1,0 +1,8 @@
+# SpeakPower — https://speakpower-commits.github.io/SpeakPower-/
+# Everything here is public positioning. Crawlers, including AI answer
+# engines, are welcome — being cited in an answer is the point.
+
+User-agent: *
+Allow: /
+
+Sitemap: https://speakpower-commits.github.io/SpeakPower-/sitemap.xml

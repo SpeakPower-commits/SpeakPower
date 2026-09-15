@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="SpeakPower">
+  <rect width="64" height="64" rx="13" fill="#17140f"/>
+  <!-- Rising bars: evidence becoming a signal that carries. -->
+  <rect x="13" y="37" width="7" height="14" rx="1.5" fill="#5d5447"/>
+  <rect x="24" y="29" width="7" height="22" rx="1.5" fill="#8a7c66"/>
+  <rect x="35" y="20" width="7" height="31" rx="1.5" fill="#b4531f"/>
+  <rect x="46" y="13" width="7" height="38" rx="1.5" fill="#d9a441"/>
+</svg>
