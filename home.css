@@ -10,7 +10,7 @@
 
 .hero {
   background:
-    radial-gradient(90% 120% at 85% 0%, rgba(217, 164, 65, .16), transparent 58%),
+    radial-gradient(90% 120% at 85% 0%, rgba(201, 162, 39, .10), transparent 58%),
     var(--paper-2);
   border-bottom: 1px solid var(--line);
   padding-block: clamp(3rem, 2rem + 4.5vw, 6rem);
@@ -34,15 +34,20 @@
 }
 
 .hero-photo { position: relative; }
+
+/* Square crop: the portrait is a head-and-shoulders shot, which a landscape
+   frame would cut badly. object-position keeps the face off the bottom edge. */
 .hero-photo img {
   width: 100%;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 1 / 1;
   object-fit: cover;
+  object-position: center 22%;
+  background: var(--paper-2);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
 }
 .hero-photo.img-fallback {
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 1 / 1;
   min-height: 0;
   border-radius: var(--radius-lg);
 }
@@ -80,7 +85,7 @@
   font-family: var(--font-mono);
   font-size: .76rem;
   letter-spacing: .06em;
-  color: var(--gold);
+  color: var(--gold-bright);
 }
 
 /* ==========================================================================
@@ -120,7 +125,7 @@
   font-size: .68rem;
   letter-spacing: .1em;
   text-transform: uppercase;
-  color: var(--clay-dark);
+  color: var(--navy-deep);
 }
 
 .service-card h3 { margin-bottom: .5rem; }
@@ -140,7 +145,7 @@
 /* The systems card is the differentiator, so it carries a quiet accent edge
    rather than being visually identical to the other four. */
 .service-card--feature {
-  border-color: var(--clay);
+  border-color: var(--navy);
   border-top-width: 3px;
 }
 /* Five cards in a 2- or 3-column grid leave a hole in the last row. Letting
@@ -150,8 +155,8 @@
   .service-card--feature { grid-column: span 2; }
 }
 .service-card--feature .tag {
-  background: var(--clay);
-  border-color: var(--clay);
+  background: var(--navy);
+  border-color: var(--navy);
   color: #fff;
 }
 
@@ -195,13 +200,13 @@
   font-size: .95rem;
   font-weight: 600;
   font-variation-settings: "opsz" 20;
-  color: var(--clay-dark);
+  color: var(--navy-deep);
   transition: background-color .18s var(--ease), color .18s var(--ease),
               border-color .18s var(--ease);
 }
 .polsse-trigger[aria-expanded="true"] .polsse-letter {
-  background: var(--clay);
-  border-color: var(--clay);
+  background: var(--navy);
+  border-color: var(--navy);
   color: #fff;
 }
 
@@ -220,7 +225,7 @@
   place-items: center;
   font-size: 1.25rem;
   line-height: 1;
-  color: var(--clay);
+  color: var(--gold-text);
   transition: transform .25s var(--ease);
 }
 /* The +/- affordance only means something when the panels actually collapse. */
@@ -261,36 +266,49 @@ html:not(.js) .polsse-icon { visibility: hidden; }
   gap: clamp(2rem, 1.2rem + 3vw, 4rem);
   padding: clamp(1.75rem, 1.2rem + 2.4vw, 3.25rem);
   background:
-    radial-gradient(80% 130% at 88% 8%, rgba(217, 164, 65, .18), transparent 60%),
+    radial-gradient(80% 130% at 88% 8%, rgba(201, 162, 39, .18), transparent 60%),
     var(--ink);
   border-radius: var(--radius-lg);
   color: var(--band-text);
 }
 .masterclass-band h2 { color: var(--band-text); margin-bottom: .5em; }
 .masterclass-band p { color: var(--band-muted); margin-bottom: 0; }
-.masterclass-band .eyebrow { color: var(--gold); }
-.masterclass-band .eyebrow::before { background: var(--gold); }
+.masterclass-band .eyebrow { color: var(--gold-bright); }
+.masterclass-band .eyebrow::before { background: var(--gold-bright); }
 
 .masterclass-form {
   padding: clamp(1.25rem, 1rem + 1vw, 1.75rem);
-  background: rgba(251, 248, 242, .05);
+  background: rgba(242, 244, 248, .05);
   border: 1px solid var(--band-line);
   border-radius: var(--radius);
 }
 .masterclass-form label { color: var(--band-text); }
 .masterclass-form input {
-  background: rgba(251, 248, 242, .06);
+  background: rgba(242, 244, 248, .06);
   border-color: #4a4238;
   color: var(--band-text);
 }
 .masterclass-form input::placeholder { color: #8d8271; }
 .masterclass-form input:focus {
   border-color: var(--gold);
-  box-shadow: 0 0 0 3px rgba(217, 164, 65, .18);
+  box-shadow: 0 0 0 3px rgba(201, 162, 39, .18);
 }
+/* A navy button on the navy band would disappear. Gold with navy text keeps
+   the call to action visible and stays inside the brand palette. */
+.masterclass-form .btn-primary {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: var(--navy-deep);
+}
+.masterclass-form .btn-primary:hover {
+  background: var(--gold-bright);
+  border-color: var(--gold-bright);
+  color: var(--navy-deep);
+}
+
 .masterclass-form .form-status[data-state="success"] {
-  background: rgba(217, 164, 65, .12);
-  border-color: rgba(217, 164, 65, .35);
+  background: rgba(201, 162, 39, .12);
+  border-color: rgba(201, 162, 39, .35);
   color: #f2dcae;
 }
 .masterclass-form .form-status[data-state="error"] {
@@ -307,7 +325,7 @@ html:not(.js) .polsse-icon { visibility: hidden; }
   max-width: 52ch;
   margin-inline: auto;
   padding: clamp(1.5rem, 1rem + 2vw, 2.5rem) 0;
-  border-top: 2px solid var(--clay);
+  border-top: 2px solid var(--gold);
   text-align: center;
 }
 .closing-statement p {

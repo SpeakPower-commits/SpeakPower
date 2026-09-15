@@ -21,41 +21,44 @@
    ========================================================================== */
 
 :root {
-  /* Light-only by design: the palette is warm and paper-like, and the site
-     has no theme switch. color-scheme is pinned so form controls and
-     scrollbars don't invert on a dark-mode OS. */
+  /* Light-only by design: the site has no theme switch, so color-scheme is
+     pinned to stop form controls and scrollbars inverting on a dark-mode OS. */
   color-scheme: light;
 
-  /* --- Palette ----------------------------------------------------------- */
-  --ink:        #17140f;   /* warm near-black */
-  --ink-2:      #2e2820;
-  --paper:      #fbf8f2;   /* warm paper       */
-  --paper-2:    #f4efe4;
-  --paper-3:    #ece5d6;
+  /* --- Brand palette -----------------------------------------------------
+     Taken from the SpeakPower logo: deep navy speech bubble, antique gold
+     rays and wordmark. Navy carries structure and calls to action; gold is
+     an accent only. */
+  --navy:       #16233f;   /* logo navy — primary brand      */
+  --navy-deep:  #0d1729;   /* pressed / hover state          */
+  --navy-soft:  #223252;   /* raised surface on dark bands   */
 
-  --clay:       #b4531f;   /* primary accent   */
-  --clay-dark:  #8f3f14;
-  --clay-light: #d1accd00; /* unused slot kept transparent */
-  --gold:       #d9a441;
-  --forest:     #1e5c49;   /* quiet secondary  */
+  --gold:       #c9a227;   /* logo gold — decoration         */
+  --gold-bright:#e0be4f;   /* gold on dark backgrounds       */
+  --gold-text:  #8a6d14;   /* gold as TEXT on light: 5.2:1   */
+
+  --ink:        #131c2e;   /* near-black, navy-cast          */
+  --paper:      #f7f7f5;   /* neutral off-white              */
+  --paper-2:    #eef0f3;   /* cool light grey, echoes logo   */
+  --paper-3:    #e2e6ec;
 
   /* --- Semantic ---------------------------------------------------------- */
   --bg:           var(--paper);
   --bg-raised:    #ffffff;
   --bg-sunken:    var(--paper-2);
   --text:         var(--ink);
-  --text-muted:   #5d5447;
-  --text-faint:   #857a6a;
-  --line:         #e3dccd;
-  --line-strong:  #cfc5b0;
-  --brand:        var(--clay);
+  --text-muted:   #515e73;
+  --text-faint:   #78849a;
+  --line:         #dfe3e9;
+  --line-strong:  #c4ccd8;
+  --brand:        var(--navy);
   --ring:         #1f5c92;
 
   /* --- Inverted bands (footer, masterclass, proof strip) ----------------- */
-  --band-bg:    var(--ink);
-  --band-text:  #f7f3ea;
-  --band-muted: #b2a894;
-  --band-line:  #3a332a;
+  --band-bg:    var(--navy);
+  --band-text:  #f2f4f8;
+  --band-muted: #9aa8c0;
+  --band-line:  #2c3c5c;
 
   /* --- Type -------------------------------------------------------------- */
   --font-display: "Fraunces", "Iowan Old Style", Palatino, Georgia,
@@ -83,8 +86,8 @@
   --radius-lg: 12px;
   --header-h:  72px;
 
-  --shadow-sm: 0 1px 2px rgba(23, 20, 15, .05);
-  --shadow-md: 0 14px 34px -22px rgba(23, 20, 15, .38);
+  --shadow-sm: 0 1px 2px rgba(19, 28, 46, .05);
+  --shadow-md: 0 14px 34px -22px rgba(19, 28, 46, .38);
 
   --ease: cubic-bezier(.22, .61, .36, 1);
 }
@@ -116,8 +119,8 @@ body {
 img, svg, video { max-width: 100%; height: auto; display: block; }
 [hidden] { display: none !important; }
 
-a { color: var(--clay-dark); text-decoration-thickness: 1px; text-underline-offset: 2px; }
-a:hover { color: var(--clay); }
+a { color: var(--navy-deep); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:hover { color: var(--navy); }
 
 :where(a, button, input, textarea, select, summary, [tabindex]):focus-visible {
   outline: 2px solid var(--ring);
@@ -125,7 +128,7 @@ a:hover { color: var(--clay); }
   border-radius: 3px;
 }
 
-::selection { background: var(--clay); color: #fff; }
+::selection { background: var(--navy); color: #fff; }
 
 /* Fallback panel shown when an image fails to load — script.js adds this
    class on an image error, so a missing photo degrades to a branded block
@@ -181,7 +184,7 @@ section { padding-block: var(--section-y); }
   position: absolute;
   left: .5rem; top: .5rem;
   padding: .7rem 1.2rem;
-  background: var(--clay);
+  background: var(--navy);
   color: #fff;
   font-weight: 600;
   font-size: .9rem;
@@ -238,14 +241,14 @@ p:last-child { margin-bottom: 0; }
   font-weight: 500;
   letter-spacing: .15em;
   text-transform: uppercase;
-  color: var(--clay-dark);
+  color: var(--gold-text);
   margin-bottom: 1.1rem;
 }
 .eyebrow::before {
   content: "";
   width: 1.6rem;
   height: 1px;
-  background: var(--clay);
+  background: var(--gold);
   flex: none;
 }
 
@@ -276,14 +279,14 @@ p:last-child { margin-bottom: 0; }
 .btn:active { transform: translateY(0); }
 
 .btn-primary {
-  background: var(--clay);
-  border-color: var(--clay);
+  background: var(--navy);
+  border-color: var(--navy);
   color: #fff;
   box-shadow: var(--shadow-sm);
 }
 .btn-primary:hover {
-  background: var(--clay-dark);
-  border-color: var(--clay-dark);
+  background: var(--navy-deep);
+  border-color: var(--navy-deep);
   color: #fff;
   box-shadow: var(--shadow-md);
 }
@@ -293,7 +296,7 @@ p:last-child { margin-bottom: 0; }
   border-color: var(--line-strong);
   color: var(--text);
 }
-.btn-ghost:hover { border-color: var(--clay); color: var(--clay-dark); }
+.btn-ghost:hover { border-color: var(--navy); color: var(--navy-deep); }
 
 /* ==========================================================================
    6. HEADER & NAVIGATION
@@ -306,7 +309,7 @@ p:last-child { margin-bottom: 0; }
   min-height: var(--header-h);
   display: flex;
   align-items: center;
-  background: rgba(251, 248, 242, .88);
+  background: rgba(247, 247, 245, .88);
   backdrop-filter: saturate(180%) blur(12px);
   -webkit-backdrop-filter: saturate(180%) blur(12px);
   border-bottom: 1px solid transparent;
@@ -314,7 +317,7 @@ p:last-child { margin-bottom: 0; }
 }
 .site-header[data-scrolled="true"] {
   border-bottom-color: var(--line);
-  box-shadow: 0 6px 20px -18px rgba(23, 20, 15, .5);
+  box-shadow: 0 6px 20px -18px rgba(19, 28, 46, .5);
 }
 
 .site-header .wrap {
@@ -326,6 +329,8 @@ p:last-child { margin-bottom: 0; }
 }
 
 .logo {
+  display: inline-flex;
+  align-items: center;
   font-family: var(--font-display);
   font-size: 1.3rem;
   font-weight: 600;
@@ -335,8 +340,24 @@ p:last-child { margin-bottom: 0; }
   text-decoration: none;
   white-space: nowrap;
 }
-.logo span { color: var(--clay); }
 .logo:hover { color: var(--ink); }
+
+.logo-mark {
+  height: 42px;
+  width: auto;
+  /* The supplied logo sits on a light-grey backdrop rather than true
+     transparency. multiply drops that backdrop against the light header while
+     leaving the navy and gold untouched. Supply a transparent PNG and this
+     becomes a harmless no-op. */
+  mix-blend-mode: multiply;
+}
+
+/* Wordmark fallback, revealed by script.js only if the logo image fails. */
+.logo-text { display: none; }
+.logo-text span { color: var(--gold-text); }
+
+.logo--fallback .logo-mark { display: none; }
+.logo--fallback .logo-text { display: inline; }
 
 .nav-links {
   display: flex;
@@ -358,7 +379,7 @@ p:last-child { margin-bottom: 0; }
   left: 0; bottom: -6px;
   width: 100%;
   height: 1.5px;
-  background: var(--clay);
+  background: var(--navy);
   transform: scaleX(0);
   transform-origin: left;
   transition: transform .22s var(--ease);
@@ -371,12 +392,12 @@ p:last-child { margin-bottom: 0; }
 /* The CTA is a button, so it opts out of the underline treatment. */
 .nav-links > a.nav-cta {
   padding: .62rem 1.15rem;
-  background: var(--clay);
+  background: var(--navy);
   border-radius: var(--radius);
   color: #fff;
   font-weight: 600;
 }
-.nav-links > a.nav-cta:hover { background: var(--clay-dark); color: #fff; }
+.nav-links > a.nav-cta:hover { background: var(--navy-deep); color: #fff; }
 .nav-links > a.nav-cta::after { display: none; }
 
 .nav-toggle {
@@ -394,8 +415,8 @@ p:last-child { margin-bottom: 0; }
   cursor: pointer;
   transition: border-color .16s var(--ease), background-color .16s var(--ease);
 }
-.nav-toggle:hover { border-color: var(--clay); }
-.nav-toggle[aria-expanded="true"] { background: var(--paper-2); border-color: var(--clay); }
+.nav-toggle:hover { border-color: var(--navy); }
+.nav-toggle[aria-expanded="true"] { background: var(--paper-2); border-color: var(--navy); }
 
 /* ==========================================================================
    7. PAGE HERO — inner-page header band (services, and reusable elsewhere)
@@ -448,8 +469,8 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 input[type="text"]:focus,
 input[type="email"]:focus,
 textarea:focus {
-  border-color: var(--clay);
-  box-shadow: 0 0 0 3px rgba(180, 83, 31, .14);
+  border-color: var(--navy);
+  box-shadow: 0 0 0 3px rgba(22, 35, 63, .14);
   outline: none;
 }
 
@@ -514,13 +535,23 @@ textarea { resize: vertical; min-height: 120px; }
 }
 .footer-grid p { color: var(--band-muted); max-width: 34ch; margin: 0; }
 
+.footer-tagline {
+  margin-bottom: .5rem !important;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-style: italic;
+  font-variation-settings: "opsz" 40;
+  letter-spacing: -.01em;
+  color: var(--gold-bright) !important;
+}
+
 .footer-links { display: grid; gap: .5rem; justify-items: start; }
 .footer-links a {
   color: var(--band-muted);
   text-decoration: none;
   transition: color .16s var(--ease);
 }
-.footer-links a:hover { color: var(--gold); }
+.footer-links a:hover { color: var(--gold-bright); }
 
 .footer-bottom {
   padding-top: 1.5rem;
@@ -565,7 +596,7 @@ textarea { resize: vertical; min-height: 120px; }
     padding: .75rem var(--gutter) 1.75rem;
     background: var(--paper);
     border-bottom: 1px solid var(--line);
-    box-shadow: 0 22px 44px -26px rgba(23, 20, 15, .5);
+    box-shadow: 0 22px 44px -26px rgba(19, 28, 46, .5);
     opacity: 0;
     visibility: hidden;
     transform: translateY(-10px);

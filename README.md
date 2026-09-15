@@ -25,17 +25,30 @@ running them through Jekyll.
 
 ---
 
-## One asset still needed
+## Two assets still needed
 
-`assets/event-wide.jpg` is referenced by the homepage hero and the About page
-but is **not in the repository**. Upload it to `assets/` with exactly that
-filename.
+Neither is in the repository yet. Upload both to `assets/` with exactly these
+filenames:
 
-Until it exists, the page does not break — `script.js` detects the failed load
-and swaps in a branded placeholder panel carrying the image's alt text, so
-visitors never see a broken-image icon. Replace it when you have the photo.
+| File | Used by | Notes |
+|---|---|---|
+| `assets/logo.png` | Header on all four pages | The SpeakPower logo. **A transparent PNG is strongly preferred** — see below |
+| `assets/otieno-thomas.jpg` | Homepage hero, About page | Your portrait. Square-ish crop, roughly 1080 × 1080 or larger, under 400 KB |
 
-Recommended: roughly 1600 × 1200 px, JPEG, under 400 KB.
+Neither absence breaks the page. `script.js` watches for a failed load and
+degrades gracefully: the logo falls back to a styled text wordmark, and the
+portrait falls back to a branded panel carrying the image's alt text. Nobody
+ever sees a broken-image icon.
+
+### About the logo background
+
+The logo as supplied sits on a light-grey backdrop rather than true
+transparency. The header applies `mix-blend-mode: multiply`, which drops that
+grey against the light page while leaving the navy and gold intact. It works,
+but it is a workaround: on any non-white background the grey will show.
+
+Export the logo as a **transparent PNG** when you can. The blend mode then
+becomes a harmless no-op and nothing else needs changing.
 
 ---
 
@@ -54,8 +67,10 @@ Recommended: roughly 1600 × 1200 px, JPEG, under 400 KB.
 | `robots.txt`, `sitemap.xml` | Search engine crawling and indexing |
 | `llms.txt` | Plain-language summary for AI answer engines |
 | `site.webmanifest` | Icon and install metadata |
-| `assets/favicon.svg` | Site icon |
+| `assets/favicon.svg` | Site icon — the logo mark reduced for small sizes |
 | `assets/og-image.png` | 1200 × 630 social share card |
+| `assets/logo.png` | Header logo — **you still need to upload this** |
+| `assets/otieno-thomas.jpg` | Portrait — **you still need to upload this** |
 | `tools/og-image.html` | Source used to generate the share card |
 
 Each page loads `styles.css` first, then its own stylesheet. Put anything shared
@@ -120,13 +135,23 @@ Keep the headline in that file matching the homepage `<h1>`.
 Colours, type scale and spacing are CSS custom properties at the top of
 `styles.css`. Change them there and every page follows.
 
+Both come from the logo: deep navy carries structure and calls to action, gold
+is an accent only.
+
 | Token | Value | Used for |
 |---|---|---|
-| `--ink` | `#17140f` | Text, dark bands, footer |
-| `--paper` | `#fbf8f2` | Page background |
-| `--clay` | `#b4531f` | Primary accent, buttons, links |
-| `--gold` | `#d9a441` | Highlights on dark backgrounds |
-| `--forest` | `#1e5c49` | Quiet secondary marks |
+| `--navy` | `#16233f` | Buttons, dark bands, footer, primary brand |
+| `--navy-deep` | `#0d1729` | Hover and pressed states |
+| `--gold` | `#c9a227` | Rules, dots, decorative accents |
+| `--gold-bright` | `#e0be4f` | Gold on dark backgrounds |
+| `--gold-text` | `#8a6d14` | Gold as *text* on light — 5.2:1, passes AA |
+| `--ink` | `#131c2e` | Body text |
+| `--paper` | `#f7f7f5` | Page background |
+| `--paper-2` | `#eef0f3` | Sunken sections, echoes the logo backdrop |
+
+Gold is never used for text on a light background at full strength — `#c9a227`
+on `#f7f7f5` is about 2.5:1 and would fail contrast. That is what `--gold-text`
+exists for. Similarly, buttons are navy with white text, never gold with white.
 
 Type is **Fraunces** for headings and **Work Sans** for body, both from Google
 Fonts. If you ever need the site to load without external requests, the fallback

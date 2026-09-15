@@ -1,12 +1,12 @@
 {
   "name": "SpeakPower — Bridging the Gaps, Turning Miscommunication into Momentum",
   "short_name": "SpeakPower",
-  "description": "Strategy, communication audits and public speaking coaching — plus the digital systems your strategy runs on.",
+  "description": "Articulate is key. Strategy, communication audits and public speaking coaching — plus the digital systems your strategy runs on.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#fbf8f2",
-  "theme_color": "#17140f",
+  "background_color": "#f7f7f5",
+  "theme_color": "#16233f",
   "lang": "en",
   "icons": [
     {

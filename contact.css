@@ -61,7 +61,7 @@
   word-break: break-word;
   transition: color .16s var(--ease);
 }
-.contact-channel a:hover { color: var(--clay); }
+.contact-channel a:hover { color: var(--navy); }
 
 /* ==========================================================================
    FORM PANEL
@@ -71,7 +71,7 @@
   padding: clamp(1.5rem, 1.1rem + 1.6vw, 2.25rem);
   background: var(--bg-raised);
   border: 1px solid var(--line);
-  border-top: 3px solid var(--clay);
+  border-top: 3px solid var(--gold);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
 }

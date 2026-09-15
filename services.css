@@ -26,8 +26,8 @@
   font-variation-settings: "opsz" 80;
   line-height: 1;
   letter-spacing: -.03em;
-  color: var(--clay);
-  opacity: .32;
+  color: var(--gold);
+  opacity: .55;
 }
 
 .service-detail-label .format {
@@ -64,7 +64,7 @@
   width: 6px; height: 6px;
   margin-top: .62em;
   border-radius: 50%;
-  background: var(--clay);
+  background: var(--gold);
   flex: none;
 }
 
@@ -73,9 +73,9 @@
 .service-detail--feature {
   position: relative;
   padding-left: clamp(1rem, .5rem + 1.4vw, 1.75rem);
-  border-left: 3px solid var(--clay);
+  border-left: 3px solid var(--navy);
   background:
-    linear-gradient(to right, rgba(180, 83, 31, .045), transparent 42%);
+    linear-gradient(to right, rgba(22, 35, 63, .05), transparent 42%);
 }
 .service-detail--feature .index { opacity: .85; }
 

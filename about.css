@@ -21,6 +21,8 @@
   width: 100%;
   aspect-ratio: 4 / 5;
   object-fit: cover;
+  object-position: center 18%;
+  background: var(--paper-2);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
 }
@@ -49,7 +51,7 @@
 }
 .approach-list > div {
   padding-top: 1.15rem;
-  border-top: 2px solid var(--clay);
+  border-top: 2px solid var(--gold);
 }
 .approach-list h4 {
   margin-bottom: .5rem;

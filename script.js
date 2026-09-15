@@ -166,6 +166,13 @@
 
   Array.prototype.forEach.call(document.images, function (img) {
     var degrade = function () {
+      // The header logo falls back to the text wordmark, not a grey panel.
+      var brand = img.closest(".logo");
+      if (brand) {
+        brand.classList.add("logo--fallback");
+        return;
+      }
+
       var holder = img.closest(".hero-photo, .about-photo") || img.parentNode;
       if (!holder || holder.classList.contains("img-fallback")) return;
       holder.classList.add("img-fallback");
