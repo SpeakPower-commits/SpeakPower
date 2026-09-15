@@ -546,6 +546,15 @@ textarea { resize: vertical; min-height: 120px; }
 }
 
 .footer-links { display: grid; gap: .5rem; justify-items: start; }
+
+.footer-social a { display: inline-flex; align-items: center; gap: .6rem; }
+.footer-social svg {
+  width: 16px; height: 16px;
+  flex: none;
+  fill: currentColor;
+  /* Nudged down a hair so the glyph sits on the text's optical centre. */
+  transform: translateY(.5px);
+}
 .footer-links a {
   color: var(--band-muted);
   text-decoration: none;
