@@ -1,0 +1,361 @@
+/* ==========================================================================
+   SpeakPower — home page
+   Loaded after styles.css. Covers: hero, proof strip, services grid,
+   POLSSE accordion, masterclass band, closing statement.
+   ========================================================================== */
+
+/* ==========================================================================
+   HERO
+   ========================================================================== */
+
+.hero {
+  background:
+    radial-gradient(90% 120% at 85% 0%, rgba(201, 162, 39, .10), transparent 58%),
+    var(--paper-2);
+  border-bottom: 1px solid var(--line);
+  padding-block: clamp(3rem, 2rem + 4.5vw, 6rem);
+}
+
+.hero .wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr);
+  align-items: center;
+  gap: clamp(2rem, 1.2rem + 3.5vw, 4.5rem);
+}
+
+.hero-copy h1 { margin-bottom: .45em; }
+.hero-copy .lede { max-width: 46ch; }
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .85rem;
+  margin-top: 2.1rem;
+}
+
+.hero-photo { position: relative; }
+
+/* Square crop: the portrait is a head-and-shoulders shot, which a landscape
+   frame would cut badly. object-position keeps the face off the bottom edge. */
+.hero-photo img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  object-position: center 22%;
+  background: var(--paper-2);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+.hero-photo.img-fallback {
+  aspect-ratio: 1 / 1;
+  min-height: 0;
+  border-radius: var(--radius-lg);
+}
+
+.hero-photo-caption {
+  margin-top: .85rem;
+  font-family: var(--font-mono);
+  font-size: .73rem;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  line-height: 1.6;
+}
+.hero-photo.img-fallback .hero-photo-caption { display: none; }
+
+/* ==========================================================================
+   PROOF STRIP
+   ========================================================================== */
+
+.proof-strip {
+  background: var(--ink);
+  color: var(--band-muted);
+  font-size: var(--fs-small);
+}
+.proof-strip .wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem 2rem;
+  padding-block: 1.1rem;
+}
+.proof-strip strong { color: var(--band-text); font-weight: 600; }
+.proof-strip span:last-child {
+  font-family: var(--font-mono);
+  font-size: .76rem;
+  letter-spacing: .06em;
+  color: var(--gold-bright);
+}
+
+/* ==========================================================================
+   SERVICES GRID
+   ========================================================================== */
+
+.services-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 285px), 1fr));
+  gap: clamp(1rem, .7rem + 1.2vw, 1.75rem);
+}
+
+.service-card {
+  display: flex;
+  flex-direction: column;
+  padding: clamp(1.4rem, 1.1rem + 1vw, 2rem);
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  transition: border-color .2s var(--ease), transform .2s var(--ease),
+              box-shadow .2s var(--ease);
+}
+.service-card:hover {
+  border-color: var(--line-strong);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+}
+
+.service-card .tag {
+  align-self: flex-start;
+  margin-bottom: 1rem;
+  padding: .3rem .7rem;
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: 100px;
+  font-family: var(--font-mono);
+  font-size: .68rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--navy-deep);
+}
+
+.service-card h3 { margin-bottom: .5rem; }
+.service-card p { color: var(--text-muted); font-size: .97rem; flex: 1; }
+
+.service-card .delivery {
+  margin-top: 1.25rem;
+  padding-top: .9rem;
+  border-top: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: .71rem;
+  letter-spacing: .05em;
+  color: var(--text-faint);
+  line-height: 1.6;
+}
+
+/* The systems card is the differentiator, so it carries a quiet accent edge
+   rather than being visually identical to the other four. */
+.service-card--feature {
+  border-color: var(--navy);
+  border-top-width: 3px;
+}
+/* Five cards in a 2- or 3-column grid leave a hole in the last row. Letting
+   the feature card span the remainder closes it and gives the differentiator
+   the extra width it earns. */
+@media (min-width: 680px) {
+  .service-card--feature { grid-column: span 2; }
+}
+.service-card--feature .tag {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+}
+
+/* ==========================================================================
+   POLSSE ACCORDION
+   ========================================================================== */
+
+.polsse-wrap {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--bg-raised);
+}
+
+.polsse-item + .polsse-item { border-top: 1px solid var(--line); }
+
+.polsse-trigger {
+  display: grid;
+  grid-template-columns: 3rem 1fr auto;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  padding: 1.15rem clamp(1rem, .8rem + .8vw, 1.5rem);
+  background: none;
+  border: 0;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color .16s var(--ease);
+}
+.polsse-trigger:hover { background: var(--paper-2); }
+
+.polsse-letter {
+  display: grid;
+  place-items: center;
+  width: 2.5rem; height: 2.5rem;
+  background: var(--paper-2);
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  font-family: var(--font-display);
+  font-size: .95rem;
+  font-weight: 600;
+  font-variation-settings: "opsz" 20;
+  color: var(--navy-deep);
+  transition: background-color .18s var(--ease), color .18s var(--ease),
+              border-color .18s var(--ease);
+}
+.polsse-trigger[aria-expanded="true"] .polsse-letter {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+}
+
+.polsse-title {
+  font-family: var(--font-display);
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  font-variation-settings: "opsz" 30;
+  letter-spacing: -.01em;
+  color: var(--ink);
+}
+
+.polsse-icon {
+  width: 1.75rem; height: 1.75rem;
+  display: grid;
+  place-items: center;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: var(--gold-text);
+  transition: transform .25s var(--ease);
+}
+/* The +/- affordance only means something when the panels actually collapse. */
+html:not(.js) .polsse-icon,
+html:not(.js) .polsse-trigger { pointer-events: none; }
+html:not(.js) .polsse-icon { visibility: hidden; }
+.polsse-trigger[aria-expanded="true"] .polsse-icon { transform: rotate(45deg); }
+
+/* grid-template-rows 0fr -> 1fr animates to the content's natural height
+   without hard-coding a max-height that would clip longer copy.
+   Gated on `js`: with scripting off, nothing sets data-open, so the panels
+   stay open and every lens remains readable. */
+.polsse-body { display: grid; grid-template-rows: 1fr; }
+
+.js .polsse-body {
+  grid-template-rows: 0fr;
+  transition: grid-template-rows .28s var(--ease);
+}
+.js .polsse-item[data-open="true"] .polsse-body { grid-template-rows: 1fr; }
+
+.polsse-body-inner { overflow: hidden; }
+.polsse-body-inner p {
+  margin: 0;
+  padding: 0 clamp(1rem, .8rem + .8vw, 1.5rem) 1.35rem
+           calc(3rem + clamp(1rem, .8rem + .8vw, 1.5rem) + 1rem);
+  color: var(--text-muted);
+  max-width: 68ch;
+}
+
+/* ==========================================================================
+   MASTERCLASS BAND
+   ========================================================================== */
+
+.masterclass-band {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr);
+  align-items: start;
+  gap: clamp(2rem, 1.2rem + 3vw, 4rem);
+  padding: clamp(1.75rem, 1.2rem + 2.4vw, 3.25rem);
+  background:
+    radial-gradient(80% 130% at 88% 8%, rgba(201, 162, 39, .18), transparent 60%),
+    var(--ink);
+  border-radius: var(--radius-lg);
+  color: var(--band-text);
+}
+.masterclass-band h2 { color: var(--band-text); margin-bottom: .5em; }
+.masterclass-band p { color: var(--band-muted); margin-bottom: 0; }
+.masterclass-band .eyebrow { color: var(--gold-bright); }
+.masterclass-band .eyebrow::before { background: var(--gold-bright); }
+
+.masterclass-form {
+  padding: clamp(1.25rem, 1rem + 1vw, 1.75rem);
+  background: rgba(242, 244, 248, .05);
+  border: 1px solid var(--band-line);
+  border-radius: var(--radius);
+}
+.masterclass-form label { color: var(--band-text); }
+.masterclass-form input {
+  background: rgba(242, 244, 248, .06);
+  border-color: #4a4238;
+  color: var(--band-text);
+}
+.masterclass-form input::placeholder { color: #8d8271; }
+.masterclass-form input:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(201, 162, 39, .18);
+}
+/* A navy button on the navy band would disappear. Gold with navy text keeps
+   the call to action visible and stays inside the brand palette. */
+.masterclass-form .btn-primary {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: var(--navy-deep);
+}
+.masterclass-form .btn-primary:hover {
+  background: var(--gold-bright);
+  border-color: var(--gold-bright);
+  color: var(--navy-deep);
+}
+
+.masterclass-form .form-status[data-state="success"] {
+  background: rgba(201, 162, 39, .12);
+  border-color: rgba(201, 162, 39, .35);
+  color: #f2dcae;
+}
+.masterclass-form .form-status[data-state="error"] {
+  background: rgba(214, 106, 80, .14);
+  border-color: rgba(214, 106, 80, .4);
+  color: #f0bdae;
+}
+
+/* ==========================================================================
+   CLOSING STATEMENT
+   ========================================================================== */
+
+.closing-statement {
+  max-width: 52ch;
+  margin-inline: auto;
+  padding: clamp(1.5rem, 1rem + 2vw, 2.5rem) 0;
+  border-top: 2px solid var(--gold);
+  text-align: center;
+}
+.closing-statement p {
+  max-width: none;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.2rem, 1rem + 1.05vw, 1.75rem);
+  font-variation-settings: "opsz" 72;
+  font-style: italic;
+  line-height: 1.42;
+  letter-spacing: -.012em;
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+/* ==========================================================================
+   RESPONSIVE
+   ========================================================================== */
+
+@media (max-width: 900px) {
+  .hero .wrap { grid-template-columns: 1fr; }
+  .hero-photo { order: -1; }
+  .masterclass-band { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 540px) {
+  .polsse-trigger { grid-template-columns: 2.25rem 1fr auto; gap: .75rem; }
+  .polsse-letter { width: 2.25rem; height: 2.25rem; font-size: .85rem; }
+  .polsse-body-inner p {
+    padding-left: clamp(1rem, .8rem + .8vw, 1.5rem);
+  }
+  .proof-strip .wrap { flex-direction: column; align-items: flex-start; }
+}
