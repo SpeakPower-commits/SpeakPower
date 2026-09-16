@@ -49,6 +49,17 @@ works in one room is not ready yet.
 5. **Socioeconomics** — Turning speaking into social impact and economic
    opportunity: why the message matters beyond the room.
 
+## Products built in-house
+
+SpeakPower designs and ships its own software, which is the evidence behind the
+claim that the strategy and the system come from the same person.
+
+- **CuePointe** — see https://speakpower-commits.github.io/SpeakPower-/work.html
+- **Tonninyira** — see https://speakpower-commits.github.io/SpeakPower-/work.html
+
+Both are browser-only builds deployed on GitHub Pages; Tonninyira runs a
+Supabase/Postgres backend behind a single-file front end.
+
 ## Who it is for
 
 - Founders and startup teams refining positioning or preparing to raise.
@@ -77,6 +88,7 @@ workshops; and periodic live online masterclass cohorts on a single topic.
 
 ## Profiles
 
+- Blog: https://speakpower1.blogspot.com
 - LinkedIn: https://www.linkedin.com/in/otieno-thomas-a39b1b21b/
 - Instagram: https://www.instagram.com/otienothomas8/ (@otienothomas8)
 - TikTok: https://www.tiktok.com/@otom323 (@otom323)
