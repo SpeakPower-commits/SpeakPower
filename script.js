@@ -15,6 +15,10 @@
 
   var CONTACT_EMAIL = "thomasotieno583@gmail.com";
 
+  // Read once and share: both the slider and the scroll reveal branch on it.
+  var prefersReducedMotion =
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
   /* ------------------------------------------------------------------------
      1. Header scroll state
      rAF-throttled: scroll fires far more often than the browser paints.
@@ -265,16 +269,136 @@
   }
 
   /* ------------------------------------------------------------------------
-     6. Scroll reveal
+     6. Sliders
+     Progressive enhancement over a scroll-snap track: without this the track
+     is still swipeable and keyboard-scrollable, so nothing is trapped. The
+     arrows and dots are added here rather than sitting in the markup, because
+     controls that do nothing when JS fails are worse than no controls.
+
+     No autoplay, deliberately. Movement the visitor did not ask for is what
+     makes most carousels hostile.
+     ---------------------------------------------------------------------- */
+
+  Array.prototype.forEach.call(document.querySelectorAll("[data-slider]"), function (slider, sIndex) {
+    var track = slider.querySelector(".slider-track");
+    if (!track) return;
+
+    var slides = Array.prototype.slice.call(track.children);
+    if (slides.length < 2) return; // one slide is not a slider
+
+    slider.setAttribute("role", "region");
+    slider.setAttribute("aria-roledescription", "carousel");
+
+    // Make the track a keyboard stop so arrow keys reach the handler below.
+    // Browsers vary on whether a scroll container is focusable by default.
+    track.setAttribute("tabindex", "0");
+
+    slides.forEach(function (slide, i) {
+      slide.setAttribute("role", "group");
+      slide.setAttribute("aria-roledescription", "slide");
+      slide.setAttribute("aria-label", (i + 1) + " of " + slides.length);
+    });
+
+    // --- Build the controls ---
+    var controls = document.createElement("div");
+    controls.className = "slider-controls";
+
+    function arrow(dir, label) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "slider-btn";
+      b.setAttribute("aria-label", label);
+      b.innerHTML = dir === "prev"
+        ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>'
+        : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>';
+      return b;
+    }
+
+    var prev = arrow("prev", "Previous slide");
+    var next = arrow("next", "Next slide");
+
+    var dots = document.createElement("div");
+    dots.className = "slider-dots";
+    dots.setAttribute("role", "tablist");
+    dots.setAttribute("aria-label", "Choose slide");
+
+    var dotList = slides.map(function (slide, i) {
+      var d = document.createElement("button");
+      d.type = "button";
+      d.className = "slider-dot";
+      d.setAttribute("role", "tab");
+      d.setAttribute("aria-label", "Slide " + (i + 1));
+      d.addEventListener("click", function () { scrollToIndex(i); });
+      dots.appendChild(d);
+      return d;
+    });
+
+    controls.appendChild(prev);
+    controls.appendChild(next);
+    controls.appendChild(dots);
+    slider.appendChild(controls);
+
+    // --- Movement ---
+    var current = 0;
+
+    function scrollToIndex(i) {
+      var target = slides[Math.max(0, Math.min(i, slides.length - 1))];
+      if (!target) return;
+      track.scrollTo({
+        left: target.offsetLeft - track.offsetLeft,
+        behavior: prefersReducedMotion ? "auto" : "smooth"
+      });
+    }
+
+    function syncState() {
+      // Nearest slide to the track's current scroll position wins.
+      var mid = track.scrollLeft + track.clientWidth / 2;
+      var best = 0;
+      var bestGap = Infinity;
+
+      slides.forEach(function (slide, i) {
+        var centre = (slide.offsetLeft - track.offsetLeft) + slide.offsetWidth / 2;
+        var gap = Math.abs(centre - mid);
+        if (gap < bestGap) { bestGap = gap; best = i; }
+      });
+
+      current = best;
+      dotList.forEach(function (d, i) {
+        if (i === current) d.setAttribute("aria-current", "true");
+        else d.removeAttribute("aria-current");
+      });
+      prev.disabled = track.scrollLeft <= 1;
+      next.disabled = track.scrollLeft + track.clientWidth >= track.scrollWidth - 1;
+    }
+
+    prev.addEventListener("click", function () { scrollToIndex(current - 1); });
+    next.addEventListener("click", function () { scrollToIndex(current + 1); });
+
+    track.addEventListener("keydown", function (event) {
+      if (event.key === "ArrowLeft") { event.preventDefault(); scrollToIndex(current - 1); }
+      else if (event.key === "ArrowRight") { event.preventDefault(); scrollToIndex(current + 1); }
+    });
+
+    var scrollTick = false;
+    track.addEventListener("scroll", function () {
+      if (scrollTick) return;
+      scrollTick = true;
+      window.requestAnimationFrame(function () { syncState(); scrollTick = false; });
+    }, { passive: true });
+
+    window.addEventListener("resize", syncState);
+    syncState();
+  });
+
+  /* ------------------------------------------------------------------------
+     7. Scroll reveal
      ---------------------------------------------------------------------- */
 
   var revealTargets = document.querySelectorAll("[data-reveal]");
 
   if (!revealTargets.length) return;
 
-  var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  if (reduceMotion || !("IntersectionObserver" in window)) {
+  if (prefersReducedMotion || !("IntersectionObserver" in window)) {
     Array.prototype.forEach.call(revealTargets, function (el) {
       el.classList.add("is-visible");
     });

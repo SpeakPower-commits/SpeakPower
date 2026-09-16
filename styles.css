@@ -507,6 +507,95 @@ textarea { resize: vertical; min-height: 120px; }
 }
 
 /* ==========================================================================
+   8b. SLIDER
+   Scroll-snap based, so it is swipeable and keyboard-scrollable with no
+   JavaScript at all. script.js only adds the arrows and dots on top.
+
+   Deliberately no autoplay: a slide that moves on its own is the single
+   biggest reason carousels test badly — it steals reading position and
+   fails WCAG 2.2.1 unless you also build a pause control.
+   ========================================================================== */
+
+.slider { position: relative; }
+
+.slider-track {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 100%;
+  gap: clamp(.75rem, .5rem + 1vw, 1.25rem);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  overscroll-behavior-x: contain;
+  /* Firefox + the standards property; WebKit is handled below. */
+  scrollbar-width: none;
+}
+.slider-track::-webkit-scrollbar { display: none; }
+
+@media (min-width: 760px) {
+  .slider-track { grid-auto-columns: 62%; }
+}
+
+.slide {
+  scroll-snap-align: center;
+  min-width: 0;
+}
+.slide img {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+.slide figcaption {
+  margin-top: .7rem;
+  font-family: var(--font-mono);
+  font-size: .72rem;
+  letter-spacing: .05em;
+  color: var(--text-faint);
+  line-height: 1.6;
+}
+
+/* --- Controls, injected by script.js ------------------------------------ */
+
+.slider-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1.1rem;
+}
+
+.slider-btn {
+  display: grid;
+  place-items: center;
+  width: 40px; height: 40px;
+  flex: none;
+  background: var(--bg-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  color: var(--navy);
+  cursor: pointer;
+  transition: border-color .16s var(--ease), color .16s var(--ease),
+              opacity .16s var(--ease);
+}
+.slider-btn:hover:not(:disabled) { border-color: var(--navy); }
+.slider-btn:disabled { opacity: .35; cursor: default; }
+.slider-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; }
+
+.slider-dots { display: flex; gap: .45rem; margin-left: auto; }
+.slider-dot {
+  width: 7px; height: 7px;
+  padding: 0;
+  background: var(--line-strong);
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background-color .18s var(--ease), transform .18s var(--ease);
+}
+.slider-dot[aria-current="true"] { background: var(--gold); transform: scale(1.35); }
+
+/* ==========================================================================
    9. FOOTER
    ========================================================================== */
 
