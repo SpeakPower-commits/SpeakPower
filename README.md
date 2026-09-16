@@ -34,6 +34,7 @@ filenames:
 |---|---|---|
 | `assets/logo.png` | Header on every page | The SpeakPower logo. **A transparent PNG is strongly preferred** — see below |
 | `assets/otieno-thomas.jpg` | Homepage hero, About page | Your portrait. Square-ish crop, roughly 1080 × 1080 or larger, under 400 KB |
+| `assets/favicon.png` | Browser tab icon, all pages | The logo, square, 512 × 512. See the note below |
 | `assets/cuepointe-1.png` … `-3.png` | Work page slider | Product screenshots, roughly 1600 × 1000 |
 | `assets/tonninyira-1.png` … `-3.png` | Work page slider | Product screenshots, roughly 1600 × 1000 |
 
@@ -45,6 +46,20 @@ Neither absence breaks the page. `script.js` watches for a failed load and
 degrades gracefully: the logo falls back to a styled text wordmark, and the
 portrait falls back to a branded panel carrying the image's alt text. Nobody
 ever sees a broken-image icon.
+
+### About the favicon
+
+`assets/favicon.png` is the logo, used as the browser tab icon. Export it
+**square at 512 × 512**.
+
+Crop it to the **mark only** — the speech bubble and its rays — and leave out
+the "SPEAKPOWER" wordmark and the "Articulate is key" tagline. A favicon is
+rendered at 16–32 pixels in a browser tab; at that size the wordmark is a grey
+smudge and the tagline is invisible, so keeping them only shrinks the part that
+is actually recognisable. The mark alone still reads as your logo.
+
+If you would rather use the full lockup as-is, it will work — just rename it to
+`favicon.png`. It will simply be harder to recognise in a crowded tab bar.
 
 ### About the logo background
 
@@ -74,7 +89,7 @@ becomes a harmless no-op and nothing else needs changing.
 | `robots.txt`, `sitemap.xml` | Search engine crawling and indexing |
 | `llms.txt` | Plain-language summary for AI answer engines |
 | `site.webmanifest` | Icon and install metadata |
-| `assets/favicon.svg` | Site icon — the logo mark reduced for small sizes |
+| `assets/favicon.png` | Site icon — the logo. **You still need to upload this** |
 | `assets/og-image.png` | 1200 × 630 social share card |
 | `assets/logo.png` | Header logo — **you still need to upload this** |
 | `assets/otieno-thomas.jpg` | Portrait — **you still need to upload this** |
