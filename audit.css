@@ -1,0 +1,515 @@
+/* ==========================================================================
+   SpeakPower — Message Clarity Audit
+   Loaded after styles.css.
+
+   Chart palette is validated, not eyeballed. Run from the dataviz skill:
+     node scripts/validate_palette.js "#3d6bb3,#2a8f63,#c9911a,#c94a2e" --mode light
+   All six checks pass. The amber returns a contrast WARN at 2.71:1 against the
+   surface, which obligates relief — every bar here carries a visible numeric
+   label and a status word, and a full data table is one click away, so colour
+   is never the only encoding.
+   ========================================================================== */
+
+:root {
+  --c-data:     #3d6bb3;   /* neutral magnitude */
+  --c-good:     #2a8f63;
+  --c-warning:  #c9911a;
+  --c-critical: #c94a2e;
+
+  --c-good-bg:     rgba(42, 143, 99, .10);
+  --c-warning-bg:  rgba(201, 145, 26, .12);
+  --c-critical-bg: rgba(201, 74, 46, .10);
+}
+
+/* ==========================================================================
+   INPUT
+   ========================================================================== */
+
+.audit-panel {
+  padding: clamp(1.5rem, 1.1rem + 1.6vw, 2.25rem);
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--gold);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.audit-panel textarea {
+  min-height: 190px;
+  font-size: .97rem;
+  line-height: 1.6;
+}
+
+.audit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .75rem;
+  margin-top: .25rem;
+}
+.audit-actions .btn { flex: none; }
+
+.audit-count {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: .75rem;
+  letter-spacing: .06em;
+  color: var(--text-faint);
+}
+.audit-count[data-ready="true"] { color: var(--c-good); }
+
+.audit-privacy {
+  margin-top: 1.1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+  font-size: .8rem;
+  line-height: 1.6;
+  color: var(--text-faint);
+}
+
+/* ==========================================================================
+   SCORE — a hero number, not a chart. One value has no shape to plot.
+   ========================================================================== */
+
+.score-block {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: .5rem 1.75rem;
+  padding-bottom: 1.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.score-number {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(3.5rem, 2.5rem + 4vw, 6rem);
+  font-weight: 600;
+  font-variation-settings: "opsz" 120;
+  line-height: .9;
+  letter-spacing: -.04em;
+  font-variant-numeric: tabular-nums;
+}
+.score-number[data-level="good"]     { color: var(--c-good); }
+.score-number[data-level="warning"]  { color: var(--c-warning); }
+.score-number[data-level="critical"] { color: var(--c-critical); }
+
+.score-meta { min-width: 0; }
+.score-verdict {
+  margin: 0 0 .2rem;
+  font-family: var(--font-display);
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  color: var(--ink);
+}
+.score-note {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: .75rem;
+  letter-spacing: .05em;
+  color: var(--text-faint);
+}
+
+/* ==========================================================================
+   STAT TILES
+   ========================================================================== */
+
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+  gap: 1px;
+  margin-top: 1.75rem;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.tile { padding: 1.1rem 1.25rem; background: var(--bg-raised); }
+
+.tile-label {
+  margin: 0 0 .5rem;
+  font-family: var(--font-mono);
+  font-size: .68rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  line-height: 1.5;
+}
+.tile-value {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.85rem;
+  font-weight: 600;
+  font-variation-settings: "opsz" 48;
+  line-height: 1;
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+}
+.tile[data-level="good"]     .tile-value { color: var(--c-good); }
+.tile[data-level="warning"]  .tile-value { color: var(--c-warning); }
+.tile[data-level="critical"] .tile-value { color: var(--c-critical); }
+
+.tile-target {
+  margin: .4rem 0 0;
+  font-family: var(--font-mono);
+  font-size: .68rem;
+  color: var(--text-faint);
+}
+
+/* ==========================================================================
+   CHART SHELL
+   ========================================================================== */
+
+.chart {
+  margin-top: clamp(2rem, 1.5rem + 1.6vw, 3rem);
+}
+.chart-title {
+  margin: 0 0 .3rem;
+  font-family: var(--font-display);
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  font-variation-settings: "opsz" 30;
+  letter-spacing: -.01em;
+}
+.chart-sub {
+  margin: 0 0 1.4rem;
+  font-size: .9rem;
+  color: var(--text-muted);
+  max-width: 60ch;
+}
+
+/* --- Histogram ---------------------------------------------------------- */
+
+.hist {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;              /* 2px surface gap between adjacent fills */
+  align-items: end;
+  height: 210px;
+  padding-bottom: 0;
+}
+
+.hist-col {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  align-items: end;
+  height: 100%;
+  min-width: 0;
+}
+
+.hist-value {
+  font-family: var(--font-mono);
+  font-size: .73rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  padding-bottom: .35rem;
+}
+
+.hist-bar-wrap {
+  display: flex;
+  align-items: flex-end;
+  height: 100%;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+/* Rounded data-end only, anchored to the baseline. */
+.hist-bar {
+  width: 100%;
+  min-height: 2px;
+  background: var(--c-data);
+  border-radius: 4px 4px 0 0;
+  transition: background-color .16s var(--ease);
+}
+/* The target band is the point of the chart, so it is marked on the mark
+   itself rather than left to the reader to infer from the axis. */
+.hist-bar[data-ideal="false"] { background: #b9c6db; }
+
+.hist-label {
+  padding-top: .5rem;
+  font-family: var(--font-mono);
+  font-size: .68rem;
+  text-align: center;
+  color: var(--text-faint);
+}
+
+.hist-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem 1.25rem;
+  margin-top: 1rem;
+  font-family: var(--font-mono);
+  font-size: .7rem;
+  color: var(--text-faint);
+}
+.hist-key span { display: inline-flex; align-items: center; gap: .45rem; }
+.hist-key i {
+  width: 10px; height: 10px;
+  border-radius: 2px;
+  flex: none;
+}
+.hist-key .k-ideal { background: var(--c-data); }
+.hist-key .k-other { background: #b9c6db; }
+
+/* --- Horizontal diagnostic bars ----------------------------------------- */
+
+.bars { display: grid; gap: .9rem; }
+
+.bar-row {
+  display: grid;
+  grid-template-columns: minmax(0, 9.5rem) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+}
+
+.bar-label { margin: 0; font-size: .92rem; color: var(--text); }
+
+.bar-track {
+  position: relative;
+  height: 12px;
+  background: var(--paper-2);
+  border-radius: 6px;
+  overflow: visible;
+}
+
+.bar-fill {
+  height: 100%;
+  min-width: 3px;
+  border-radius: 6px;
+  transition: width .5s var(--ease);
+}
+.bar-fill[data-level="good"]     { background: var(--c-good); }
+.bar-fill[data-level="warning"]  { background: var(--c-warning); }
+.bar-fill[data-level="critical"] { background: var(--c-critical); }
+
+/* Bars are plotted as a ratio to their own threshold on a 0–3x axis, so the
+   threshold line sits at one third across for every row. */
+.bar-threshold {
+  position: absolute;
+  top: -5px; bottom: -5px;
+  left: 33.333%;
+  width: 2px;
+  background: var(--ink);
+  opacity: .38;
+}
+
+/* Off-scale: a notched end, so a clamped bar cannot be misread as "exactly
+   at maximum". The numeric label carries the real multiple alongside it. */
+.bar-fill[data-over="true"] {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 50%, calc(100% - 6px) 100%, 0 100%);
+}
+
+.bar-axis {
+  display: grid;
+  grid-template-columns: minmax(0, 9.5rem) minmax(0, 1fr) auto;
+  gap: 1rem;
+  margin-top: .35rem;
+}
+.bar-axis-scale {
+  grid-column: 2;
+  position: relative;
+  height: 1rem;
+  font-family: var(--font-mono);
+  font-size: .64rem;
+  color: var(--text-faint);
+}
+.bar-axis-scale span { position: absolute; top: 0; transform: translateX(-50%); }
+.bar-axis-scale .a0   { left: 0; transform: none; }
+.bar-axis-scale .a1   { left: 33.333%; }
+.bar-axis-scale .a3   { right: 0; transform: none; }
+
+.bar-value {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  margin: 0;
+  white-space: nowrap;
+}
+.bar-num {
+  font-family: var(--font-mono);
+  font-size: .82rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.bar-status {
+  padding: .15rem .5rem;
+  border-radius: 100px;
+  font-family: var(--font-mono);
+  font-size: .64rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.bar-status.good     { background: var(--c-good-bg);     color: #1c6647; }
+.bar-status.warning  { background: var(--c-warning-bg);  color: #8a6210; }
+.bar-status.critical { background: var(--c-critical-bg); color: #96361f; }
+
+/* ==========================================================================
+   FINDINGS
+   ========================================================================== */
+
+.findings { display: grid; gap: .85rem; }
+
+.finding {
+  padding: 1.1rem 1.25rem;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line-strong);
+  border-radius: var(--radius);
+}
+.finding[data-level="good"]     { border-left-color: var(--c-good); }
+.finding[data-level="warning"]  { border-left-color: var(--c-warning); }
+.finding[data-level="critical"] { border-left-color: var(--c-critical); }
+
+.finding-title {
+  margin: 0 0 .35rem;
+  font-family: var(--font-sans);
+  font-size: .95rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.finding-body { margin: 0; font-size: .93rem; color: var(--text-muted); }
+
+/* ==========================================================================
+   DATA TABLE — the relief the contrast WARN obligates
+   ========================================================================== */
+
+.table-wrap { margin-top: 1.25rem; overflow-x: auto; }
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .87rem;
+}
+.data-table caption {
+  padding-bottom: .75rem;
+  font-family: var(--font-mono);
+  font-size: .7rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  text-align: left;
+}
+.data-table th, .data-table td {
+  padding: .55rem .75rem;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+.data-table thead th {
+  font-family: var(--font-mono);
+  font-size: .68rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  border-bottom-color: var(--line-strong);
+}
+.data-table tbody th { font-weight: 500; color: var(--text-muted); }
+.data-table tbody td {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.table-toggle {
+  margin-top: 1.25rem;
+  padding: .5rem .9rem;
+  background: none;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: .72rem;
+  letter-spacing: .06em;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color .16s var(--ease), color .16s var(--ease);
+}
+.table-toggle:hover { border-color: var(--navy); color: var(--ink); }
+
+/* ==========================================================================
+   METHOD — the formulas, shown rather than claimed
+   ========================================================================== */
+
+.method {
+  padding: clamp(1.5rem, 1.1rem + 1.6vw, 2.25rem);
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+
+.formula {
+  margin: 0 0 1rem;
+  padding: 1rem 1.1rem;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: .8rem;
+  line-height: 1.8;
+  color: var(--ink);
+  overflow-x: auto;
+  white-space: pre;
+  max-width: none;
+}
+.formula b { color: var(--gold-text); font-weight: 500; }
+
+.weights {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1.25rem;
+  font-size: .88rem;
+}
+.weights th, .weights td {
+  padding: .5rem .6rem;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+.weights thead th {
+  font-family: var(--font-mono);
+  font-size: .66rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.weights td:last-child, .weights th:last-child {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.citation {
+  margin-top: 1.5rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--line-strong);
+  font-size: .8rem;
+  line-height: 1.7;
+  color: var(--text-faint);
+}
+.citation p { margin: 0 0 .4rem; max-width: none; }
+
+/* ==========================================================================
+   RESPONSIVE
+   ========================================================================== */
+
+@media (max-width: 720px) {
+  .bar-row {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "label value"
+      "track track";
+    gap: .5rem .75rem;
+  }
+  .bar-label { grid-area: label; }
+  .bar-value { grid-area: value; }
+  .bar-track { grid-area: track; }
+
+  .hist { height: 170px; }
+  .hist-label { font-size: .6rem; }
+}
+
+@media (max-width: 460px) {
+  .audit-count { margin-left: 0; width: 100%; }
+}

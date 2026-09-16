@@ -86,6 +86,7 @@ becomes a harmless no-op and nothing else needs changing.
 | `home.css` / `services.css` / `about.css` / `contact.css` | Per-page layout |
 | `script.js` | Nav, POLSSE accordion, image fallback, forms, scroll reveal |
 | `work.html` / `work.css` | CuePointe and Tonninyira case studies |
+| `audit.html` / `audit.css` / `audit.js` | Message Clarity Audit — the free diagnostic tool |
 | `robots.txt`, `sitemap.xml` | Search engine crawling and indexing |
 | `llms.txt` | Plain-language summary for AI answer engines |
 | `site.webmanifest` | Icon and install metadata |
@@ -180,6 +181,26 @@ Fonts. If you ever need the site to load without external requests, the fallback
 stacks in `--font-display` and `--font-sans` already degrade cleanly.
 
 ---
+
+## The Message Clarity Audit
+
+`audit.html` is a working diagnostic, not a lead-capture form dressed up as one.
+It scores pasted text on six published measures and shows the formulas.
+
+**It runs entirely in the browser.** No server, no upload, no storage — which is
+why it can live on static hosting, and why the page can honestly promise that
+nothing a visitor pastes ever leaves their machine. Do not "improve" this by
+posting the text anywhere; the privacy claim on the page is load-bearing.
+
+The scoring rubric lives in one place, `WEIGHTS` at the top of the scoring
+section in `audit.js`, and is mirrored in the weights table on the page. **Change
+one and change the other**, or the site is publishing a method it does not use.
+
+Chart colours are validated, not chosen by eye. The palette
+`#3d6bb3, #2a8f63, #c9911a, #c94a2e` passes all six checks on a light surface.
+The amber returns a contrast warning at 2.71:1, which is why every bar carries a
+visible number and a status word, and why the data table exists. If you change a
+colour, re-run the validator rather than trusting your eye.
 
 ## The slider
 
