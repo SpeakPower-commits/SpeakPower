@@ -1,156 +1,78 @@
 /* ==========================================================================
    SpeakPower — work / products page
-   Loaded after styles.css. Covers: case study blocks, stack tags, fill-in
-   markers, proof summary.
+   Loaded after styles.css. Covers: the venture list and the proof summary.
    ========================================================================== */
 
 /* ==========================================================================
-   CASE STUDY
+   VENTURE LIST
+
+   Deliberately the smallest thing that does the job: a clickable logo and one
+   sentence. Everything a visitor needs to decide whether to click is in the
+   logo and that sentence; a stack list and a status badge are things I find
+   interesting, not things a client is deciding on.
    ========================================================================== */
 
-.case {
-  padding-block: clamp(2.5rem, 1.8rem + 2.6vw, 4.5rem);
-  border-top: 1px solid var(--line);
+.work-list {
+  display: grid;
+  gap: 1rem;
 }
-.case:last-of-type { border-bottom: 1px solid var(--line); }
 
-.case-head {
+.work-item {
   display: flex;
-  flex-wrap: wrap;
-  /* Centred rather than baseline-aligned, because the head now leads with a
-     logo tile that has no text baseline to align to. */
   align-items: center;
-  gap: .75rem 1.25rem;
-  margin-bottom: 1.25rem;
+  gap: clamp(1.1rem, .8rem + 1.4vw, 2rem);
+  padding: clamp(1.1rem, .9rem + 1vw, 1.75rem);
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  text-decoration: none;
+  color: inherit;
+  transition: transform .2s var(--ease), box-shadow .2s var(--ease),
+              border-color .2s var(--ease);
+}
+.work-item:hover {
+  transform: translateY(-3px);
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-md);
+  color: inherit;
 }
 
-/* The shared .logo-tile is sized and shadowed for the navy band on the
-   homepage. On this light page it wants to be smaller and to cast a much
-   lighter shadow. */
-.logo-tile.case-logo {
-  width: 72px;
-  height: 72px;
-  padding: 5px;
-  border-radius: 13px;
-  box-shadow: inset 0 0 0 1px rgba(19, 28, 46, .1), var(--shadow-md);
+/* The shared .logo-tile carries a heavy shadow sized for the navy band on the
+   homepage. Against this light card it wants a hairline instead. */
+.logo-tile.work-logo {
+  width: clamp(76px, 62px + 4vw, 104px);
+  height: clamp(76px, 62px + 4vw, 104px);
+  padding: 6px;
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 1px rgba(19, 28, 46, .1);
 }
-.logo-tile.case-logo:hover {
-  box-shadow: inset 0 0 0 1px rgba(201, 162, 39, .55), var(--shadow-md);
-}
-
-.case-name {
-  margin: 0;
-  font-size: clamp(1.7rem, 1.3rem + 1.7vw, 2.4rem);
-  letter-spacing: -.022em;
+.work-item:hover .logo-tile.work-logo {
+  transform: none;
+  box-shadow: inset 0 0 0 1px rgba(201, 162, 39, .55);
 }
 
-.case-status {
-  padding: .3rem .7rem;
-  background: var(--paper-2);
-  border: 1px solid var(--line-strong);
-  border-radius: 100px;
-  font-family: var(--font-mono);
-  font-size: .68rem;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-  color: var(--text-muted);
+.work-text { min-width: 0; }
+
+.work-name {
+  margin: 0 0 .3rem;
+  font-size: clamp(1.3rem, 1.1rem + .9vw, 1.7rem);
+  letter-spacing: -.024em;
 }
-.case-status--live {
-  background: rgba(30, 92, 73, .1);
-  border-color: rgba(30, 92, 73, .3);
-  color: #1a5240;
-}
-
-.case-summary {
-  font-size: var(--fs-lede);
-  line-height: 1.55;
-  color: var(--text);
-  max-width: 56ch;
-  margin-bottom: 2rem;
-}
-
-/* --- The three-column breakdown ---------------------------------------- */
-
-.case-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: clamp(1.5rem, 1.1rem + 1.6vw, 2.75rem);
-}
-
-/* Explicit tracks rather than auto-fit: four blocks against an auto-fit grid
-   resolve to three columns and orphan the fourth on its own row. Two-up, then
-   four-up, keeps every row full and reads as a spec sheet. */
-/* Two columns, not four. Each case now carries two blocks — what I do here,
-   and the stack — so a four-column track would leave half the row empty. */
-@media (min-width: 620px) { .case-grid { grid-template-columns: repeat(2, 1fr); } }
-
-.case-block h4 {
-  margin-bottom: .6rem;
-  padding-bottom: .6rem;
-  border-bottom: 2px solid var(--gold);
-  font-family: var(--font-mono);
-  font-size: .71rem;
-  font-weight: 500;
-  letter-spacing: .12em;
-  text-transform: uppercase;
+.work-go {
+  margin-left: .1em;
+  font-size: .62em;
   color: var(--gold-text);
+  transition: transform .2s var(--ease);
+  display: inline-block;
 }
-.case-block p { color: var(--text-muted); font-size: .97rem; margin: 0; }
+.work-item:hover .work-go { transform: translate(2px, -2px); }
 
-.case-block ul {
+.work-desc {
   margin: 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: .55rem;
-}
-.case-block li {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: .7rem;
-  align-items: start;
-  font-size: .95rem;
+  font-size: 1rem;
   color: var(--text-muted);
-}
-.case-block li::before {
-  content: "";
-  width: 5px; height: 5px;
-  margin-top: .66em;
-  border-radius: 50%;
-  background: var(--gold);
-  flex: none;
-}
-
-/* --- Stack tags --------------------------------------------------------- */
-
-/* Scoped to .case-block so it outranks `.case-block ul { display: grid }`,
-   which is one class more specific than a bare .case-stack and was silently
-   turning these pills into full-width grid rows. */
-.case-block ul.case-stack {
-  display: flex;
-  flex-wrap: wrap;
-  gap: .4rem;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.case-stack li {
-  display: block;
-  padding: .28rem .65rem;
-  background: var(--navy);
-  border-radius: 100px;
-  font-family: var(--font-mono);
-  font-size: .68rem;
-  letter-spacing: .04em;
-  color: #e8ecf4;
-}
-.case-stack li::before { display: none; }
-
-.case-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: .75rem;
-  margin-top: 2rem;
+  max-width: 52ch;
 }
 
 /* ==========================================================================
@@ -172,7 +94,6 @@
    RESPONSIVE
    ========================================================================== */
 
-@media (max-width: 520px) {
-  .case-head { gap: .5rem; }
-  .case-actions .btn { width: 100%; }
+@media (max-width: 480px) {
+  .work-item { flex-direction: column; align-items: flex-start; }
 }

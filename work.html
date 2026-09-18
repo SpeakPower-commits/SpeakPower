@@ -77,121 +77,42 @@
     </div>
   </div>
 
-  <section style="padding-bottom:0;">
+  <section>
     <div class="wrap">
+      <div class="work-list" data-reveal>
 
-      <!-- ====================================================================
-           CASE 1 — CuePointe
-           ==================================================================== -->
-      <article class="case" data-reveal>
-        <div class="case-head">
-          <a class="logo-tile case-logo" style="--tile:#ffffcb"
-             href="https://github.com/SpeakPower-commits/CuePointe.github.io"
+        <!-- The whole card is one link, so the logo, the name and the sentence
+             are all the same target. One link rather than three stacked ones
+             also stops a screen reader announcing the same destination twice. -->
+        <article>
+          <a class="work-item" href="https://github.com/SpeakPower-commits/CuePointe.github.io"
              target="_blank" rel="noopener">
-            <img src="assets/cuepointe-logo.webp" alt="CuePointe &mdash; empowering talent"
-                 width="320" height="320" loading="lazy">
+            <span class="logo-tile work-logo" style="--tile:#ffffcb">
+              <img src="assets/cuepointe-logo.webp" alt="CuePointe"
+                   width="320" height="320" loading="lazy">
+            </span>
+            <span class="work-text">
+              <h2 class="work-name">CuePointe <span class="work-go" aria-hidden="true">&#8599;</span></h2>
+              <p class="work-desc">A marketing agency for Uganda's cuesports scene.</p>
+            </span>
           </a>
-          <h2 class="case-name">CuePointe</h2>
-          <span class="case-status case-status--live">Live</span>
-        </div>
+        </article>
 
-        <p class="case-summary">
-          A marketing agency built around one sport. Cuesports in Uganda is a real
-          scene with real talent and almost no commercial infrastructure &mdash; so I
-          built the infrastructure rather than writing a report recommending it.
-        </p>
-
-        <div class="case-grid">
-          <div class="case-block">
-            <h4>What I do here</h4>
-            <ul>
-              <li>Positioning and the market case for the sport</li>
-              <li>The platform &mdash; design and code</li>
-              <li>The marketing that runs on it</li>
-            </ul>
-          </div>
-
-          <div class="case-block">
-            <h4>Stack</h4>
-            <ul class="case-stack">
-              <li>HTML / CSS / JavaScript</li>
-              <li>GitHub Pages</li>
-              <li>GitHub Contents API</li>
-              <li>Browser-only build</li>
-            </ul>
-          </div>
-        </div>
-
-        <!-- To add screenshots later, paste a slider here — the component is in
-             styles.css and script.js generates the arrows and dots:
-
-               <div class="slider" data-slider aria-label="CuePointe screenshots">
-                 <div class="slider-track">
-                   <figure class="slide">
-                     <img src="assets/cuepointe-1.png" alt="Describe the screen"
-                          width="1600" height="1000" loading="lazy">
-                     <figcaption>What this screen shows</figcaption>
-                   </figure>
-                 </div>
-               </div>
-        -->
-
-        <div class="case-actions">
-          <a class="btn btn-ghost" href="https://github.com/SpeakPower-commits/CuePointe.github.io" target="_blank" rel="noopener">View the build &#8599;</a>
-        </div>
-      </article>
-
-      <!-- ====================================================================
-           CASE 2 — Tonninyira
-           ==================================================================== -->
-      <article class="case" data-reveal>
-        <div class="case-head">
-          <a class="logo-tile case-logo" style="--tile:#ffffff"
-             href="https://github.com/SpeakPower-commits/tonninyira/tree/main"
+        <article>
+          <a class="work-item" href="https://github.com/SpeakPower-commits/tonninyira/tree/main"
              target="_blank" rel="noopener">
-            <img src="assets/tonninyira-logo.webp" alt="Tonninyira &mdash; bringing local vendors to your doorstep"
-                 width="320" height="320" loading="lazy">
+            <span class="logo-tile work-logo" style="--tile:#ffffff">
+              <img src="assets/tonninyira-logo.webp" alt="Tonninyira"
+                   width="320" height="320" loading="lazy">
+            </span>
+            <span class="work-text">
+              <h2 class="work-name">Tonninyira <span class="work-go" aria-hidden="true">&#8599;</span></h2>
+              <p class="work-desc">An online marketing app bringing local vendors to your doorstep.</p>
+            </span>
           </a>
-          <h2 class="case-name">Tonninyira</h2>
-          <span class="case-status case-status--live">Live</span>
-        </div>
+        </article>
 
-        <p class="case-summary">
-          Bringing local vendors to your doorstep. An online marketing application
-          that puts the traders nearest you in front of the people already looking
-          for them &mdash; positioning, interface and code by the same hand, so nothing
-          was lost in a handover.
-        </p>
-
-        <div class="case-grid">
-          <div class="case-block">
-            <h4>What I do here</h4>
-            <ul>
-              <li>Positioning, and who the app is actually for</li>
-              <li>The application &mdash; design and code</li>
-              <li>The marketing that brings vendors and buyers to it</li>
-            </ul>
-          </div>
-
-          <div class="case-block">
-            <h4>Stack</h4>
-            <ul class="case-stack">
-              <li>Supabase / Postgres</li>
-              <li>Single-file HTML / CSS / JS front end</li>
-              <li>GitHub Pages</li>
-              <li>Browser-only build</li>
-            </ul>
-          </div>
-        </div>
-
-        <!-- Screenshots go here when you have them — see the slider snippet in
-             the CuePointe block above. -->
-
-        <div class="case-actions">
-          <a class="btn btn-ghost" href="https://github.com/SpeakPower-commits/tonninyira/tree/main" target="_blank" rel="noopener">View the build &#8599;</a>
-        </div>
-      </article>
-
+      </div>
     </div>
   </section>
 
@@ -212,14 +133,6 @@
 
       <div class="gallery" data-reveal>
 
-        <!-- To fill a photo slot: upload the image, then replace the
-             <div class="media-frame slot"> ... </div> with
-
-               <div class="media-frame">
-                 <img src="assets/speaking-1.jpg" alt="Describe what is happening"
-                      width="1600" height="1000" loading="lazy">
-               </div>
-        -->
         <figure class="media-tile">
           <div class="media-frame slot">
             <span class="slot-ico" aria-hidden="true">&#9635;</span>
@@ -234,19 +147,6 @@
           </figcaption>
         </figure>
 
-        <!-- To fill a video slot: upload the clip and a still frame, then
-             replace the <div class="media-frame slot"> ... </div> with
-
-               <div class="media-frame">
-                 <video controls preload="none" playsinline
-                        poster="assets/clip-1.jpg" width="1600" height="1000">
-                   <source src="assets/clip-1.mp4" type="video/mp4">
-                   Your browser cannot play this clip.
-                 </video>
-               </div>
-
-             preload="none" matters: without it every visitor downloads the
-             video whether they press play or not. -->
         <figure class="media-tile">
           <div class="media-frame slot">
             <span class="slot-ico" aria-hidden="true">&#9654;</span>
@@ -261,34 +161,6 @@
           </figcaption>
         </figure>
 
-        <figure class="media-tile">
-          <div class="media-frame slot">
-            <span class="slot-ico" aria-hidden="true">&#9635;</span>
-            <span class="slot-what">Photograph</span>
-            <span class="slot-name">assets/workshop-1.jpg</span>
-            <span class="slot-note">1600 &times; 1000 &middot; under 400 KB</span>
-          </div>
-          <figcaption class="media-cap">
-            <span class="media-kind">Photo</span>
-            <h3>A workshop or audit session in progress</h3>
-            <p>Shows the consulting work rather than the stage. Different buyer, different proof.</p>
-          </figcaption>
-        </figure>
-
-        <figure class="media-tile">
-          <div class="media-frame slot">
-            <span class="slot-ico" aria-hidden="true">&#9654;</span>
-            <span class="slot-what">Short video</span>
-            <span class="slot-name">assets/clip-2.mp4</span>
-            <span class="slot-note">MP4 H.264 &middot; 45&ndash;90 sec &middot; under 8 MB</span>
-          </div>
-          <figcaption class="media-cap">
-            <span class="media-kind" data-kind="video">Video</span>
-            <h3>A client saying one specific thing that changed</h3>
-            <p>A filmed sentence outperforms a written paragraph, because a face cannot be invented.</p>
-          </figcaption>
-        </figure>
-
       </div>
 
       <div class="block-head" data-reveal>
@@ -298,10 +170,6 @@
 
       <div class="quotes" data-reveal>
 
-        <!-- This first card is a TEMPLATE, not a quote. Replace the bracketed
-             text with a real sentence from a real person and delete the
-             quote--template class and the .quote-flag span. Never publish it
-             as it stands, and never invent the words. -->
         <div class="quote quote--template">
           <span class="quote-flag">Template &mdash; replace before publishing</span>
           <blockquote>[One sentence on what changed. The more specific and numeric, the better &mdash; &ldquo;we closed the round six weeks later&rdquo; beats &ldquo;very professional&rdquo;.]</blockquote>
@@ -312,18 +180,6 @@
               <span class="quote-role">[Role], [Organisation]</span>
             </span>
           </div>
-        </div>
-
-        <div class="quote slot">
-          <span class="slot-ico" aria-hidden="true">&#8220;</span>
-          <span class="slot-what">Second testimonial</span>
-          <span class="slot-note">ideally an NGO or donor-facing client</span>
-        </div>
-
-        <div class="quote slot">
-          <span class="slot-ico" aria-hidden="true">&#8220;</span>
-          <span class="slot-what">Third testimonial</span>
-          <span class="slot-note">ideally a founder or corporate team lead</span>
         </div>
 
       </div>
