@@ -36,9 +36,25 @@
 .case-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  /* Centred rather than baseline-aligned, because the head now leads with a
+     logo tile that has no text baseline to align to. */
+  align-items: center;
   gap: .75rem 1.25rem;
   margin-bottom: 1.25rem;
+}
+
+/* The shared .logo-tile is sized and shadowed for the navy band on the
+   homepage. On this light page it wants to be smaller and to cast a much
+   lighter shadow. */
+.logo-tile.case-logo {
+  width: 72px;
+  height: 72px;
+  padding: 5px;
+  border-radius: 13px;
+  box-shadow: inset 0 0 0 1px rgba(19, 28, 46, .1), var(--shadow-md);
+}
+.logo-tile.case-logo:hover {
+  box-shadow: inset 0 0 0 1px rgba(201, 162, 39, .55), var(--shadow-md);
 }
 
 .case-name {

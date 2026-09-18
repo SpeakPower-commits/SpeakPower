@@ -25,18 +25,63 @@ running them through Jekyll.
 
 ---
 
-## Two assets still needed
+## Assets still needed
 
-Neither is in the repository yet. Upload both to `assets/` with exactly these
-filenames:
+Upload each to `assets/` with exactly these filenames. Nothing here breaks the
+page if it is missing — every slot degrades to a labelled placeholder — but each
+one that lands makes the site more convincing.
 
 | File | Used by | Notes |
 |---|---|---|
 | `assets/logo.png` | Header on every page | The SpeakPower logo. **A transparent PNG is strongly preferred** — see below |
-| `assets/otieno-thomas.jpg` | Homepage hero, About page | Your portrait. Square-ish crop, roughly 1080 × 1080 or larger, under 400 KB |
+| `assets/otieno-thomas.jpg` | Homepage hero, About page | Your portrait. Roughly 1080 × 1350, under 400 KB |
 | `assets/favicon.png` | Browser tab icon, all pages | The logo, square, 512 × 512. See the note below |
+| `assets/client-1.png` | Homepage client wall | First client logo. Transparent PNG, ~400px wide |
+| `assets/speaking-1.jpg` | Work page gallery | You mid-delivery, **audience in frame**. 1600 × 1000, under 400 KB |
+| `assets/workshop-1.jpg` | Work page gallery | A workshop or audit session in progress |
+| `assets/clip-1.mp4`, `clip-2.mp4` | Work page gallery | MP4 / H.264, 45–90 seconds, under 8 MB each |
+| `assets/clip-1.jpg`, `clip-2.jpg` | Video poster frames | The still shown before play. Same 16:10 crop |
 | `assets/cuepointe-1.png` … `-3.png` | Work page slider | Product screenshots, roughly 1600 × 1000 |
 | `assets/tonninyira-1.png` … `-3.png` | Work page slider | Product screenshots, roughly 1600 × 1000 |
+
+Already in the repository, so nothing to do:
+
+| File | Used by |
+|---|---|
+| `assets/tonninyira-logo.webp` | Homepage ventures band, Work page case head |
+| `assets/cuepointe-logo.webp` | Homepage ventures band, Work page case head |
+| `assets/og-image.png` | Social share card |
+
+Both venture logos were exported at 320 × 320 from the Canva originals. WebP
+because it is roughly a third of the size of the equivalent PNG at this
+quality, and every browser released since 2020 reads it.
+
+### Adding a second client, photo, video or testimonial
+
+Each of these grids is `auto-fill` or `auto-fit` and nothing counts the tiles,
+so adding another is a copy-paste — no CSS change, no layout maths.
+
+- **A client** — in `index.html`, find `<div class="client-wall">`. Replace the
+  `<div class="client slot">` with the real markup shown in the comment directly
+  above it, and paste another `.client` block for each additional logo.
+- **A photo or video** — in `work.html`, find `<div class="gallery">`. Each
+  `<figure class="media-tile">` carries a comment showing exactly what to swap
+  the placeholder for. Keep `preload="none"` on every `<video>`: without it,
+  every visitor downloads the clip whether they press play or not.
+- **A testimonial** — in `work.html`, find `<div class="quotes">`. The first
+  card is a **template**, not a quote. Replace the bracketed text with a real
+  sentence from a real person, then delete the `quote--template` class and the
+  `<span class="quote-flag">`. Never publish it as it stands, and never invent
+  the words — a fabricated testimonial is the one reputational mistake on a
+  consultancy site that cannot be undone.
+
+### The venture links
+
+Both venture buttons currently point at a **GitHub repository**, which is source
+code rather than a running product. A founder or NGO director who clicks through
+lands on a file tree. When you have the public web address for each, replace the
+`href` values in `index.html` and `work.html` and change the label from
+"View the build" to "Visit".
 
 All images live in `assets/` — one flat folder, no sub-folders. Filenames are
 lowercase with hyphens and no spaces, because GitHub Pages is case-sensitive
@@ -185,12 +230,39 @@ stacks in `--font-display` and `--font-sans` already degrade cleanly.
 ## The Message Clarity Audit
 
 `audit.html` is a working diagnostic, not a lead-capture form dressed up as one.
-It scores pasted text on six published measures and shows the formulas.
+It scores an uploaded or pasted text on six published measures, shows the
+formulas, and routes each finding to the service that repairs it.
 
 **It runs entirely in the browser.** No server, no upload, no storage — which is
 why it can live on static hosting, and why the page can honestly promise that
-nothing a visitor pastes ever leaves their machine. Do not "improve" this by
+nothing a visitor submits ever leaves their machine. Do not "improve" this by
 posting the text anywhere; the privacy claim on the page is load-bearing.
+
+### File intake
+
+`.txt` and `.md` are read with `Blob.text()`. `.docx` is a ZIP archive, so
+`audit.js` walks its central directory to `word/document.xml` and inflates it
+with `DecompressionStream("deflate-raw")` — no library, and nothing leaves the
+machine. `.pdf` uses pdf.js, fetched from cdnjs **only when someone actually
+drops a PDF**; the file itself is still parsed locally.
+
+A scanned PDF has no text layer. That case is detected and reported as an error
+rather than scored, because a confident number computed from an empty string is
+worse than no number.
+
+### Routing
+
+Each finding carries the measure it came from, and each measure maps to a
+service in the `ROUTES` table in `audit.js`. Rows are ordered by points lost
+from the composite:
+
+    cost(k) = weight(k) × (1 − part(k)) × 100
+
+so the top row is the one worth fixing first, derived from the same rubric as
+the score rather than asserted. Two findings can share a measure — long
+sentences and a flat rhythm are both `rhythm` — and they share one cost, so the
+figure is printed once. The links point at `services.html#svc-*`; **if you
+rename those anchors, update `ROUTES` to match** or the buttons go nowhere.
 
 The scoring rubric lives in one place, `WEIGHTS` at the top of the scoring
 section in `audit.js`, and is mirrored in the weights table on the page. **Change

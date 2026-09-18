@@ -73,7 +73,7 @@
     <div class="wrap">
       <span class="eyebrow">Free tool</span>
       <h1>Message Clarity Audit</h1>
-      <p>Paste your pitch, your positioning paragraph, your grant summary or your About page. You get a measured diagnosis across six dimensions in about a second &mdash; and the formulas behind every number, so you can argue with them.</p>
+      <p>Upload your deck, proposal or grant summary &mdash; or paste the text. You get a measured diagnosis across six dimensions in about a second, the formulas behind every number so you can argue with them, and each failure routed to the service that repairs it.</p>
     </div>
   </div>
 
@@ -83,7 +83,25 @@
   <section>
     <div class="wrap wrap--narrow">
       <form class="audit-panel" id="auditForm" novalidate>
-        <label for="auditInput">Your text</label>
+
+        <!-- Upload first, paste second: decks and proposals live as files, and
+             asking someone to copy a deck into a textarea is asking them to do
+             the tool's job. Parsing happens in the browser — see audit.js. -->
+        <label class="audit-drop" id="auditDrop">
+          <span class="audit-drop-ico" aria-hidden="true">&#8593;</span>
+          <span class="audit-drop-title">Drop your deck or proposal here</span>
+          <span class="audit-drop-sub">Or click to choose a file. Read in your browser, never uploaded.</span>
+          <span class="audit-formats">
+            <span class="audit-fmt">.PDF</span>
+            <span class="audit-fmt">.DOCX</span>
+            <span class="audit-fmt">.TXT</span>
+            <span class="audit-fmt">.MD</span>
+          </span>
+          <input class="visually-hidden" type="file" id="auditFile"
+                 accept=".pdf,.docx,.txt,.md,.markdown,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+        </label>
+
+        <label for="auditInput">Or paste the text</label>
         <textarea id="auditInput" name="text" rows="9"
                   placeholder="Paste at least 30 words&#10;&#10;The opening of a pitch deck, the first paragraph of a proposal, or the summary a funder reads first all work well."></textarea>
 
@@ -97,9 +115,12 @@
 
         <p class="audit-privacy">
           <strong>Nothing leaves your browser.</strong> There is no server behind this
-          page and no analytics on this form. The text is analysed in JavaScript on
-          your own machine, is never uploaded, and is gone when you close the tab.
-          You can verify that by disconnecting from the internet and running it again.
+          page and no analytics on this form. Files are opened and read on your own
+          machine &mdash; a .docx is unzipped in JavaScript, a PDF is parsed by a reader
+          that runs locally &mdash; and neither the file nor the text is ever uploaded.
+          Everything is gone when you close the tab. You can verify that by
+          disconnecting from the internet and running it again; the only thing that
+          then fails is the PDF reader, which has to be fetched once.
         </p>
       </form>
     </div>
@@ -155,8 +176,13 @@
 
       <!-- Findings -->
       <div class="chart">
-        <h3 class="chart-title">What to do about it</h3>
-        <p class="chart-sub">Ordered by how much each one costs you.</p>
+        <h3 class="chart-title">What to do about it, and who fixes it</h3>
+        <p class="chart-sub">
+          Ordered by points lost from the composite &mdash; weight &times; (1 &minus; score)
+          for each measure &mdash; so the top row is the one worth fixing first. Each row
+          names the service that repairs it. Where two rows share one measure they also
+          share its cost, so the figure is shown once.
+        </p>
         <div class="findings" id="findingHost"></div>
       </div>
 

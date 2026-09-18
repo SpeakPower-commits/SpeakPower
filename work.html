@@ -85,6 +85,12 @@
            ==================================================================== -->
       <article class="case" data-reveal>
         <div class="case-head">
+          <a class="logo-tile case-logo" style="--tile:#ffffcb"
+             href="https://github.com/SpeakPower-commits/CuePointe.github.io"
+             target="_blank" rel="noopener">
+            <img src="assets/cuepointe-logo.webp" alt="CuePointe &mdash; empowering talent"
+                 width="320" height="320" loading="lazy">
+          </a>
           <h2 class="case-name">CuePointe</h2>
           <span class="case-status">Status: <span class="todo">live / in beta / internal</span></span>
         </div>
@@ -142,7 +148,8 @@
           </div>
         </div>
         <div class="case-actions">
-          <a class="btn btn-ghost" href="#" aria-disabled="true">Visit CuePointe <span class="todo">add URL</span></a>
+          <a class="btn btn-ghost" href="https://github.com/SpeakPower-commits/CuePointe.github.io" target="_blank" rel="noopener">View the build &#8599;</a>
+          <span class="todo">Add the public web address, then change this button to &ldquo;Visit CuePointe&rdquo;</span>
         </div>
       </article>
 
@@ -151,6 +158,12 @@
            ==================================================================== -->
       <article class="case" data-reveal>
         <div class="case-head">
+          <a class="logo-tile case-logo" style="--tile:#ffffff"
+             href="https://github.com/SpeakPower-commits/tonninyira/tree/main"
+             target="_blank" rel="noopener">
+            <img src="assets/tonninyira-logo.webp" alt="Tonninyira &mdash; bringing local vendors to your doorstep"
+                 width="320" height="320" loading="lazy">
+          </a>
           <h2 class="case-name">Tonninyira</h2>
           <span class="case-status">Status: <span class="todo">live / in beta / internal</span></span>
         </div>
@@ -208,10 +221,154 @@
           </div>
         </div>
         <div class="case-actions">
-          <a class="btn btn-ghost" href="#" aria-disabled="true">Visit Tonninyira <span class="todo">add URL</span></a>
+          <a class="btn btn-ghost" href="https://github.com/SpeakPower-commits/tonninyira/tree/main" target="_blank" rel="noopener">View the build &#8599;</a>
+          <span class="todo">Add the public web address, then change this button to &ldquo;Visit Tonninyira&rdquo;</span>
         </div>
       </article>
 
+    </div>
+  </section>
+
+  <!-- ======================================================================
+       IN THE ROOM — photographs, short video, testimonials
+
+       Every panel below is a live component waiting on a file. The filename
+       under each slot is exactly what to upload to assets/; swapping the slot
+       for the real markup is documented inline and in README.md.
+       ====================================================================== -->
+  <section id="proof">
+    <div class="wrap">
+      <div class="section-head" data-reveal>
+        <span class="eyebrow">In the room</span>
+        <h2>Photographs, short video, and what people said afterwards.</h2>
+        <p>Speaking work is judged on evidence of speaking. A product screenshot proves I can build; only this proves I can stand up and land it.</p>
+      </div>
+
+      <div class="gallery" data-reveal>
+
+        <!-- To fill a photo slot: upload the image, then replace the
+             <div class="media-frame slot"> ... </div> with
+
+               <div class="media-frame">
+                 <img src="assets/speaking-1.jpg" alt="Describe what is happening"
+                      width="1600" height="1000" loading="lazy">
+               </div>
+        -->
+        <figure class="media-tile">
+          <div class="media-frame slot">
+            <span class="slot-ico" aria-hidden="true">&#9635;</span>
+            <span class="slot-what">Photograph</span>
+            <span class="slot-name">assets/speaking-1.jpg</span>
+            <span class="slot-note">1600 &times; 1000 &middot; under 400 KB</span>
+          </div>
+          <figcaption class="media-cap">
+            <span class="media-kind">Photo</span>
+            <h3>Mid-delivery, with an audience in frame</h3>
+            <p>The single most valuable image on the site. A lectern shot with no audience proves nothing.</p>
+          </figcaption>
+        </figure>
+
+        <!-- To fill a video slot: upload the clip and a still frame, then
+             replace the <div class="media-frame slot"> ... </div> with
+
+               <div class="media-frame">
+                 <video controls preload="none" playsinline
+                        poster="assets/clip-1.jpg" width="1600" height="1000">
+                   <source src="assets/clip-1.mp4" type="video/mp4">
+                   Your browser cannot play this clip.
+                 </video>
+               </div>
+
+             preload="none" matters: without it every visitor downloads the
+             video whether they press play or not. -->
+        <figure class="media-tile">
+          <div class="media-frame slot">
+            <span class="slot-ico" aria-hidden="true">&#9654;</span>
+            <span class="slot-what">Short video</span>
+            <span class="slot-name">assets/clip-1.mp4</span>
+            <span class="slot-note">MP4 H.264 &middot; 45&ndash;90 sec &middot; under 8 MB</span>
+          </div>
+          <figcaption class="media-cap">
+            <span class="media-kind" data-kind="video">Video</span>
+            <h3>Ninety seconds of me actually speaking</h3>
+            <p>Add <span class="slot-name">assets/clip-1.jpg</span> as the still frame, so nothing downloads until someone presses play.</p>
+          </figcaption>
+        </figure>
+
+        <figure class="media-tile">
+          <div class="media-frame slot">
+            <span class="slot-ico" aria-hidden="true">&#9635;</span>
+            <span class="slot-what">Photograph</span>
+            <span class="slot-name">assets/workshop-1.jpg</span>
+            <span class="slot-note">1600 &times; 1000 &middot; under 400 KB</span>
+          </div>
+          <figcaption class="media-cap">
+            <span class="media-kind">Photo</span>
+            <h3>A workshop or audit session in progress</h3>
+            <p>Shows the consulting work rather than the stage. Different buyer, different proof.</p>
+          </figcaption>
+        </figure>
+
+        <figure class="media-tile">
+          <div class="media-frame slot">
+            <span class="slot-ico" aria-hidden="true">&#9654;</span>
+            <span class="slot-what">Short video</span>
+            <span class="slot-name">assets/clip-2.mp4</span>
+            <span class="slot-note">MP4 H.264 &middot; 45&ndash;90 sec &middot; under 8 MB</span>
+          </div>
+          <figcaption class="media-cap">
+            <span class="media-kind" data-kind="video">Video</span>
+            <h3>A client saying one specific thing that changed</h3>
+            <p>A filmed sentence outperforms a written paragraph, because a face cannot be invented.</p>
+          </figcaption>
+        </figure>
+
+      </div>
+
+      <div class="block-head" data-reveal>
+        <h3>What people said</h3>
+        <p>Named, with a role and an organisation. An anonymous quote reads as one you wrote yourself.</p>
+      </div>
+
+      <div class="quotes" data-reveal>
+
+        <!-- This first card is a TEMPLATE, not a quote. Replace the bracketed
+             text with a real sentence from a real person and delete the
+             quote--template class and the .quote-flag span. Never publish it
+             as it stands, and never invent the words. -->
+        <div class="quote quote--template">
+          <span class="quote-flag">Template &mdash; replace before publishing</span>
+          <blockquote>[One sentence on what changed. The more specific and numeric, the better &mdash; &ldquo;we closed the round six weeks later&rdquo; beats &ldquo;very professional&rdquo;.]</blockquote>
+          <div class="quote-who">
+            <span class="quote-face" aria-hidden="true">?</span>
+            <span>
+              <span class="quote-name">[Full name]</span>
+              <span class="quote-role">[Role], [Organisation]</span>
+            </span>
+          </div>
+        </div>
+
+        <div class="quote slot">
+          <span class="slot-ico" aria-hidden="true">&#8220;</span>
+          <span class="slot-what">Second testimonial</span>
+          <span class="slot-note">ideally an NGO or donor-facing client</span>
+        </div>
+
+        <div class="quote slot">
+          <span class="slot-ico" aria-hidden="true">&#8220;</span>
+          <span class="slot-what">Third testimonial</span>
+          <span class="slot-note">ideally a founder or corporate team lead</span>
+        </div>
+
+      </div>
+
+      <p class="note-line">
+        <strong>How to actually get these.</strong> Ask within 48 hours of the work
+        landing, while the result is still fresh, and ask a narrow question rather
+        than &ldquo;would you write me a testimonial?&rdquo; &mdash; try
+        <em>&ldquo;what were you able to do after the session that you couldn't do
+        before?&rdquo;</em> You get a usable sentence instead of a paragraph of politeness.
+      </p>
     </div>
   </section>
 

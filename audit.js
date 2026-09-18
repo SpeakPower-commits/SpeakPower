@@ -240,6 +240,7 @@
 
     if (m.flesch < 50) {
       out.push({
+        measure: "readability",
         level: "critical",
         title: "Hard to read",
         body: "Flesch Reading Ease is " + m.flesch.toFixed(0) + ". Below 50 means a "
@@ -248,6 +249,7 @@
       });
     } else if (m.flesch > 70) {
       out.push({
+        measure: "readability",
         level: "warning",
         title: "Very plain",
         body: "Flesch Reading Ease is " + m.flesch.toFixed(0) + ". That reads easily, "
@@ -258,6 +260,7 @@
 
     if (m.meanLength > 20) {
       out.push({
+        measure: "rhythm",
         level: "warning",
         title: "Sentences are long",
         body: "Averaging " + m.meanLength.toFixed(1) + " words. Above 20, retention "
@@ -268,6 +271,7 @@
 
     if (m.stdev < 5) {
       out.push({
+        measure: "rhythm",
         level: "warning",
         title: "Flat rhythm",
         body: "Sentence lengths vary by only " + m.stdev.toFixed(1) + " words. Uniform "
@@ -278,6 +282,7 @@
 
     if (m.passiveRate > 10) {
       out.push({
+        measure: "passive",
         level: m.passiveRate > 25 ? "critical" : "warning",
         title: "Passive voice",
         body: m.counts.passive + " passive construction" + (m.counts.passive === 1 ? "" : "s")
@@ -288,6 +293,7 @@
 
     if (m.hedgeRate > 1.5) {
       out.push({
+        measure: "hedging",
         level: "critical",
         title: "Hedging",
         body: m.counts.hedge + " hedge word" + (m.counts.hedge === 1 ? "" : "s")
@@ -299,6 +305,7 @@
 
     if (m.jargonRate > 1.0) {
       out.push({
+        measure: "jargon",
         level: "warning",
         title: "Category jargon",
         body: m.counts.jargon + " term" + (m.counts.jargon === 1 ? "" : "s")
@@ -309,6 +316,7 @@
 
     if (m.nominalRate > 8) {
       out.push({
+        measure: "nominal",
         level: "warning",
         title: "Abstract nouns",
         body: m.counts.nominal + " nominalisations (" + m.nominalRate.toFixed(1)
@@ -319,6 +327,7 @@
 
     if (m.evidenceRate < 1) {
       out.push({
+        measure: "evidence",
         level: m.evidenceRate === 0 ? "critical" : "warning",
         title: "No evidence",
         body: m.counts.figures === 0
@@ -331,6 +340,7 @@
 
     if (!out.length) {
       out.push({
+        measure: null,
         level: "good",
         title: "Nothing structural to fix",
         body: "This passes every threshold in the rubric. The remaining questions are "
@@ -519,15 +529,77 @@
     });
   }
 
+  /* ------------------------------------------------------------------------
+     Routing
+
+     Every measure belongs to the service that repairs it, so a finding is not
+     just a complaint — it names the next step. Ordering is by points lost from
+     the composite rather than by severity label:
+
+         cost(k) = weight(k) × (1 − part(k)) × 100
+
+     which means the top row is the one worth fixing first, and the figure is
+     derived from the same rubric the score is, not asserted.
+
+     Nominalisation is reported but carries no weight (it overlaps readability,
+     and double-counting would punish the same sentence twice), so its cost is
+     zero and it sorts last. That is deliberate, not a bug.
+     ---------------------------------------------------------------------- */
+
+  var ROUTES = {
+    readability: { service: "Communication audits",           href: "services.html#svc-audits" },
+    rhythm:      { service: "Public speaking through data",   href: "services.html#svc-speaking" },
+    passive:     { service: "Narrative architecture",         href: "services.html#svc-narrative" },
+    hedging:     { service: "Narrative architecture",         href: "services.html#svc-narrative" },
+    jargon:      { service: "Communication audits",           href: "services.html#svc-audits" },
+    evidence:    { service: "Strategy & market development",  href: "services.html#svc-strategy" },
+    nominal:     { service: "Communication audits",           href: "services.html#svc-audits" }
+  };
+
+  function costOf(m, measure) {
+    if (!measure || !WEIGHTS[measure]) return 0;
+    return WEIGHTS[measure] * (1 - m.parts[measure]) * 100;
+  }
+
   function renderFindings(m) {
     var host = document.getElementById("findingHost");
     host.textContent = "";
 
-    findings(m).forEach(function (f) {
+    var rows = findings(m).map(function (f) {
+      return { f: f, cost: costOf(m, f.measure) };
+    }).sort(function (a, b) { return b.cost - a.cost; });
+
+    // Two findings can come from one measure (long sentences and a flat rhythm
+    // are both "rhythm"). They share a single cost, so only the first one to
+    // appear shows the figure — otherwise the page would imply the points are
+    // lost twice.
+    var costShown = {};
+
+    rows.forEach(function (row) {
+      var f = row.f;
       var item = el("div", "finding");
       item.setAttribute("data-level", f.level);
+
       item.appendChild(el("p", "finding-title", f.title));
       item.appendChild(el("p", "finding-body", f.body));
+
+      var route = ROUTES[f.measure];
+      if (route) {
+        var foot = el("p", "finding-route");
+
+        if (row.cost >= 0.1 && !costShown[f.measure]) {
+          costShown[f.measure] = true;
+          foot.appendChild(el("span", "finding-cost",
+            "Costs " + row.cost.toFixed(1) + " pts"));
+        }
+
+        var link = el("a", "finding-fix", route.service + " →");
+        link.href = route.href;
+        foot.appendChild(link);
+
+        item.appendChild(foot);
+      }
+
       host.appendChild(item);
     });
   }
@@ -580,6 +652,171 @@
   }
 
   /* ------------------------------------------------------------------------
+     Reading files
+
+     All of it client-side. The privacy promise on the page is load-bearing:
+     nothing here may put a visitor's document on the network. That rules out
+     any "just post it to a conversion API" shortcut, and is why .docx is
+     unzipped by hand below rather than with a server round-trip.
+     ---------------------------------------------------------------------- */
+
+  function inflateRaw(bytes) {
+    if (typeof DecompressionStream === "undefined") {
+      return Promise.reject(new Error(
+        "This browser cannot unzip a .docx. Paste the text instead."));
+    }
+    var stream = new Blob([bytes]).stream()
+      .pipeThrough(new DecompressionStream("deflate-raw"));
+    return new Response(stream).arrayBuffer().then(function (b) {
+      return new Uint8Array(b);
+    });
+  }
+
+  // A .docx is a ZIP archive. Walk its central directory to word/document.xml
+  // rather than pulling in a ZIP library to read one file out of one format.
+  function docxText(file) {
+    return file.arrayBuffer().then(function (ab) {
+      var buf = new Uint8Array(ab);
+      var dv = new DataView(ab);
+
+      // End of central directory: scan back from the tail for its signature.
+      var eocd = -1;
+      var floor = Math.max(0, buf.length - 66000);
+      for (var i = buf.length - 22; i >= floor; i--) {
+        if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+      }
+      if (eocd < 0) throw new Error("That file is not a readable .docx.");
+
+      var count = dv.getUint16(eocd + 10, true);
+      var off = dv.getUint32(eocd + 16, true);
+      var dec = new TextDecoder();
+      var entry = null;
+
+      for (var n = 0; n < count && off + 46 <= buf.length; n++) {
+        var nameLen = dv.getUint16(off + 28, true);
+        var extraLen = dv.getUint16(off + 30, true);
+        var cmtLen = dv.getUint16(off + 32, true);
+        var name = dec.decode(buf.subarray(off + 46, off + 46 + nameLen));
+        if (name === "word/document.xml") {
+          entry = {
+            method: dv.getUint16(off + 10, true),
+            compSize: dv.getUint32(off + 20, true),
+            localOff: dv.getUint32(off + 42, true)
+          };
+          break;
+        }
+        off += 46 + nameLen + extraLen + cmtLen;
+      }
+      if (!entry) throw new Error("No document body found inside that .docx.");
+
+      // The local header repeats the name and extra fields at its own lengths,
+      // which are not always the same as the central directory's.
+      var lo = entry.localOff;
+      var start = lo + 30 + dv.getUint16(lo + 26, true) + dv.getUint16(lo + 28, true);
+      var raw = buf.subarray(start, start + entry.compSize);
+
+      if (entry.method === 0) return Promise.resolve(raw);   // stored
+      if (entry.method === 8) return inflateRaw(raw);        // deflate
+      throw new Error("That .docx uses a compression method this reader does not support.");
+    }).then(function (xmlBytes) {
+      return docxXmlToText(new TextDecoder("utf-8").decode(xmlBytes));
+    });
+  }
+
+  function docxXmlToText(xml) {
+    return xml
+      .replace(/<w:tab[^>]*>/g, " ")
+      .replace(/<w:br[^>]*>/g, "\n")
+      .replace(/<\/w:p>/g, "\n\n")
+      .replace(/<[^>]+>/g, "")
+      // &amp; is unescaped last, or "&amp;lt;" would decode twice.
+      .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+      .replace(/&#(\d+);/g, function (_, d) { return String.fromCharCode(+d); })
+      .replace(/&amp;/g, "&")
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+
+  // pdf.js is the one external dependency on the site, and it is fetched only
+  // when somebody actually drops a PDF. Nothing is sent to the CDN but the
+  // request for the library itself.
+  var pdfLib = null;
+  function loadPdfLib() {
+    if (pdfLib) return pdfLib;
+    var base = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
+    pdfLib = new Promise(function (resolve, reject) {
+      var s = document.createElement("script");
+      s.src = base + "pdf.min.js";
+      s.onload = function () {
+        if (!window.pdfjsLib) {
+          reject(new Error("The PDF reader did not load. Paste the text instead."));
+          return;
+        }
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = base + "pdf.worker.min.js";
+        resolve(window.pdfjsLib);
+      };
+      s.onerror = function () {
+        reject(new Error("Could not load the PDF reader. Paste the text instead."));
+      };
+      document.head.appendChild(s);
+    });
+    return pdfLib;
+  }
+
+  function pdfText(file) {
+    return loadPdfLib().then(function (lib) {
+      return file.arrayBuffer().then(function (ab) {
+        return lib.getDocument({
+          data: new Uint8Array(ab),
+          isEvalSupported: false,
+          disableFontFace: true
+        }).promise;
+      });
+    }).then(function (doc) {
+      var pages = Math.min(doc.numPages, 40);
+      var chain = Promise.resolve([]);
+      for (var p = 1; p <= pages; p++) {
+        chain = chain.then(function (acc) {
+          return doc.getPage(acc.length + 1)
+            .then(function (pg) { return pg.getTextContent(); })
+            .then(function (tc) {
+              acc.push(tc.items.map(function (it) { return it.str; }).join(" "));
+              return acc;
+            });
+        });
+      }
+      return chain.then(function (acc) {
+        var text = acc.join("\n\n").replace(/[ \t]{2,}/g, " ").trim();
+        // A scanned page has no text layer. Say so, rather than scoring an
+        // empty string and reporting a number that means nothing.
+        if (words(text).length < 30) {
+          throw new Error("That PDF has no selectable text — it looks like a scan "
+            + "or an image export. Send the original file, or paste the text.");
+        }
+        return text;
+      });
+    });
+  }
+
+  function extractText(file) {
+    var name = (file.name || "").toLowerCase();
+
+    if (/\.(txt|md|markdown|csv)$/.test(name) || /^text\//.test(file.type)) {
+      return file.text();
+    }
+    if (name.slice(-5) === ".docx") return docxText(file);
+    if (name.slice(-4) === ".pdf") return pdfText(file);
+    if (name.slice(-4) === ".doc") {
+      return Promise.reject(new Error(
+        "Old .doc files are not readable in a browser. Save as .docx or PDF first."));
+    }
+    return Promise.reject(new Error(
+      "I can read .pdf, .docx, .txt and .md. Paste the text for anything else."));
+  }
+
+  /* ------------------------------------------------------------------------
      Wiring
      ---------------------------------------------------------------------- */
 
@@ -600,21 +837,26 @@
   input.addEventListener("input", updateCount);
   updateCount();
 
-  form.addEventListener("submit", function (event) {
-    event.preventDefault();
+  function setStatus(message, state) {
+    error.textContent = message;
+    if (state) {
+      error.setAttribute("data-state", state);
+    } else {
+      error.removeAttribute("data-state");
+    }
+  }
 
-    var result = analyse(input.value);
+  function runAudit(text) {
+    var result = analyse(text);
 
     if (!result) {
-      error.textContent = "Paste at least 30 words across two or more sentences — "
-        + "below that the readability formulas are not reliable.";
-      error.setAttribute("data-state", "error");
+      setStatus("I need at least 30 words across two or more sentences — "
+        + "below that the readability formulas are not reliable.", "error");
       results.hidden = true;
       return;
     }
 
-    error.textContent = "";
-    error.removeAttribute("data-state");
+    setStatus("");
 
     renderScore(result);
     renderTiles(result);
@@ -629,7 +871,63 @@
         ? "auto" : "smooth",
       block: "start"
     });
+  }
+
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    runAudit(input.value);
   });
+
+  /* --- File intake -------------------------------------------------------
+     The file is read into the textarea first, so the visitor can see exactly
+     what was extracted and edit it before or after scoring. A parser that
+     silently feeds an invisible string into a score is not auditable. */
+
+  var drop = document.getElementById("auditDrop");
+  var fileInput = document.getElementById("auditFile");
+
+  if (drop && fileInput) {
+    var handleFile = function (file) {
+      if (!file) return;
+
+      setStatus("Reading " + file.name + "…", "busy");
+
+      extractText(file).then(function (text) {
+        // 60k characters is far beyond anything worth auditing as one message,
+        // and keeps a 300-page PDF from locking up the main thread.
+        input.value = text.slice(0, 60000);
+        updateCount();
+        runAudit(input.value);
+        if (!results.hidden) {
+          setStatus("Read " + file.name + " in your browser. Nothing was uploaded.",
+            "success");
+        }
+      }).catch(function (err) {
+        setStatus(err && err.message ? err.message : "I could not read that file.",
+          "error");
+      });
+    };
+
+    fileInput.addEventListener("change", function () {
+      handleFile(fileInput.files && fileInput.files[0]);
+      // Cleared so choosing the same file twice still fires a change event.
+      fileInput.value = "";
+    });
+
+    ["dragenter", "dragover"].forEach(function (evt) {
+      drop.addEventListener(evt, function (e) {
+        e.preventDefault();
+        drop.classList.add("is-over");
+      });
+    });
+    ["dragleave", "dragend", "drop"].forEach(function (evt) {
+      drop.addEventListener(evt, function () { drop.classList.remove("is-over"); });
+    });
+    drop.addEventListener("drop", function (e) {
+      e.preventDefault();
+      handleFile(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]);
+    });
+  }
 
   // Sample text, so the tool is explorable without pasting anything private.
   var sampleBtn = document.getElementById("auditSample");

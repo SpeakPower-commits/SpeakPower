@@ -372,6 +372,108 @@
 }
 .finding-body { margin: 0; font-size: .93rem; color: var(--text-muted); }
 
+/* Each finding ends by naming the service that repairs it and what it costs.
+   A diagnosis with no next step is a complaint. */
+.finding-route {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .6rem;
+  margin: .85rem 0 0;
+}
+.finding-cost {
+  padding: .2rem .5rem;
+  background: var(--paper-2);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: .68rem;
+  letter-spacing: .04em;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.finding-fix {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .42rem .8rem;
+  background: var(--navy);
+  border-radius: 6px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12);
+  font-family: var(--font-mono);
+  font-size: .68rem;
+  letter-spacing: .04em;
+  color: var(--gold-bright);
+  text-decoration: none;
+  transition: background .18s var(--ease), transform .18s var(--ease);
+}
+.finding-fix:hover {
+  background: var(--navy-deep);
+  transform: translateY(-1px);
+  color: var(--gold-bright);
+}
+
+/* ==========================================================================
+   FILE INTAKE
+   Upload first, paste second. The dashed edge says "drop target" before any
+   copy is read; the hover and drag states have to be distinct from each other
+   or a drag reads as a hover and nothing confirms the drop will land.
+   ========================================================================== */
+
+.audit-drop {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: .55rem;
+  margin-bottom: 1.5rem;
+  padding: clamp(1.5rem, 1.2rem + 1.6vw, 2.4rem) 1.25rem;
+  background: var(--bg-raised);
+  border: 2px dashed var(--line-strong);
+  border-radius: var(--radius-lg);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .2s var(--ease), background .2s var(--ease),
+              transform .2s var(--ease);
+}
+.audit-drop:hover { border-color: var(--gold); background: #fffdf6; }
+.audit-drop:focus-within {
+  border-color: var(--gold-text);
+  box-shadow: 0 0 0 3px rgba(201, 162, 39, .18);
+}
+.audit-drop.is-over {
+  border-color: var(--gold);
+  background: #fffbeb;
+  transform: scale(1.01);
+}
+
+.audit-drop-ico {
+  display: grid;
+  place-items: center;
+  width: 50px;
+  height: 50px;
+  background: linear-gradient(160deg, var(--navy-soft), var(--navy));
+  border-radius: 13px;
+  font-size: 1.3rem;
+  line-height: 1;
+  color: var(--gold-bright);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), var(--shadow-md);
+}
+/* The drop target is a <label>, so it inherits the panel's label weight.
+   Reset it here or every line inside reads as a heading. */
+.audit-drop-title { font-size: 1rem; font-weight: 600; color: var(--text); }
+.audit-drop-sub   { font-size: .86rem; font-weight: 400; color: var(--text-muted); }
+
+.audit-formats { display: flex; flex-wrap: wrap; justify-content: center; gap: .4rem; }
+.audit-fmt {
+  padding: .18rem .5rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  font-family: var(--font-mono);
+  font-size: .64rem;
+  font-weight: 400;
+  letter-spacing: .06em;
+  color: var(--text-muted);
+}
+
 /* ==========================================================================
    DATA TABLE — the relief the contrast WARN obligates
    ========================================================================== */
