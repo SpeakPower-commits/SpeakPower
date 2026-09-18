@@ -32,6 +32,18 @@ infrastructure rather than as a document that decays.
   written by the same person who produced the positioning. Project-based, design
   through deployment.
 
+## Free tool
+
+**Message Clarity Audit** — https://speakpower-commits.github.io/SpeakPower-/audit.html
+
+A free client-side diagnostic. Paste a pitch, positioning paragraph or proposal
+and it returns a measured score across six dimensions: Flesch Reading Ease and
+Flesch-Kincaid grade level, sentence length distribution and variance, passive
+voice rate, hedging density, category jargon density, and evidence density
+(figures cited per 100 words). The scoring rubric, component weights and source
+citations are published on the page. Analysis runs entirely in the visitor's
+browser; no text is uploaded or stored.
+
 ## The POLSSE framework
 
 Every engagement runs through the same five lenses, because a message that only

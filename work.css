@@ -1,155 +1,78 @@
 /* ==========================================================================
    SpeakPower — work / products page
-   Loaded after styles.css. Covers: case study blocks, stack tags, fill-in
-   markers, proof summary.
+   Loaded after styles.css. Covers: the venture list and the proof summary.
    ========================================================================== */
 
 /* ==========================================================================
-   FILL-IN MARKER
-   Deliberately loud. These mark facts only Tom can supply, and they must be
-   impossible to publish by accident — a visible amber flag beats a plausible
-   sentence that happens to be wrong.
+   VENTURE LIST
+
+   Deliberately the smallest thing that does the job: a clickable logo and one
+   sentence. Everything a visitor needs to decide whether to click is in the
+   logo and that sentence; a stack list and a status badge are things I find
+   interesting, not things a client is deciding on.
    ========================================================================== */
 
-.todo {
-  display: inline;
-  padding: .1em .45em;
-  background: #fff4d1;
-  border-bottom: 2px solid var(--gold);
-  border-radius: 3px;
-  font-family: var(--font-mono);
-  font-size: .82em;
-  font-style: normal;
-  color: #6b5410;
-}
-
-/* ==========================================================================
-   CASE STUDY
-   ========================================================================== */
-
-.case {
-  padding-block: clamp(2.5rem, 1.8rem + 2.6vw, 4.5rem);
-  border-top: 1px solid var(--line);
-}
-.case:last-of-type { border-bottom: 1px solid var(--line); }
-
-.case-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: .75rem 1.25rem;
-  margin-bottom: 1.25rem;
-}
-
-.case-name {
-  margin: 0;
-  font-size: clamp(1.7rem, 1.3rem + 1.7vw, 2.4rem);
-  letter-spacing: -.022em;
-}
-
-.case-status {
-  padding: .3rem .7rem;
-  background: var(--paper-2);
-  border: 1px solid var(--line-strong);
-  border-radius: 100px;
-  font-family: var(--font-mono);
-  font-size: .68rem;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-.case-status--live {
-  background: rgba(30, 92, 73, .1);
-  border-color: rgba(30, 92, 73, .3);
-  color: #1a5240;
-}
-
-.case-summary {
-  font-size: var(--fs-lede);
-  line-height: 1.55;
-  color: var(--text);
-  max-width: 56ch;
-  margin-bottom: 2rem;
-}
-
-/* --- The three-column breakdown ---------------------------------------- */
-
-.case-grid {
+.work-list {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: clamp(1.5rem, 1.1rem + 1.6vw, 2.75rem);
+  gap: 1rem;
 }
 
-/* Explicit tracks rather than auto-fit: four blocks against an auto-fit grid
-   resolve to three columns and orphan the fourth on its own row. Two-up, then
-   four-up, keeps every row full and reads as a spec sheet. */
-@media (min-width: 620px)  { .case-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (min-width: 1000px) { .case-grid { grid-template-columns: repeat(4, 1fr); } }
+.work-item {
+  display: flex;
+  align-items: center;
+  gap: clamp(1.1rem, .8rem + 1.4vw, 2rem);
+  padding: clamp(1.1rem, .9rem + 1vw, 1.75rem);
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  text-decoration: none;
+  color: inherit;
+  transition: transform .2s var(--ease), box-shadow .2s var(--ease),
+              border-color .2s var(--ease);
+}
+.work-item:hover {
+  transform: translateY(-3px);
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-md);
+  color: inherit;
+}
 
-.case-block h4 {
-  margin-bottom: .6rem;
-  padding-bottom: .6rem;
-  border-bottom: 2px solid var(--gold);
-  font-family: var(--font-mono);
-  font-size: .71rem;
-  font-weight: 500;
-  letter-spacing: .12em;
-  text-transform: uppercase;
+/* The shared .logo-tile carries a heavy shadow sized for the navy band on the
+   homepage. Against this light card it wants a hairline instead. */
+.logo-tile.work-logo {
+  width: clamp(76px, 62px + 4vw, 104px);
+  height: clamp(76px, 62px + 4vw, 104px);
+  padding: 6px;
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 1px rgba(19, 28, 46, .1);
+}
+.work-item:hover .logo-tile.work-logo {
+  transform: none;
+  box-shadow: inset 0 0 0 1px rgba(201, 162, 39, .55);
+}
+
+.work-text { min-width: 0; }
+
+.work-name {
+  margin: 0 0 .3rem;
+  font-size: clamp(1.3rem, 1.1rem + .9vw, 1.7rem);
+  letter-spacing: -.024em;
+}
+.work-go {
+  margin-left: .1em;
+  font-size: .62em;
   color: var(--gold-text);
+  transition: transform .2s var(--ease);
+  display: inline-block;
 }
-.case-block p { color: var(--text-muted); font-size: .97rem; margin: 0; }
+.work-item:hover .work-go { transform: translate(2px, -2px); }
 
-.case-block ul {
+.work-desc {
   margin: 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: .55rem;
-}
-.case-block li {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: .7rem;
-  align-items: start;
-  font-size: .95rem;
+  font-size: 1rem;
   color: var(--text-muted);
-}
-.case-block li::before {
-  content: "";
-  width: 5px; height: 5px;
-  margin-top: .66em;
-  border-radius: 50%;
-  background: var(--gold);
-  flex: none;
-}
-
-/* --- Stack tags --------------------------------------------------------- */
-
-.case-stack {
-  display: flex;
-  flex-wrap: wrap;
-  gap: .4rem;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.case-stack li {
-  display: block;
-  padding: .28rem .65rem;
-  background: var(--navy);
-  border-radius: 100px;
-  font-family: var(--font-mono);
-  font-size: .68rem;
-  letter-spacing: .04em;
-  color: #e8ecf4;
-}
-.case-stack li::before { display: none; }
-
-.case-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: .75rem;
-  margin-top: 2rem;
+  max-width: 52ch;
 }
 
 /* ==========================================================================
@@ -171,7 +94,6 @@
    RESPONSIVE
    ========================================================================== */
 
-@media (max-width: 520px) {
-  .case-head { gap: .5rem; }
-  .case-actions .btn { width: 100%; }
+@media (max-width: 480px) {
+  .work-item { flex-direction: column; align-items: flex-start; }
 }

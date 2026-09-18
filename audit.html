@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Free Message Clarity Audit — SpeakPower</title>
+<meta name="description" content="Paste your pitch, positioning or proposal and get a measured diagnosis — readability, sentence rhythm, passive voice, hedging, jargon and evidence density. Runs entirely in your browser. Nothing is uploaded.">
+<link rel="canonical" href="https://speakpower-commits.github.io/SpeakPower-/audit.html">
+
+<meta name="author" content="Otieno Thomas">
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+<meta name="theme-color" content="#16233f">
+
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="SpeakPower">
+<meta property="og:locale" content="en_UG">
+<meta property="og:title" content="Free Message Clarity Audit — SpeakPower">
+<meta property="og:description" content="Paste your pitch and get a measured diagnosis in six dimensions. Runs in your browser — nothing is uploaded.">
+<meta property="og:url" content="https://speakpower-commits.github.io/SpeakPower-/audit.html">
+<meta property="og:image" content="https://speakpower-commits.github.io/SpeakPower-/assets/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="SpeakPower — bridging the gaps, turning miscommunication into momentum.">
+
+<!-- Twitter / X -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Free Message Clarity Audit — SpeakPower">
+<meta name="twitter:description" content="Paste your pitch and get a measured diagnosis in six dimensions.">
+<meta name="twitter:image" content="https://speakpower-commits.github.io/SpeakPower-/assets/og-image.png">
+
+<link rel="icon" href="assets/favicon.png" sizes="any">
+<link rel="apple-touch-icon" href="assets/favicon.png">
+<link rel="manifest" href="site.webmanifest">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="audit.css">
+
+<script>document.documentElement.classList.add("js");</script>
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="wrap">
+    <a href="index.html" class="logo" aria-label="SpeakPower — home">
+      <img class="logo-mark" src="assets/logo-mark.png" alt="" width="160" height="160">
+      <span class="logo-text">Speak<span>Power</span></span>
+    </a>
+    <nav class="nav-links" id="navLinks" aria-label="Primary">
+      <a href="index.html">Home</a>
+      <a href="services.html">Services</a>
+      <a href="audit.html" aria-current="page">Audit</a>
+      <a href="work.html">Work</a>
+      <a href="about.html">About</a>
+      <a href="https://speakpower1.blogspot.com" target="_blank" rel="noopener">Blog</a>
+      <a href="contact.html">Contact</a>
+      <a href="contact.html" class="nav-cta">Book a call</a>
+    </nav>
+    <button class="nav-toggle" id="navToggle" type="button"
+            aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">&#9776;</button>
+  </div>
+</header>
+
+<main id="main">
+
+  <div class="page-hero">
+    <div class="wrap">
+      <span class="eyebrow">Free tool</span>
+      <h1>Message Clarity Audit</h1>
+      <p>Upload your deck, proposal or grant summary &mdash; or paste the text. You get a measured diagnosis across six dimensions in about a second, the formulas behind every number so you can argue with them, and each failure routed to the service that repairs it.</p>
+    </div>
+  </div>
+
+  <!-- ======================================================================
+       INPUT
+       ====================================================================== -->
+  <section>
+    <div class="wrap wrap--narrow">
+      <form class="audit-panel" id="auditForm" novalidate>
+
+        <!-- Upload first, paste second: decks and proposals live as files, and
+             asking someone to copy a deck into a textarea is asking them to do
+             the tool's job. Parsing happens in the browser — see audit.js. -->
+        <label class="audit-drop" id="auditDrop">
+          <span class="audit-drop-ico" aria-hidden="true">&#8593;</span>
+          <span class="audit-drop-title">Drop your deck or proposal here</span>
+          <span class="audit-drop-sub">Or click to choose a file. Read in your browser, never uploaded.</span>
+          <span class="audit-formats">
+            <span class="audit-fmt">.PDF</span>
+            <span class="audit-fmt">.DOCX</span>
+            <span class="audit-fmt">.TXT</span>
+            <span class="audit-fmt">.MD</span>
+          </span>
+          <input class="visually-hidden" type="file" id="auditFile"
+                 accept=".pdf,.docx,.txt,.md,.markdown,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+        </label>
+
+        <label for="auditInput">Or paste the text</label>
+        <textarea id="auditInput" name="text" rows="9"
+                  placeholder="Paste at least 30 words&#10;&#10;The opening of a pitch deck, the first paragraph of a proposal, or the summary a funder reads first all work well."></textarea>
+
+        <div class="audit-actions">
+          <button type="submit" class="btn btn-primary">Run the audit</button>
+          <button type="button" class="btn btn-ghost" id="auditSample">Try a sample</button>
+          <span class="audit-count" id="auditCount" aria-live="polite">0 words</span>
+        </div>
+
+        <div class="form-status" id="auditError" role="status" aria-live="polite"></div>
+
+        <p class="audit-privacy">
+          <strong>Nothing leaves your browser.</strong> There is no server behind this
+          page and no analytics on this form. Files are opened and read on your own
+          machine &mdash; a .docx is unzipped in JavaScript, a PDF is parsed by a reader
+          that runs locally &mdash; and neither the file nor the text is ever uploaded.
+          Everything is gone when you close the tab. You can verify that by
+          disconnecting from the internet and running it again; the only thing that
+          then fails is the PDF reader, which has to be fetched once.
+        </p>
+      </form>
+    </div>
+  </section>
+
+  <!-- ======================================================================
+       RESULTS — hidden until there is something to show
+       ====================================================================== -->
+  <section id="auditResults" hidden>
+    <div class="wrap wrap--narrow">
+
+      <div class="section-head">
+        <span class="eyebrow">Result</span>
+        <h2>What the text is doing.</h2>
+      </div>
+
+      <div id="scoreHost"></div>
+      <div class="tile-grid" id="tileHost"></div>
+
+      <!-- Sentence length distribution -->
+      <div class="chart">
+        <h3 class="chart-title">Sentence length distribution</h3>
+        <p class="chart-sub">
+          Where your sentences sit. The 11&ndash;20 word band is the target: long
+          enough to carry an idea, short enough to survive being read aloud under
+          pressure. A single tall column anywhere is a flat rhythm.
+        </p>
+        <div class="hist" id="histHost"></div>
+        <p class="hist-key">
+          <span><i class="k-ideal"></i>Inside the target band</span>
+          <span><i class="k-other"></i>Outside it</span>
+        </p>
+      </div>
+
+      <!-- Diagnostic bars -->
+      <div class="chart">
+        <h3 class="chart-title">Where meaning leaks</h3>
+        <p class="chart-sub">
+          The four measures use different units, so each is plotted as a ratio to its
+          own threshold &mdash; the vertical line is 1&times;, the axis runs to 3&times;.
+          A notched bar end means the value runs past the axis, with the real multiple
+          in the label. The status word repeats the reading, so it never depends on colour.
+        </p>
+        <div class="bars" id="barHost"></div>
+        <div class="bar-axis" aria-hidden="true">
+          <div class="bar-axis-scale">
+            <span class="a0">0</span>
+            <span class="a1">threshold</span>
+            <span class="a3">3&times;</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Findings -->
+      <div class="chart">
+        <h3 class="chart-title">What to do about it, and who fixes it</h3>
+        <p class="chart-sub">
+          Ordered by points lost from the composite &mdash; weight &times; (1 &minus; score)
+          for each measure &mdash; so the top row is the one worth fixing first. Each row
+          names the service that repairs it. Where two rows share one measure they also
+          share its cost, so the figure is shown once.
+        </p>
+        <div class="findings" id="findingHost"></div>
+      </div>
+
+      <button type="button" class="table-toggle" id="tableToggle" aria-expanded="false">
+        View as a table
+      </button>
+      <div class="table-wrap" id="tableHost" hidden></div>
+
+    </div>
+  </section>
+
+  <!-- ======================================================================
+       METHOD
+       ====================================================================== -->
+  <section class="section--sunken" style="background: var(--paper);">
+    <div class="wrap wrap--narrow">
+      <div class="section-head" data-reveal>
+        <span class="eyebrow">Method</span>
+        <h2>The formulas, not a black box.</h2>
+        <p>A score you cannot interrogate is a horoscope. Here is exactly how this one is computed.</p>
+      </div>
+
+      <div class="method" data-reveal>
+        <h3 class="chart-title" style="margin-bottom:1rem;">Readability</h3>
+
+        <p class="formula"><b>Flesch Reading Ease</b>
+  = 206.835 − 1.015 × (words / sentences) − 84.6 × (syllables / words)
+
+<b>Flesch–Kincaid Grade Level</b>
+  = 0.39 × (words / sentences) + 11.8 × (syllables / words) − 15.59</p>
+
+        <p>
+          Syllables are counted with the standard vowel-group heuristic, which is
+          accurate on ordinary prose and less so on proper nouns &mdash; which is why
+          the word and sentence counts are reported alongside the score rather than
+          hidden. Below 30 words the formulas are not reliable, so the tool refuses
+          to run rather than returning a confident number it cannot support.
+        </p>
+
+        <h3 class="chart-title" style="margin:2rem 0 .75rem;">Composite weighting</h3>
+
+        <table class="weights">
+          <thead>
+            <tr><th scope="col">Component</th><th scope="col">Target</th><th scope="col">Weight</th></tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">Readability</th><td>Flesch 50&ndash;70</td><td>0.30</td></tr>
+            <tr><th scope="row">Sentence rhythm</th><td>mean 14&ndash;20 words, s.d. &ge; 6</td><td>0.20</td></tr>
+            <tr><th scope="row">Passive voice</th><td>&le; 10% of sentences</td><td>0.15</td></tr>
+            <tr><th scope="row">Hedging</th><td>&le; 1.5 per 100 words</td><td>0.15</td></tr>
+            <tr><th scope="row">Category jargon</th><td>&le; 1.0 per 100 words</td><td>0.10</td></tr>
+            <tr><th scope="row">Evidence density</th><td>&ge; 1.0 figures per 100 words</td><td>0.10</td></tr>
+          </tbody>
+        </table>
+
+        <p style="margin-top:1.25rem;">
+          Each component scores 0 to 1 &mdash; full marks inside its band, tapering
+          linearly outside it &mdash; then the weighted sum is scaled to 100.
+          Abstract-noun density is measured and reported but deliberately left out of
+          the composite: it overlaps heavily with readability, and counting it twice
+          would punish the same sentence twice.
+        </p>
+
+        <div class="citation">
+          <p>Flesch, R. (1948). A new readability yardstick. <em>Journal of Applied Psychology</em>, 32(3), 221&ndash;233.</p>
+          <p>Kincaid, J.P., Fishburne, R.P., Rogers, R.L., &amp; Chissom, B.S. (1975). <em>Derivation of new readability formulas for Navy enlisted personnel.</em> Research Branch Report 8-75.</p>
+          <p style="margin-top:.8rem;">
+            The hedge and jargon lexicons are hand-built and deliberately short. A
+            long buzzword list produces false positives on words that are load-bearing
+            in a real sentence.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================================
+       WHAT THIS DOESN'T DO
+       ====================================================================== -->
+  <section>
+    <div class="wrap wrap--narrow">
+      <div class="proof-note" style="padding: clamp(1.75rem, 1.2rem + 2.2vw, 3rem); background: var(--navy); border-radius: var(--radius-lg); color: var(--band-text);" data-reveal>
+        <span class="eyebrow" style="color: var(--gold-bright);">The limit of it</span>
+        <h2 style="color: var(--band-text);">This measures mechanics. It cannot tell you if the thesis is right.</h2>
+        <p style="color: var(--band-muted);">
+          Every number here is about <em>how</em> the text is written. None of them can
+          tell you whether you are making the right claim to the right audience, whether
+          your evidence would survive a hostile question, or whether the story is worth
+          telling at all. Those are the questions worth paying for &mdash; and they need a
+          conversation, not a formula.
+        </p>
+        <p style="color: var(--band-muted); margin-top: 1rem;">
+          Score well here and you have clean mechanics. That is the floor, not the ceiling.
+        </p>
+        <div class="btn-row" style="margin-top: 2rem;">
+          <a href="contact.html" class="btn btn-primary" style="background: var(--gold); border-color: var(--gold); color: var(--navy-deep);">Book a free discovery call</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <h4>SpeakPower</h4>
+        <p class="footer-tagline">Articulate is key.</p>
+        <p>Bridging the Gaps &middot; Turning Miscommunication into Momentum. Kampala, Uganda.</p>
+      </div>
+      <div>
+        <h4>Site</h4>
+        <div class="footer-links">
+          <a href="services.html">Services</a>
+          <a href="audit.html">Free audit</a>
+          <a href="work.html">Work</a>
+          <a href="about.html">About</a>
+          <a href="https://speakpower1.blogspot.com" target="_blank" rel="noopener">Blog</a>
+          <a href="contact.html">Contact</a>
+        </div>
+      </div>
+      <div>
+        <h4>Contact</h4>
+        <div class="footer-links">
+          <a href="tel:+256743482588">+256 743 482 588</a>
+          <a href="mailto:thomasotieno583@gmail.com">thomasotieno583@gmail.com</a>
+        </div>
+      </div>
+      <div>
+        <h4>Follow</h4>
+        <div class="footer-links footer-social">
+          <a href="https://www.linkedin.com/in/otieno-thomas-a39b1b21b/" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4.98 3.5a2.5 2.5 0 11-.02 5 2.5 2.5 0 01.02-5zM3 8.98h4V21H3V8.98zm6.5 0h3.83v1.64h.05c.53-1 1.84-2.06 3.79-2.06 4.05 0 4.8 2.67 4.8 6.14V21H18v-5.6c0-1.34-.02-3.06-1.86-3.06-1.87 0-2.15 1.46-2.15 2.96V21H9.5V8.98z"/></svg>LinkedIn</a>
+          <a href="https://www.instagram.com/otienothomas8/" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2.2c3.2 0 3.58.01 4.85.07 1.17.05 1.8.25 2.22.42.56.21.96.47 1.38.89.42.42.68.82.89 1.38.17.42.37 1.05.42 2.22.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.05 1.17-.25 1.8-.42 2.22-.21.56-.47.96-.89 1.38-.42.42-.82.68-1.38.89-.42.17-1.05.37-2.22.42-1.27.06-1.65.07-4.85.07s-3.58-.01-4.85-.07c-1.17-.05-1.8-.25-2.22-.42-.56-.21-.96-.47-1.38-.89-.42-.42-.68-.82-.89-1.38-.17-.42-.37-1.05-.42-2.22C2.21 15.58 2.2 15.2 2.2 12s.01-3.58.07-4.85c.05-1.17.25-1.8.42-2.22.21-.56.47-.96.89-1.38.42-.42.82-.68 1.38-.89.42-.17 1.05-.37 2.22-.42C8.42 2.21 8.8 2.2 12 2.2zm0 1.98c-3.14 0-3.51.01-4.75.07-1.15.05-1.77.24-2.18.4-.55.21-.94.47-1.35.88-.41.41-.67.8-.88 1.35-.16.41-.35 1.03-.4 2.18-.06 1.24-.07 1.61-.07 4.75s.01 3.51.07 4.75c.05 1.15.24 1.77.4 2.18.21.55.47.94.88 1.35.41.41.8.67 1.35.88.41.16 1.03.35 2.18.4 1.24.06 1.61.07 4.75.07s3.51-.01 4.75-.07c1.15-.05 1.77-.24 2.18-.4.55-.21.94-.47 1.35-.88.41-.41.67-.8.88-1.35.16-.41.35-1.03.4-2.18.06-1.24.07-1.61.07-4.75s-.01-3.51-.07-4.75c-.05-1.15-.24-1.77-.4-2.18-.21-.55-.47-.94-.88-1.35-.41-.41-.8-.67-1.35-.88-.41-.16-1.03-.35-2.18-.4-1.24-.06-1.61-.07-4.75-.07zm0 2.69a5.13 5.13 0 110 10.26 5.13 5.13 0 010-10.26zm0 8.46a3.33 3.33 0 100-6.66 3.33 3.33 0 000 6.66zm6.54-8.67a1.2 1.2 0 11-2.4 0 1.2 1.2 0 012.4 0z"/></svg>Instagram</a>
+          <a href="https://www.tiktok.com/@otom323" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M16.6 5.82A4.28 4.28 0 0115.54 3h-3.09v12.4a2.59 2.59 0 01-2.59 2.5 2.59 2.59 0 01-2.59-2.59 2.59 2.59 0 012.59-2.59c.27 0 .53.04.77.12v-3.1a5.7 5.7 0 00-.77-.05A5.69 5.69 0 004.17 15.4a5.69 5.69 0 005.69 5.69 5.69 5.69 0 005.69-5.69V9.01a7.35 7.35 0 004.3 1.38V7.3a4.3 4.3 0 01-3.25-1.48z"/></svg>TikTok</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">&copy; 2026 SpeakPower. All rights reserved.</div>
+  </div>
+</footer>
+
+<script src="script.js"></script>
+<script src="audit.js"></script>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://speakpower-commits.github.io/SpeakPower-/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Message Clarity Audit",
+          "item": "https://speakpower-commits.github.io/SpeakPower-/audit.html"
+        }
+      ]
+    },
+    {
+      "@type": "WebApplication",
+      "@id": "https://speakpower-commits.github.io/SpeakPower-/audit.html#app",
+      "name": "Message Clarity Audit",
+      "url": "https://speakpower-commits.github.io/SpeakPower-/audit.html",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web browser",
+      "browserRequirements": "Requires JavaScript",
+      "description": "A free client-side diagnostic that scores a pitch, positioning paragraph or proposal on readability, sentence rhythm, passive voice, hedging, category jargon and evidence density. Text is analysed in the browser and never uploaded.",
+      "author": { "@id": "https://speakpower-commits.github.io/SpeakPower-/#person" },
+      "publisher": { "@id": "https://speakpower-commits.github.io/SpeakPower-/#organization" },
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "featureList": [
+        "Flesch Reading Ease and Flesch–Kincaid grade level",
+        "Sentence length distribution",
+        "Passive voice detection",
+        "Hedging and category jargon density",
+        "Evidence density",
+        "Published scoring rubric and weights"
+      ]
+    }
+  ]
+}
+</script>
+</body>
+</html>

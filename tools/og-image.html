@@ -6,17 +6,28 @@
 <!--
   SOURCE FOR assets/og-image.png
 
-  This is the social-share card. To regenerate it without any local tooling:
+  This is the social-share card — the thumbnail that appears when the site is
+  linked on LinkedIn, WhatsApp, X, Slack or in a Google result. To regenerate
+  it without any local tooling:
+
     1. Open this file in a browser (GitHub Pages serves it at /tools/og-image.html).
-    2. Set the window to exactly 1200 × 630, or screenshot the .card element.
+    2. Set the window to exactly 1200 × 630, or screenshot the page.
     3. Save the result as assets/og-image.png.
 
-  Keep the headline here in sync with the homepage h1 — this card is what
-  people see before they ever reach the site.
+  Three things to keep true:
 
-  Colours are the brand navy and gold taken from the SpeakPower logo. If you
-  have the logo as a transparent PNG, you can replace the inline mark below
-  with <img src="../assets/logo.png"> instead.
+    - The headline must match the homepage h1. This card is what people see
+      before they ever reach the site, and a card that promises a different
+      sentence than the page delivers is the exact failure the site sells
+      against.
+    - 1200 × 630 exactly. Every platform crops to roughly that ratio; anything
+      else gets cut, usually through the headline.
+    - Nothing important within ~60px of any edge. LinkedIn and WhatsApp crop
+      more aggressively than the spec suggests, and the venture strip below is
+      the first thing to lose.
+
+  The mark and both venture logos are the real files from assets/, not
+  approximations — so this card cannot drift out of sync with the brand.
 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -26,8 +37,10 @@
   html, body { width: 1200px; height: 630px; }
   body {
     position: relative;
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
-    padding: 56px 78px;
+    padding: 52px 74px 46px;
     background: #16233f;
     color: #f2f4f8;
     font-family: "Work Sans", "DejaVu Sans", "Liberation Sans", Arial, sans-serif;
@@ -53,18 +66,18 @@
 
   /* --- Brand bar --- */
   .brandbar {
-    display: flex; align-items: center; gap: 16px;
-    margin-bottom: 44px;
+    display: flex; align-items: center; gap: 15px;
+    margin-bottom: 38px;
   }
-  .mark { width: 46px; height: 46px; flex: none; }
+  .mark { width: 50px; height: 50px; flex: none; display: block; }
   .wordmark {
     font-family: "Fraunces", "DejaVu Serif", Georgia, "Times New Roman", serif;
     font-size: 31px; font-weight: 600; letter-spacing: -.6px;
   }
   .wordmark span { color: #e0be4f; }
   .tagline {
-    margin-left: 4px;
-    padding-left: 18px;
+    margin-left: 3px;
+    padding-left: 17px;
     border-left: 1px solid #2c3c5c;
     font-family: "Fraunces", "DejaVu Serif", Georgia, serif;
     font-style: italic;
@@ -73,39 +86,65 @@
   }
 
   /* --- Headline --- */
+  /* Two lines, not three. 630px is a hard ceiling and the venture strip is
+     anchored to the bottom of it, so a third headline line pushes the strip
+     off the card entirely. */
   h1 {
     font-family: "Fraunces", "DejaVu Serif", Georgia, "Times New Roman", serif;
-    font-size: 63px;
+    font-size: 58px;
     font-weight: 600;
-    line-height: 1.1;
-    letter-spacing: -2.1px;
-    max-width: 19ch;
+    line-height: 1.08;
+    letter-spacing: -2px;
+    max-width: 22ch;
   }
   h1 em { font-style: normal; color: #e0be4f; }
 
   .sub {
-    margin-top: 22px;
-    font-size: 24px;
+    margin-top: 20px;
+    font-size: 23px;
     line-height: 1.45;
     color: #9aa8c0;
-    max-width: 46ch;
+    max-width: 48ch;
   }
 
-  /* --- Footer strip --- */
+  /* --- Venture strip ------------------------------------------------------
+     The differentiator, and the reason this card is not interchangeable with
+     any other consultant's: two marketing products, owned and running. Each
+     logo sits on a tile painted its own ground colour, exactly as on the site,
+     so the artwork keeps its own world against the navy. */
   .foot {
-    display: flex; align-items: center; gap: 30px;
-    margin-top: 40px;
-    padding-top: 24px;
+    display: flex; align-items: center; gap: 26px;
+    margin-top: auto;
+    padding-top: 26px;
     border-top: 1px solid #2c3c5c;
+  }
+  .owns {
     font-family: ui-monospace, "DejaVu Sans Mono", Menlo, Consolas, monospace;
-    font-size: 18px;
+    font-size: 15px;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: #c9a227;
+    max-width: 10ch;
+    line-height: 1.5;
+  }
+  .vent { display: flex; align-items: center; gap: 13px; }
+  .vent img {
+    width: 54px; height: 54px; flex: none;
+    padding: 4px; border-radius: 12px; object-fit: contain;
+    background: var(--tile, #fff);
+  }
+  .vent b  { display: block; font-size: 20px; font-weight: 600; letter-spacing: -.3px; }
+  .vent i  {
+    display: block; font-style: normal; font-size: 14px; color: #9aa8c0;
+    letter-spacing: .2px;
+  }
+  .place {
+    margin-left: auto;
+    font-family: ui-monospace, "DejaVu Sans Mono", Menlo, Consolas, monospace;
+    font-size: 16px;
     letter-spacing: .4px;
     color: #9aa8c0;
-  }
-  .foot b { display: flex; align-items: center; gap: 10px; font-weight: 400; }
-  .foot b::before {
-    content: ""; width: 7px; height: 7px; border-radius: 50%;
-    background: #c9a227;
+    white-space: nowrap;
   }
 </style>
 </head>
@@ -114,27 +153,33 @@
   <div class="glow"></div>
 
   <div class="row brandbar">
-    <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
-      <path fill="#c9a227"
-            d="M16 13h32a7 7 0 0 1 7 7v19a7 7 0 0 1-7 7H31l-11 9v-9h-4a7 7 0 0 1-7-7V20a7 7 0 0 1 7-7z"/>
-      <path fill="#16233f"
-            d="M24.5 41.5c0-4-2.2-5.6-2.2-10.2 0-6.2 4.6-11 10.6-11 5.8 0 9.9 4 9.9 9 0 2.4 1.9 3.6 1.2 4.7-.5.8-1.6.9-2.9.9-.1 3.4-1.2 5.2-3.8 5.2-.9 0-1.6-.1-2.2-.3v1.7z"/>
-    </svg>
+    <img class="mark" src="../assets/logo-mark.png" alt="" width="160" height="160">
     <span class="wordmark">Speak<span>Power</span></span>
     <span class="tagline">Articulate is key</span>
   </div>
 
   <div class="row">
-    <h1>Your message already has power. <em>We help it land.</em></h1>
+    <h1>Your message already has power. <em>I help it land.</em></h1>
     <p class="sub">
-      Strategy, communication audits and public speaking — and the systems your strategy runs on.
+      Communication strategy, audits and public speaking &mdash; and the systems
+      your strategy runs on.
     </p>
   </div>
 
   <div class="row foot">
-    <b>Kampala, Uganda</b>
-    <b>Strategy &amp; narrative</b>
-    <b>Systems &amp; software</b>
+    <span class="owns">I own and run</span>
+
+    <span class="vent">
+      <img src="../assets/tonninyira-logo.webp" style="--tile:#ffffff" alt="" width="320" height="320">
+      <span><b>Tonninyira</b><i>Online marketing app</i></span>
+    </span>
+
+    <span class="vent">
+      <img src="../assets/cuepointe-logo.webp" style="--tile:#ffffcb" alt="" width="320" height="320">
+      <span><b>CuePointe</b><i>Cuesports marketing</i></span>
+    </span>
+
+    <span class="place">Kampala, Uganda</span>
   </div>
 </body>
 </html>

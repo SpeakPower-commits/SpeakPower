@@ -49,12 +49,13 @@
 <header class="site-header">
   <div class="wrap">
     <a href="index.html" class="logo" aria-label="SpeakPower — home">
-      <img class="logo-mark" src="assets/logo.png" alt="" width="256" height="256">
+      <img class="logo-mark" src="assets/logo-mark.png" alt="" width="160" height="160">
       <span class="logo-text">Speak<span>Power</span></span>
     </a>
     <nav class="nav-links" id="navLinks" aria-label="Primary">
       <a href="index.html">Home</a>
       <a href="services.html">Services</a>
+      <a href="audit.html">Audit</a>
       <a href="work.html" aria-current="page">Work</a>
       <a href="about.html">About</a>
       <a href="https://speakpower1.blogspot.com" target="_blank" rel="noopener">Blog</a>
@@ -72,145 +73,124 @@
     <div class="wrap">
       <span class="eyebrow">Work</span>
       <h1>The systems behind the strategy.</h1>
-      <p>Anyone can say they build the thing they recommend. These are the products SpeakPower designed and shipped in-house &mdash; same person on the positioning and on the code. That is the whole claim, and this is where it gets tested.</p>
+      <p>Anyone can say they build the thing they recommend. These are two marketing products I designed, built and still run &mdash; same person on the positioning and on the code. That is the whole claim, and this is where it gets tested.</p>
     </div>
   </div>
 
-  <section style="padding-bottom:0;">
+  <section>
     <div class="wrap">
+      <div class="work-list" data-reveal>
 
-      <!-- ====================================================================
-           CASE 1 — CuePointe
-           ==================================================================== -->
-      <article class="case" data-reveal>
-        <div class="case-head">
-          <h2 class="case-name">CuePointe</h2>
-          <span class="case-status">Status: <span class="todo">live / in beta / internal</span></span>
-        </div>
+        <!-- The whole card is one link, so the logo, the name and the sentence
+             are all the same target. One link rather than three stacked ones
+             also stops a screen reader announcing the same destination twice. -->
+        <article>
+          <a class="work-item" href="https://github.com/SpeakPower-commits/CuePointe.github.io"
+             target="_blank" rel="noopener">
+            <span class="logo-tile work-logo" style="--tile:#ffffcb">
+              <img src="assets/cuepointe-logo.webp" alt="CuePointe"
+                   width="320" height="320" loading="lazy">
+            </span>
+            <span class="work-text">
+              <h2 class="work-name">CuePointe <span class="work-go" aria-hidden="true">&#8599;</span></h2>
+              <p class="work-desc">A marketing agency for Uganda's cuesports scene.</p>
+            </span>
+          </a>
+        </article>
 
-        <p class="case-summary">
-          <span class="todo">ONE SENTENCE: what CuePointe is and who it is for.</span>
-        </p>
+        <article>
+          <a class="work-item" href="https://github.com/SpeakPower-commits/tonninyira/tree/main"
+             target="_blank" rel="noopener">
+            <span class="logo-tile work-logo" style="--tile:#ffffff">
+              <img src="assets/tonninyira-logo.webp" alt="Tonninyira"
+                   width="320" height="320" loading="lazy">
+            </span>
+            <span class="work-text">
+              <h2 class="work-name">Tonninyira <span class="work-go" aria-hidden="true">&#8599;</span></h2>
+              <p class="work-desc">An online marketing app bringing local vendors to your doorstep.</p>
+            </span>
+          </a>
+        </article>
 
-        <div class="case-grid">
-          <div class="case-block">
-            <h4>The problem</h4>
-            <p><span class="todo">What was broken or missing before this existed?</span></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================================
+       IN THE ROOM — photographs, short video, testimonials
+
+       Every panel below is a live component waiting on a file. The filename
+       under each slot is exactly what to upload to assets/; swapping the slot
+       for the real markup is documented inline and in README.md.
+       ====================================================================== -->
+  <section id="proof">
+    <div class="wrap">
+      <div class="section-head" data-reveal>
+        <span class="eyebrow">In the room</span>
+        <h2>Photographs, short video, and what people said afterwards.</h2>
+        <p>Speaking work is judged on evidence of speaking. A product screenshot proves I can build; only this proves I can stand up and land it.</p>
+      </div>
+
+      <div class="gallery" data-reveal>
+
+        <figure class="media-tile">
+          <div class="media-frame slot">
+            <span class="slot-ico" aria-hidden="true">&#9635;</span>
+            <span class="slot-what">Photograph</span>
+            <span class="slot-name">assets/speaking-1.jpg</span>
+            <span class="slot-note">1600 &times; 1000 &middot; under 400 KB</span>
           </div>
+          <figcaption class="media-cap">
+            <span class="media-kind">Photo</span>
+            <h3>Mid-delivery, with an audience in frame</h3>
+            <p>The single most valuable image on the site. A lectern shot with no audience proves nothing.</p>
+          </figcaption>
+        </figure>
 
-          <div class="case-block">
-            <h4>What I built</h4>
-            <ul>
-              <li><span class="todo">Core capability one</span></li>
-              <li><span class="todo">Core capability two</span></li>
-              <li><span class="todo">Core capability three</span></li>
-            </ul>
+        <figure class="media-tile">
+          <div class="media-frame slot">
+            <span class="slot-ico" aria-hidden="true">&#9654;</span>
+            <span class="slot-what">Short video</span>
+            <span class="slot-name">assets/clip-1.mp4</span>
+            <span class="slot-note">MP4 H.264 &middot; 45&ndash;90 sec &middot; under 8 MB</span>
           </div>
+          <figcaption class="media-cap">
+            <span class="media-kind" data-kind="video">Video</span>
+            <h3>Ninety seconds of me actually speaking</h3>
+            <p>Add <span class="slot-name">assets/clip-1.jpg</span> as the still frame, so nothing downloads until someone presses play.</p>
+          </figcaption>
+        </figure>
 
-          <div class="case-block">
-            <h4>Stack</h4>
-            <ul class="case-stack">
-              <li>HTML / CSS / JavaScript</li>
-              <li>GitHub Pages</li>
-              <li>GitHub Contents API</li>
-              <li>Browser-only build</li>
-            </ul>
-          </div>
+      </div>
 
-          <div class="case-block">
-            <h4>Outcome</h4>
-            <p><span class="todo">A number if you have one: users, hours saved, cycle time, records handled. A specific fact if you do not.</span></p>
-          </div>
-        </div>
+      <div class="block-head" data-reveal>
+        <h3>What people said</h3>
+        <p>Named, with a role and an organisation. An anonymous quote reads as one you wrote yourself.</p>
+      </div>
 
+      <div class="quotes" data-reveal>
 
-        <div class="slider" data-slider aria-label="CuePointe screenshots">
-          <div class="slider-track">
-            <figure class="slide">
-              <img src="assets/cuepointe-1.png" alt="CuePointe — screenshot 1" width="1600" height="1000" loading="lazy">
-              <figcaption><span class="todo">Caption for screen 1</span></figcaption>
-            </figure>
-            <figure class="slide">
-              <img src="assets/cuepointe-2.png" alt="CuePointe — screenshot 2" width="1600" height="1000" loading="lazy">
-              <figcaption><span class="todo">Caption for screen 2</span></figcaption>
-            </figure>
-            <figure class="slide">
-              <img src="assets/cuepointe-3.png" alt="CuePointe — screenshot 3" width="1600" height="1000" loading="lazy">
-              <figcaption><span class="todo">Caption for screen 3</span></figcaption>
-            </figure>
-          </div>
-        </div>
-        <div class="case-actions">
-          <a class="btn btn-ghost" href="#" aria-disabled="true">Visit CuePointe <span class="todo">add URL</span></a>
-        </div>
-      </article>
-
-      <!-- ====================================================================
-           CASE 2 — Tonninyira
-           ==================================================================== -->
-      <article class="case" data-reveal>
-        <div class="case-head">
-          <h2 class="case-name">Tonninyira</h2>
-          <span class="case-status">Status: <span class="todo">live / in beta / internal</span></span>
-        </div>
-
-        <p class="case-summary">
-          <span class="todo">ONE SENTENCE: what Tonninyira is and who it is for.</span>
-        </p>
-
-        <div class="case-grid">
-          <div class="case-block">
-            <h4>The problem</h4>
-            <p><span class="todo">What was broken or missing before this existed?</span></p>
-          </div>
-
-          <div class="case-block">
-            <h4>What I built</h4>
-            <ul>
-              <li><span class="todo">Core capability one</span></li>
-              <li><span class="todo">Core capability two</span></li>
-              <li><span class="todo">Core capability three</span></li>
-            </ul>
-          </div>
-
-          <div class="case-block">
-            <h4>Stack</h4>
-            <ul class="case-stack">
-              <li>Supabase / Postgres</li>
-              <li>Single-file HTML / CSS / JS front end</li>
-              <li>GitHub Pages</li>
-              <li>Browser-only build</li>
-            </ul>
-          </div>
-
-          <div class="case-block">
-            <h4>Outcome</h4>
-            <p><span class="todo">A number if you have one: users, listings, reviews, transactions. A specific fact if you do not.</span></p>
+        <div class="quote quote--template">
+          <span class="quote-flag">Template &mdash; replace before publishing</span>
+          <blockquote>[One sentence on what changed. The more specific and numeric, the better &mdash; &ldquo;we closed the round six weeks later&rdquo; beats &ldquo;very professional&rdquo;.]</blockquote>
+          <div class="quote-who">
+            <span class="quote-face" aria-hidden="true">?</span>
+            <span>
+              <span class="quote-name">[Full name]</span>
+              <span class="quote-role">[Role], [Organisation]</span>
+            </span>
           </div>
         </div>
 
+      </div>
 
-        <div class="slider" data-slider aria-label="Tonninyira screenshots">
-          <div class="slider-track">
-            <figure class="slide">
-              <img src="assets/tonninyira-1.png" alt="Tonninyira — screenshot 1" width="1600" height="1000" loading="lazy">
-              <figcaption><span class="todo">Caption for screen 1</span></figcaption>
-            </figure>
-            <figure class="slide">
-              <img src="assets/tonninyira-2.png" alt="Tonninyira — screenshot 2" width="1600" height="1000" loading="lazy">
-              <figcaption><span class="todo">Caption for screen 2</span></figcaption>
-            </figure>
-            <figure class="slide">
-              <img src="assets/tonninyira-3.png" alt="Tonninyira — screenshot 3" width="1600" height="1000" loading="lazy">
-              <figcaption><span class="todo">Caption for screen 3</span></figcaption>
-            </figure>
-          </div>
-        </div>
-        <div class="case-actions">
-          <a class="btn btn-ghost" href="#" aria-disabled="true">Visit Tonninyira <span class="todo">add URL</span></a>
-        </div>
-      </article>
-
+      <p class="note-line">
+        <strong>How to actually get these.</strong> Ask within 48 hours of the work
+        landing, while the result is still fresh, and ask a narrow question rather
+        than &ldquo;would you write me a testimonial?&rdquo; &mdash; try
+        <em>&ldquo;what were you able to do after the session that you couldn't do
+        before?&rdquo;</em> You get a usable sentence instead of a paragraph of politeness.
+      </p>
     </div>
   </section>
 
@@ -245,6 +225,7 @@
         <h4>Site</h4>
         <div class="footer-links">
           <a href="services.html">Services</a>
+          <a href="audit.html">Free audit</a>
           <a href="work.html">Work</a>
           <a href="about.html">About</a>
           <a href="https://speakpower1.blogspot.com" target="_blank" rel="noopener">Blog</a>

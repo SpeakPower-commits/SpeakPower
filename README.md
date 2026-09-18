@@ -25,51 +25,115 @@ running them through Jekyll.
 
 ---
 
-## Two assets still needed
+## Assets still needed
 
-Neither is in the repository yet. Upload both to `assets/` with exactly these
-filenames:
+Upload each to `assets/` with exactly these filenames. Nothing here breaks the
+page if it is missing — every slot degrades to a labelled placeholder — but each
+one that lands makes the site more convincing.
 
 | File | Used by | Notes |
 |---|---|---|
-| `assets/logo.png` | Header on every page | The SpeakPower logo. **A transparent PNG is strongly preferred** — see below |
-| `assets/otieno-thomas.jpg` | Homepage hero, About page | Your portrait. Square-ish crop, roughly 1080 × 1080 or larger, under 400 KB |
-| `assets/favicon.png` | Browser tab icon, all pages | The logo, square, 512 × 512. See the note below |
+| `assets/client-1.png` | Homepage client wall | First client logo. Transparent PNG, ~400px wide |
+| `assets/speaking-1.jpg` | Work page gallery | You mid-delivery, **audience in frame**. 1600 × 1000, under 400 KB |
+| `assets/workshop-1.jpg` | Work page gallery | A workshop or audit session in progress |
+| `assets/clip-1.mp4`, `clip-2.mp4` | Work page gallery | MP4 / H.264, 45–90 seconds, under 8 MB each |
+| `assets/clip-1.jpg`, `clip-2.jpg` | Video poster frames | The still shown before play. Same 16:10 crop |
 | `assets/cuepointe-1.png` … `-3.png` | Work page slider | Product screenshots, roughly 1600 × 1000 |
 | `assets/tonninyira-1.png` … `-3.png` | Work page slider | Product screenshots, roughly 1600 × 1000 |
+
+Already in the repository, so nothing to do:
+
+| File | Used by |
+|---|---|
+| `assets/logo.png` | Full lockup — decks, letterheads, avatars |
+| `assets/logo-mark.png` | Header on every page |
+| `assets/favicon.png` | Browser tab icon, all pages |
+| `assets/otieno-thomas.jpg` | Homepage hero, About page |
+| `assets/tonninyira-logo.webp` | Homepage ventures band, Work page case head |
+| `assets/cuepointe-logo.webp` | Homepage ventures band, Work page case head |
+| `assets/og-image.png` | Social share card |
+
+Both venture logos were exported at 320 × 320 from the Canva originals. WebP
+because it is roughly a third of the size of the equivalent PNG at this
+quality, and every browser released since 2020 reads it.
+
+### The favicon was an SVG wearing a .png extension
+
+`assets/favicon.png` arrived as 1.19 MB of **SVG markup** renamed to `.png`.
+Renaming a file does not convert it. GitHub Pages serves anything ending `.png`
+as `Content-Type: image/png`, so every browser was handed SVG bytes labelled as
+a PNG, failed to decode them, and showed no icon at all.
+
+It has been rasterised to a genuine 512 × 512 transparent PNG of the mark — the
+speech bubble, the rays and the profile, without the wordmark, which is the crop
+that survives being drawn at 16 pixels in a tab.
+
+If you re-export it from Canva, **export as PNG** rather than exporting SVG and
+renaming. To check a file is what its name claims, open it in a text editor: a
+real PNG begins with binary noise, an SVG begins with `<svg` or `<?xml`.
+
+### Adding a second client, photo, video or testimonial
+
+Each of these grids is `auto-fill` or `auto-fit` and nothing counts the tiles,
+so adding another is a copy-paste — no CSS change, no layout maths.
+
+- **A client** — in `index.html`, find `<div class="client-wall">`. Replace the
+  `<div class="client slot">` with the real markup shown in the comment directly
+  above it, and paste another `.client` block for each additional logo.
+- **A photo or video** — in `work.html`, find `<div class="gallery">`. Each
+  `<figure class="media-tile">` carries a comment showing exactly what to swap
+  the placeholder for. Keep `preload="none"` on every `<video>`: without it,
+  every visitor downloads the clip whether they press play or not.
+- **A testimonial** — in `work.html`, find `<div class="quotes">`. The first
+  card is a **template**, not a quote. Replace the bracketed text with a real
+  sentence from a real person, then delete the `quote--template` class and the
+  `<span class="quote-flag">`. Never publish it as it stands, and never invent
+  the words — a fabricated testimonial is the one reputational mistake on a
+  consultancy site that cannot be undone.
+
+### The venture links
+
+Both venture buttons currently point at a **GitHub repository**, which is source
+code rather than a running product. A founder or NGO director who clicks through
+lands on a file tree. When you have the public web address for each, replace the
+`href` values in `index.html` and `work.html` and change the label from
+"View the build" to "Visit".
 
 All images live in `assets/` — one flat folder, no sub-folders. Filenames are
 lowercase with hyphens and no spaces, because GitHub Pages is case-sensitive
 and a space becomes `%20` in the URL.
 
-Neither absence breaks the page. `script.js` watches for a failed load and
+A missing image never breaks a page. `script.js` watches for a failed load and
 degrades gracefully: the logo falls back to a styled text wordmark, and the
 portrait falls back to a branded panel carrying the image's alt text. Nobody
 ever sees a broken-image icon.
 
-### About the favicon
+### If you ever replace the favicon
 
-`assets/favicon.png` is the logo, used as the browser tab icon. Export it
-**square at 512 × 512**.
+Export it **square at 512 × 512, as a PNG** — see the note above about renaming,
+which is not the same thing as converting.
 
-Crop it to the **mark only** — the speech bubble and its rays — and leave out
-the "SPEAKPOWER" wordmark and the "Articulate is key" tagline. A favicon is
-rendered at 16–32 pixels in a browser tab; at that size the wordmark is a grey
-smudge and the tagline is invisible, so keeping them only shrinks the part that
-is actually recognisable. The mark alone still reads as your logo.
+Crop it to the **mark only** — the speech bubble, its rays and the profile — and
+leave out the "SPEAKPOWER" wordmark and the "Articulate is key" tagline. A
+favicon is rendered at 16–32 pixels in a browser tab; at that size the wordmark
+is a grey smudge and the tagline is invisible, so keeping them only shrinks the
+part that is actually recognisable. The current file is already cropped this way.
 
-If you would rather use the full lockup as-is, it will work — just rename it to
-`favicon.png`. It will simply be harder to recognise in a crowded tab bar.
+### Why the header uses `logo-mark.png`, not `logo.png`
 
-### About the logo background
+`assets/logo.png` is the full lockup — the bubble, the "SPEAKPOWER" wordmark and
+the "Articulate is key" tagline. The header renders its image at 42px tall, and
+at that height the wordmark inside the picture is a grey smudge sitting next to
+the live text wordmark that the header already sets in Fraunces. Two wordmarks,
+one of them illegible.
 
-The logo as supplied sits on a light-grey backdrop rather than true
-transparency. The header applies `mix-blend-mode: multiply`, which drops that
-grey against the light page while leaving the navy and gold intact. It works,
-but it is a workaround: on any non-white background the grey will show.
+So the header loads `assets/logo-mark.png` — the bubble alone, 160 × 160 on real
+transparency — and the brand name beside it is real text. That text scales, is
+selectable, is readable to a screen reader, and carries the header on its own if
+the image ever fails to load.
 
-Export the logo as a **transparent PNG** when you can. The blend mode then
-becomes a harmless no-op and nothing else needs changing.
+`assets/logo.png` stays in the repository for anywhere the full lockup belongs:
+a deck, a letterhead, a social avatar.
 
 ---
 
@@ -86,13 +150,15 @@ becomes a harmless no-op and nothing else needs changing.
 | `home.css` / `services.css` / `about.css` / `contact.css` | Per-page layout |
 | `script.js` | Nav, POLSSE accordion, image fallback, forms, scroll reveal |
 | `work.html` / `work.css` | CuePointe and Tonninyira case studies |
+| `audit.html` / `audit.css` / `audit.js` | Message Clarity Audit — the free diagnostic tool |
 | `robots.txt`, `sitemap.xml` | Search engine crawling and indexing |
 | `llms.txt` | Plain-language summary for AI answer engines |
 | `site.webmanifest` | Icon and install metadata |
-| `assets/favicon.png` | Site icon — the logo. **You still need to upload this** |
+| `assets/favicon.png` | Site icon — the logo mark, 512 × 512 |
 | `assets/og-image.png` | 1200 × 630 social share card |
-| `assets/logo.png` | Header logo — **you still need to upload this** |
-| `assets/otieno-thomas.jpg` | Portrait — **you still need to upload this** |
+| `assets/logo-mark.png` | Header mark — the bubble alone, transparent |
+| `assets/logo.png` | Full lockup, for decks and letterheads |
+| `assets/otieno-thomas.jpg` | Portrait |
 | `tools/og-image.html` | Source used to generate the share card |
 
 Each page loads `styles.css` first, then its own stylesheet. Put anything shared
@@ -141,14 +207,37 @@ To move to a custom domain:
 
 ## Regenerating the share card
 
-`assets/og-image.png` is what appears when a link to the site is shared. To
-update it after a copy change:
+`assets/og-image.png` is the thumbnail that appears when a link to the site is
+shared on LinkedIn, WhatsApp, X or Slack, and in some Google results. To update
+it after a copy change:
 
-1. Edit `tools/og-image.html` — it is a standalone 1200 × 630 page.
-2. Open it in a browser and screenshot it at exactly 1200 × 630.
-3. Save over `assets/og-image.png`.
+1. Edit `tools/og-image.html` — it is a standalone 1200 × 630 page that pulls in
+   the real `assets/logo-mark.png` and both venture logos, so it cannot drift
+   out of sync with the brand.
+2. Open it in a browser, **make the window taller than 630px**, and screenshot
+   the page.
+3. Crop to exactly 1200 × 630 from the top and save over `assets/og-image.png`.
 
-Keep the headline in that file matching the homepage `<h1>`.
+Step 2 is not fussiness. A browser only paints what is inside the viewport, so
+capturing at exactly 1200 × 630 leaves the bottom strip — the venture logos —
+unrendered, and the saved card comes out with a blank band across the bottom.
+
+**Keep the headline matching the homepage `<h1>`.** This card is what people see
+before they ever reach the site, and a thumbnail promising a different sentence
+than the page delivers is the exact failure this site sells against.
+
+### Sizes, if you ever need a different thumbnail
+
+| Where | Size | Notes |
+|---|---|---|
+| Link preview (this card) | 1200 × 630 | Used by LinkedIn, WhatsApp, X, Slack, Facebook |
+| YouTube | 1280 × 720 | Under 2 MB |
+| Blog header | 1600 × 900 | Blogger scales it down |
+| Square (avatar, Instagram) | 1080 × 1080 | Use the logo mark, not the lockup |
+
+Anything important stays ~60px clear of every edge: several platforms crop more
+aggressively than the spec suggests, and the bottom strip is the first thing to
+go.
 
 ---
 
@@ -180,6 +269,53 @@ Fonts. If you ever need the site to load without external requests, the fallback
 stacks in `--font-display` and `--font-sans` already degrade cleanly.
 
 ---
+
+## The Message Clarity Audit
+
+`audit.html` is a working diagnostic, not a lead-capture form dressed up as one.
+It scores an uploaded or pasted text on six published measures, shows the
+formulas, and routes each finding to the service that repairs it.
+
+**It runs entirely in the browser.** No server, no upload, no storage — which is
+why it can live on static hosting, and why the page can honestly promise that
+nothing a visitor submits ever leaves their machine. Do not "improve" this by
+posting the text anywhere; the privacy claim on the page is load-bearing.
+
+### File intake
+
+`.txt` and `.md` are read with `Blob.text()`. `.docx` is a ZIP archive, so
+`audit.js` walks its central directory to `word/document.xml` and inflates it
+with `DecompressionStream("deflate-raw")` — no library, and nothing leaves the
+machine. `.pdf` uses pdf.js, fetched from cdnjs **only when someone actually
+drops a PDF**; the file itself is still parsed locally.
+
+A scanned PDF has no text layer. That case is detected and reported as an error
+rather than scored, because a confident number computed from an empty string is
+worse than no number.
+
+### Routing
+
+Each finding carries the measure it came from, and each measure maps to a
+service in the `ROUTES` table in `audit.js`. Rows are ordered by points lost
+from the composite:
+
+    cost(k) = weight(k) × (1 − part(k)) × 100
+
+so the top row is the one worth fixing first, derived from the same rubric as
+the score rather than asserted. Two findings can share a measure — long
+sentences and a flat rhythm are both `rhythm` — and they share one cost, so the
+figure is printed once. The links point at `services.html#svc-*`; **if you
+rename those anchors, update `ROUTES` to match** or the buttons go nowhere.
+
+The scoring rubric lives in one place, `WEIGHTS` at the top of the scoring
+section in `audit.js`, and is mirrored in the weights table on the page. **Change
+one and change the other**, or the site is publishing a method it does not use.
+
+Chart colours are validated, not chosen by eye. The palette
+`#3d6bb3, #2a8f63, #c9911a, #c94a2e` passes all six checks on a light surface.
+The amber returns a contrast warning at 2.71:1, which is why every bar carries a
+visible number and a status word, and why the data table exists. If you change a
+colour, re-run the validator rather than trusting your eye.
 
 ## The slider
 
