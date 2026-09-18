@@ -342,18 +342,21 @@ p:last-child { margin-bottom: 0; }
 }
 .logo:hover { color: var(--ink); }
 
+/* The mark only, not the full lockup. assets/logo.png is the whole lockup —
+   mark, "SPEAKPOWER" wordmark and tagline — and at 42px tall the wordmark
+   renders as a grey smudge beside the text wordmark that already sits next to
+   it. assets/logo-mark.png is the bubble alone, on real transparency, so no
+   blend mode is needed to hide a backdrop. */
 .logo-mark {
   height: 42px;
   width: auto;
-  /* The supplied logo sits on a light-grey backdrop rather than true
-     transparency. multiply drops that backdrop against the light header while
-     leaving the navy and gold untouched. Supply a transparent PNG and this
-     becomes a harmless no-op. */
-  mix-blend-mode: multiply;
 }
 
-/* Wordmark fallback, revealed by script.js only if the logo image fails. */
-.logo-text { display: none; }
+/* The text wordmark now sits beside the mark rather than waiting for the image
+   to fail: the header image is the bubble alone, so without this the brand name
+   would not appear in the header at all. If the image does fail, script.js adds
+   .logo--fallback and the wordmark carries the header on its own. */
+.logo-text { display: inline; }
 .logo-text span { color: var(--gold-text); }
 
 .logo--fallback .logo-mark { display: none; }
