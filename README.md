@@ -207,14 +207,37 @@ To move to a custom domain:
 
 ## Regenerating the share card
 
-`assets/og-image.png` is what appears when a link to the site is shared. To
-update it after a copy change:
+`assets/og-image.png` is the thumbnail that appears when a link to the site is
+shared on LinkedIn, WhatsApp, X or Slack, and in some Google results. To update
+it after a copy change:
 
-1. Edit `tools/og-image.html` — it is a standalone 1200 × 630 page.
-2. Open it in a browser and screenshot it at exactly 1200 × 630.
-3. Save over `assets/og-image.png`.
+1. Edit `tools/og-image.html` — it is a standalone 1200 × 630 page that pulls in
+   the real `assets/logo-mark.png` and both venture logos, so it cannot drift
+   out of sync with the brand.
+2. Open it in a browser, **make the window taller than 630px**, and screenshot
+   the page.
+3. Crop to exactly 1200 × 630 from the top and save over `assets/og-image.png`.
 
-Keep the headline in that file matching the homepage `<h1>`.
+Step 2 is not fussiness. A browser only paints what is inside the viewport, so
+capturing at exactly 1200 × 630 leaves the bottom strip — the venture logos —
+unrendered, and the saved card comes out with a blank band across the bottom.
+
+**Keep the headline matching the homepage `<h1>`.** This card is what people see
+before they ever reach the site, and a thumbnail promising a different sentence
+than the page delivers is the exact failure this site sells against.
+
+### Sizes, if you ever need a different thumbnail
+
+| Where | Size | Notes |
+|---|---|---|
+| Link preview (this card) | 1200 × 630 | Used by LinkedIn, WhatsApp, X, Slack, Facebook |
+| YouTube | 1280 × 720 | Under 2 MB |
+| Blog header | 1600 × 900 | Blogger scales it down |
+| Square (avatar, Instagram) | 1080 × 1080 | Use the logo mark, not the lockup |
+
+Anything important stays ~60px clear of every edge: several platforms crop more
+aggressively than the spec suggests, and the bottom strip is the first thing to
+go.
 
 ---
 
