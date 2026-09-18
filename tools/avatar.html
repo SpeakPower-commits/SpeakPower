@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SpeakPower — profile picture source (1080×1080)</title>
+<!--
+  SOURCE FOR assets/otieno-thomas-avatar.png
+
+  A profile picture for LinkedIn, WhatsApp, Instagram and X. To regenerate:
+    1. Open in a browser, window taller than 1080px.
+    2. Screenshot, crop to 1080 × 1080 from the top.
+
+  Two decisions worth keeping:
+
+  NOTHING DECORATIVE NEAR THE EDGES. Every platform crops a square avatar to a
+  circle, which throws away the corners — about 21% of the image. A frame, a
+  ring or a logo in a corner is exactly what disappears. So the face is the
+  whole design and the ground is plain.
+
+  MULTIPLY, NOT A CUTOUT. assets/otieno-thomas.jpg is a background-removed
+  portrait sitting on WHITE, not on transparency. Dropping it onto a coloured
+  ground would show a white rectangle. mix-blend-mode: multiply maps white to
+  exactly the ground colour and leaves everything darker than the ground
+  alone — so the portrait sits on the brand tint with no edge at all. It costs
+  about 7% darkening on the subject at this ground lightness, which is not
+  visible. Replace the source with a transparent PNG and the blend mode
+  becomes a harmless no-op.
+-->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1080px; height: 1080px; }
+  body {
+    position: relative;
+    overflow: hidden;
+    /* A neutral with a slight navy bias, so it reads as chosen rather than
+       inherited. Light enough that the multiply blend is imperceptible. */
+    background: #eef1f6;
+  }
+  .ground {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(circle at 72% 18%, rgba(201,162,39,.20), transparent 55%),
+      radial-gradient(circle at 30% 95%, rgba(22,35,63,.10), transparent 60%);
+  }
+  .portrait {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+    /* Pulls the crop up so the head sits on the upper third and the shoulders
+       fill the base, which is what survives a circular mask. */
+    object-position: 50% 16%;
+    transform: scale(1.14);
+    transform-origin: 50% 30%;
+    mix-blend-mode: multiply;
+  }
+</style>
+</head>
+<body>
+  <div class="ground"></div>
+  <img class="portrait" src="../assets/otieno-thomas.jpg" alt="Otieno Thomas"
+       width="1080" height="1350">
+</body>
+</html>
