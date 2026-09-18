@@ -5,25 +5,6 @@
    ========================================================================== */
 
 /* ==========================================================================
-   FILL-IN MARKER
-   Deliberately loud. These mark facts only Tom can supply, and they must be
-   impossible to publish by accident — a visible amber flag beats a plausible
-   sentence that happens to be wrong.
-   ========================================================================== */
-
-.todo {
-  display: inline;
-  padding: .1em .45em;
-  background: #fff4d1;
-  border-bottom: 2px solid var(--gold);
-  border-radius: 3px;
-  font-family: var(--font-mono);
-  font-size: .82em;
-  font-style: normal;
-  color: #6b5410;
-}
-
-/* ==========================================================================
    CASE STUDY
    ========================================================================== */
 
@@ -99,8 +80,9 @@
 /* Explicit tracks rather than auto-fit: four blocks against an auto-fit grid
    resolve to three columns and orphan the fourth on its own row. Two-up, then
    four-up, keeps every row full and reads as a spec sheet. */
-@media (min-width: 620px)  { .case-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (min-width: 1000px) { .case-grid { grid-template-columns: repeat(4, 1fr); } }
+/* Two columns, not four. Each case now carries two blocks — what I do here,
+   and the stack — so a four-column track would leave half the row empty. */
+@media (min-width: 620px) { .case-grid { grid-template-columns: repeat(2, 1fr); } }
 
 .case-block h4 {
   margin-bottom: .6rem;
@@ -141,7 +123,10 @@
 
 /* --- Stack tags --------------------------------------------------------- */
 
-.case-stack {
+/* Scoped to .case-block so it outranks `.case-block ul { display: grid }`,
+   which is one class more specific than a bare .case-stack and was silently
+   turning these pills into full-width grid rows. */
+.case-block ul.case-stack {
   display: flex;
   flex-wrap: wrap;
   gap: .4rem;
