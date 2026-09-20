@@ -317,6 +317,46 @@ The amber returns a contrast warning at 2.71:1, which is why every bar carries a
 visible number and a status word, and why the data table exists. If you change a
 colour, re-run the validator rather than trusting your eye.
 
+## The homepage hero slideshow
+
+The hero frame is the shared slider (below) with hero framing applied in
+`home.css`. Slide 1 is the portrait; the rest are work and client photographs.
+
+| File | Notes |
+|---|---|
+| `assets/otieno-thomas.jpg` | Slide 1, already in the repo |
+| `assets/hero-2.jpg` … `hero-10.jpg` | 1600px long edge, **under 200 KB each** |
+
+To add a slide, copy one `<figure class="slide">` block in `index.html` and
+change three things: `src`, `alt` and the `<figcaption>`. Two rules:
+
+- **Slide 1 stays `loading="eager"` with `fetchpriority="high"`; every other
+  slide is `loading="lazy"`.** Ten eager hero images is the most expensive thing
+  that could be done to this site, and the audience is on Ugandan mobile data.
+- **Put `class="crop-face"` on portraits only.** It lifts the crop so the top of
+  the head is not against the frame edge. On a landscape photograph it crops the
+  subject out of shot.
+
+A missing file degrades to a labelled panel in that slide alone — the other
+slides keep working. That is what `.slide-frame` is for; see section 4 of
+`script.js`.
+
+### Autoplay
+
+The hero opts in with `data-slider-autoplay="5000"` (the interval in
+milliseconds). **No other slider on the site should.** Remove the attribute and
+the hero becomes manual like the rest.
+
+When it is on, `script.js` builds a pause button, and the slideshow stops on
+hover, on keyboard focus, when the tab is hidden, and permanently the moment
+someone touches an arrow, a dot or an arrow key. It never starts at all for a
+visitor with `prefers-reduced-motion` set. Those are not niceties — WCAG 2.2.2
+*Pause, Stop, Hide* is what makes auto-advancing content permissible, and the
+pause control is the part that satisfies it. **Do not remove it.**
+
+Autoplay also makes the arrows wrap, because an arrow that greys out while the
+slideshow keeps moving past that point is lying to the visitor.
+
 ## The slider
 
 `styles.css` and `script.js` carry a reusable slider. To add one anywhere:

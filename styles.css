@@ -520,11 +520,15 @@ textarea { resize: vertical; min-height: 120px; }
 /* ==========================================================================
    8b. SLIDER
    Scroll-snap based, so it is swipeable and keyboard-scrollable with no
-   JavaScript at all. script.js only adds the arrows and dots on top.
+   JavaScript at all. script.js only adds the arrows, dots and pause on top.
 
-   Deliberately no autoplay: a slide that moves on its own is the single
-   biggest reason carousels test badly — it steals reading position and
-   fails WCAG 2.2.1 unless you also build a pause control.
+   No autoplay by default: a slide that moves on its own is the single biggest
+   reason carousels test badly, because it steals reading position. A slider
+   opts in with data-slider-autoplay="<ms>" and then script.js builds the pause
+   control that WCAG 2.2.2 Pause, Stop, Hide requires, stops on hover and on
+   focus, and never starts at all under prefers-reduced-motion.
+
+   Only the homepage hero opts in. Leave every other slider manual.
    ========================================================================== */
 
 .slider { position: relative; }
@@ -559,6 +563,25 @@ textarea { resize: vertical; min-height: 120px; }
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
 }
+/* Optional wrapper around a slide's image. Worth adding when a slide can fail:
+   script.js puts the fallback panel on the nearest .slide-frame, so one broken
+   file degrades its own picture and keeps its caption, instead of blanking the
+   whole slide. A slide without a frame still works — .slide img above covers it. */
+.slide-frame {
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+.slide-frame img {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  border: 0;
+  border-radius: 0;
+}
+
 .slide figcaption {
   margin-top: .7rem;
   font-family: var(--font-mono);

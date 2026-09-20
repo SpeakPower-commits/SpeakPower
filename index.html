@@ -90,9 +90,53 @@
           <a href="services.html" class="btn btn-ghost">See how it works</a>
         </div>
       </div>
+      <!-- The hero frame is the shared slider component (styles.css "8b. SLIDER",
+           script.js section 6), with hero framing applied in home.css.
+
+           data-slider-autoplay is opt-in and holds the interval in ms. Remove
+           the attribute and the slideshow becomes manual-only; every other
+           slider on the site is manual by default.
+
+           To add a slide, copy one <figure class="slide"> block. Keep slide 1
+           eager and every other slide lazy, and put class="crop-face" on any
+           portrait so the face sits off the bottom edge. Target: 1600px on the
+           long edge, under 200 KB. -->
       <div class="hero-photo">
-        <img src="assets/otieno-thomas.jpg" alt="Otieno Thomas, founder of SpeakPower" width="1080" height="1080" loading="eager">
-        <div class="hero-photo-caption">Otieno Thomas &middot; Founder, SpeakPower</div>
+        <div class="slider hero-slider" data-slider data-slider-autoplay="5000"
+             aria-label="SpeakPower in practice">
+          <div class="slider-track">
+
+            <figure class="slide">
+              <div class="slide-frame">
+                <img class="crop-face" src="assets/otieno-thomas.jpg"
+                     alt="Otieno Thomas, founder of SpeakPower"
+                     width="1080" height="1350" loading="eager" fetchpriority="high">
+              </div>
+              <figcaption>Otieno Thomas &middot; Founder, SpeakPower</figcaption>
+            </figure>
+
+            <figure class="slide">
+              <div class="slide-frame">
+                <img src="assets/hero-2.jpg"
+                     alt="A speaker presenting cumulative impact management to a seated audience at a Uganda Biodiversity Fund event"
+                     width="1600" height="1067" loading="lazy">
+              </div>
+              <figcaption>Cumulative impacts briefing &middot; Uganda Biodiversity Fund</figcaption>
+            </figure>
+
+            <figure class="slide">
+              <div class="slide-frame">
+                <img src="assets/hero-3.jpg"
+                     alt="A facilitator leading a small workshop session around a meeting table"
+                     width="1600" height="1067" loading="lazy">
+              </div>
+              <figcaption>Workshop session &middot; Small-group facilitation</figcaption>
+            </figure>
+
+            <!-- Slides 4-10: copy one block above, change src, alt and caption. -->
+
+          </div>
+        </div>
       </div>
     </div>
   </section>
