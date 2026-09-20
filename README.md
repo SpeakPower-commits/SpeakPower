@@ -328,7 +328,8 @@ The hero frame is the shared slider (below) with hero framing applied in
 | `assets/hero-2.webp` | Slide 2, the U.S. Mission Uganda poster, already in the repo |
 | `assets/hero-3.webp` | Slide 3, Uganda Biodiversity Fund briefing, already in the repo |
 | `assets/hero-4.webp` | Slide 4, workshop session, already in the repo |
-| `assets/hero-5` … `hero-10` | 1600px long edge, **under 200 KB each** |
+| `assets/hero-5.webp` | Slide 5, U.S. Mission Uganda briefing, already in the repo |
+| `assets/hero-6` … `hero-10` | 1600px long edge, **under 200 KB each** |
 
 To add a slide, copy one `<figure class="slide">` block in `index.html` and
 change three things: `src`, `alt` and the `<figcaption>`. Three rules:
@@ -348,6 +349,13 @@ change three things: `src`, `alt` and the `<figcaption>`. Three rules:
 Two of these arrived at the repository root and as `assets/image.png`, neither
 of which any page references. GitHub's web uploader drops a file wherever you
 are browsing, so navigate into `assets/` first.
+
+**Send the photograph, not a screenshot of it.** `hero-5.jpg` arrived as a
+1080 × 2340 phone screenshot of a video player — Android status bar, TikTok
+icon, battery indicator, a "Play video" button and the navigation bar all baked
+into the picture. It had to be cropped back down to the frame inside it, which
+threw away most of the file and all of the resolution the original had. A
+screenshot is a lossy copy of something you already own.
 
 **Save photographs as WebP or JPEG, never PNG.** `assets/image.png` was 363 KB
 for a 962px photograph; the same image as WebP is 27 KB. PNG is for artwork with
