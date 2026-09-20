@@ -326,7 +326,9 @@ The hero frame is the shared slider (below) with hero framing applied in
 |---|---|
 | `assets/otieno-thomas.jpg` | Slide 1, already in the repo |
 | `assets/hero-2.webp` | Slide 2, the U.S. Mission Uganda poster, already in the repo |
-| `assets/hero-3.jpg` … `hero-10.jpg` | 1600px long edge, **under 200 KB each** |
+| `assets/hero-3.webp` | Slide 3, Uganda Biodiversity Fund briefing, already in the repo |
+| `assets/hero-4.webp` | Slide 4, workshop session, already in the repo |
+| `assets/hero-5` … `hero-10` | 1600px long edge, **under 200 KB each** |
 
 To add a slide, copy one `<figure class="slide">` block in `index.html` and
 change three things: `src`, `alt` and the `<figcaption>`. Three rules:
@@ -341,6 +343,17 @@ change three things: `src`, `alt` and the `<figcaption>`. Three rules:
   chart, a screenshot with text on it. The frame is landscape, so a
   portrait-shaped image loses two thirds of its height at the default `cover`.
   `fit-whole` shows the whole thing and pillarboxes the rest in navy.
+
+**Upload into `assets/`, and give the file its final name before uploading.**
+Two of these arrived at the repository root and as `assets/image.png`, neither
+of which any page references. GitHub's web uploader drops a file wherever you
+are browsing, so navigate into `assets/` first.
+
+**Save photographs as WebP or JPEG, never PNG.** `assets/image.png` was 363 KB
+for a 962px photograph; the same image as WebP is 27 KB. PNG is for artwork with
+flat colour and sharp edges — logos, icons, screenshots of text. On a photograph
+it stores every sensor speck losslessly and costs your visitors ten times the
+data for no visible gain.
 
 A missing file degrades to a labelled panel in that slide alone — the other
 slides keep working. That is what `.slide-frame` is for; see section 4 of
