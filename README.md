@@ -325,10 +325,11 @@ The hero frame is the shared slider (below) with hero framing applied in
 | File | Notes |
 |---|---|
 | `assets/otieno-thomas.jpg` | Slide 1, already in the repo |
-| `assets/hero-2.jpg` … `hero-10.jpg` | 1600px long edge, **under 200 KB each** |
+| `assets/hero-2.webp` | Slide 2, the U.S. Mission Uganda poster, already in the repo |
+| `assets/hero-3.jpg` … `hero-10.jpg` | 1600px long edge, **under 200 KB each** |
 
 To add a slide, copy one `<figure class="slide">` block in `index.html` and
-change three things: `src`, `alt` and the `<figcaption>`. Two rules:
+change three things: `src`, `alt` and the `<figcaption>`. Three rules:
 
 - **Slide 1 stays `loading="eager"` with `fetchpriority="high"`; every other
   slide is `loading="lazy"`.** Ten eager hero images is the most expensive thing
@@ -336,6 +337,10 @@ change three things: `src`, `alt` and the `<figcaption>`. Two rules:
 - **Put `class="crop-face"` on portraits only.** It lifts the crop so the top of
   the head is not against the frame edge. On a landscape photograph it crops the
   subject out of shot.
+- **Put `class="fit-whole"` on anything that must not be cropped** — a poster, a
+  chart, a screenshot with text on it. The frame is landscape, so a
+  portrait-shaped image loses two thirds of its height at the default `cover`.
+  `fit-whole` shows the whole thing and pillarboxes the rest in navy.
 
 A missing file degrades to a labelled panel in that slide alone — the other
 slides keep working. That is what `.slide-frame` is for; see section 4 of

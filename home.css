@@ -70,6 +70,15 @@
    none of this, which is why it is opt-in per slide. */
 .hero-slider .slide-frame img.crop-face { object-position: center 14%; }
 
+/* For a slide that must not lose any of itself: a poster, a chart, a screen
+   with text on it. Cover would crop two thirds off a portrait-shaped image in
+   this landscape frame. The pillarbox is painted navy rather than paper so it
+   reads as a frame around the artwork instead of a gap behind it. */
+.hero-slider .slide-frame img.fit-whole {
+  object-fit: contain;
+  background: var(--navy);
+}
+
 .hero-slider .slide figcaption {
   margin-top: .85rem;
   font-size: .73rem;
