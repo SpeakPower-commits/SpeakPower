@@ -119,3 +119,14 @@ The next major upgrade should be real server-side lead capture and a lightweight
 **Visit → Diagnose → Enquire → Capture → Qualify → Discovery call → Proposal**
 
 That turns SpeakPower from a brochure into a business acquisition system without requiring a frontend rewrite.
+
+
+## Free diagnostic engine
+
+`audit.html` + `audit.js` provide the **Pitch & Document Clarity Audit**. Visitors can paste text or locally open PDF, DOCX, TXT or Markdown files. Analysis happens in the browser; documents are not uploaded or stored.
+
+The engine measures readability, sentence rhythm, passive voice, hedging, category jargon and evidence density. Findings route to the relevant SpeakPower capability through a shared `ROUTES` map.
+
+## Commercial proof layer
+
+The homepage now includes an accessible hero slideshow, venture packaging for **Tonninyira** and **CuePointe**, selected field experience, and a direct path into the diagnostic engine.
