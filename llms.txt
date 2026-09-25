@@ -22,7 +22,7 @@ POLSSE is a SpeakPower strategic lens for testing whether communication is ready
 4. **Security** — protecting the message, data and reputation after communication leaves the room.
 5. **Socioeconomics** — connecting communication to social impact, economic opportunity and the wider purpose of the work.
 
-## Selected work
+## Free diagnostic\n\n- **Pitch & Document Clarity Audit** — https://speakpower-commits.github.io/SpeakPower-/audit.html\n  A browser-only diagnostic for pasted or locally selected pitch/proposal documents. It measures readability, sentence rhythm, passive voice, hedging, jargon and evidence density; the source document is not uploaded or stored.\n\n## Selected work
 
 - **Tonninyira** — a browser-first commerce system designed around product discovery, customer ordering, digital payments and operational workflows.
 - **CuePointe** — a pool tournament and league concept designed around players, events, matches, talent records and community visibility.
@@ -47,7 +47,7 @@ SpeakPower starts with audience and context rather than generic communication fo
 - Project-based
 - Periodic live masterclasses
 
-## Contact
+## SpeakPower ventures\n\n- **Tonninyira** — an online marketing app bringing local vendors to customers.\n- **CuePointe** — a cuesports marketing and community platform focused on events, talent visibility and participation.\n\n## Contact
 
 - Email: thomasotieno583@gmail.com
 - Phone / WhatsApp: +256 743 482 588
