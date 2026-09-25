@@ -1,85 +1,53 @@
 # SpeakPower
 
-> Strategy, communication audits, public speaking coaching and narrative
-> architecture for founders, NGO leaders and corporate teams in Uganda and East
-> Africa — plus the websites, applications and internal systems the strategy
-> runs on. Founded and run by Otieno Thomas, Kampala, Uganda.
+> Strategic communication, brand intelligence and digital execution for founders, NGO leaders, corporate teams and public-facing professionals in Uganda and East Africa. Founded by Otieno Thomas in Kampala.
 
-SpeakPower diagnoses where communication breaks down, rebuilds it around a
-single data-backed thesis, and then builds the system the strategy needs in
-order to stay in daily use. The distinguishing claim is delivery: the strategy
-and the software come from the same person, so positioning ships as working
-infrastructure rather than as a document that decays.
+SpeakPower helps leaders diagnose why a message is not landing, rebuild it around audience evidence and context, strengthen the delivery, and add AI or digital systems when the strategy needs an operating layer.
 
-## Services
+## Five capabilities
 
-- **Strategy & Market Development** — Go-to-market messaging built on market
-  research, audience behaviour and competitive positioning rather than
-  assumption. Delivered in person or virtually.
-- **Communication Audits** — A line-by-line review of decks and documents with a
-  structural diagnosis and a rebuilt draft, not just a list of notes. Virtual,
-  results in one session.
-- **Public Speaking Through Data** — Talk and pitch restructuring around the
-  evidence a specific audience needs, with rehearsal under realistic pressure.
-  Not generic tone and posture drills. In person or live virtual.
-- **Team Workshops** — Turning fragmented team messaging into cohesive
-  storytelling aligned to one brand narrative, with ongoing alignment check-ins.
-- **Narrative Architecture for Startups & Nonprofits** — Rebuilding an
-  organisation's story around a single defensible thesis ahead of a raise,
-  launch or donor campaign. Virtual, project-based.
-- **Digital Systems & Applications** — Designing and building the website, web
-  application, internal tool or data dashboard a communication strategy runs on,
-  written by the same person who produced the positioning. Project-based, design
-  through deployment.
+- **Communication Strategy** — message audits, positioning, stakeholder communication and go-to-market messaging.
+- **Public Speaking & Leadership Communication** — presentations, pitches, talks and high-stakes communication shaped around audience and evidence.
+- **Brand Intelligence & Narrative** — personal and organizational positioning, narrative architecture and message systems.
+- **AI Communication Systems** — practical AI workflows for research, content, knowledge management and repeatable communication work.
+- **Digital Systems & Applications** — websites, web applications, dashboards and internal tools that carry the strategy into daily use.
 
-## The POLSSE framework
+## POLSSE framework
 
-Every engagement runs through the same five lenses, because a message that only
-works in one room is not ready yet.
+POLSSE is a SpeakPower strategic lens for testing whether communication is ready for the wider environment around it.
 
-1. **Politics** — Speaking with clarity and influence in public and policy
-   spaces, where the message must survive being repeated by someone else to
-   people you will never meet.
-2. **Organizations** — Uniting teams around a single coherent message, so sales,
-   support and the founder all tell the same story.
-3. **Law** — Communicating ethically and compliantly; holding the line between
-   persuasive and misleading on purpose rather than by accident.
-4. **Security** — Protecting voice, data and reputation once a message leaves
-   the room it was said in.
-5. **Socioeconomics** — Turning speaking into social impact and economic
-   opportunity: why the message matters beyond the room.
+1. **Politics** — public and policy spaces where a message may be repeated by people outside the original room.
+2. **Organizations** — internal alignment across leadership, sales, support and delivery.
+3. **Law** — ethical and compliant communication.
+4. **Security** — protecting the message, data and reputation after communication leaves the room.
+5. **Socioeconomics** — connecting communication to social impact, economic opportunity and the wider purpose of the work.
 
-## Products built in-house
+## Free diagnostic\n\n- **Pitch & Document Clarity Audit** — https://speakpower-commits.github.io/SpeakPower-/audit.html\n  A browser-only diagnostic for pasted or locally selected pitch/proposal documents. It measures readability, sentence rhythm, passive voice, hedging, jargon and evidence density; the source document is not uploaded or stored.\n\n## Selected work
 
-SpeakPower designs and ships its own software, which is the evidence behind the
-claim that the strategy and the system come from the same person.
+- **Tonninyira** — a browser-first commerce system designed around product discovery, customer ordering, digital payments and operational workflows.
+- **CuePointe** — a pool tournament and league concept designed around players, events, matches, talent records and community visibility.
 
-- **CuePointe** — see https://speakpower-commits.github.io/SpeakPower-/work.html
-- **Tonninyira** — see https://speakpower-commits.github.io/SpeakPower-/work.html
+SpeakPower publishes verified outcomes rather than invented case-study numbers. Future case studies follow **Problem → Strategy → Build → Outcome**.
 
-Both are browser-only builds deployed on GitHub Pages; Tonninyira runs a
-Supabase/Postgres backend behind a single-file front end.
+## Who it serves
 
-## Who it is for
+- Founders and startup teams
+- NGO and development-sector leaders
+- Corporate teams
+- Public-facing professionals building personal brands and communication authority
 
-- Founders and startup teams refining positioning or preparing to raise.
-- NGO and development-sector leaders working on donor narratives and programme
-  communication.
-- Corporate teams needing internal message alignment or entering a new market.
+## Approach
 
-## How it differs from an agency
+SpeakPower starts with audience and context rather than generic communication formulas. The intent is globally credible communication grounded in African realities without turning culture into decoration.
 
-An agency sells output — a campaign, an identity, a deliverable set. SpeakPower
-starts diagnostically: establishing what the data says about the audience and
-the market before any copy is written. Where an agency scopes a build and
-subcontracts it, here the same person produces the strategy and the software.
+## Delivery
 
-## Delivery formats
+- In person across Kampala and Uganda
+- Live virtual
+- Project-based
+- Periodic live masterclasses
 
-In person across Kampala and Uganda; live virtual for coaching, audits and team
-workshops; and periodic live online masterclass cohorts on a single topic.
-
-## Contact
+## SpeakPower ventures\n\n- **Tonninyira** — an online marketing app bringing local vendors to customers.\n- **CuePointe** — a cuesports marketing and community platform focused on events, talent visibility and participation.\n\n## Contact
 
 - Email: thomasotieno583@gmail.com
 - Phone / WhatsApp: +256 743 482 588
@@ -88,7 +56,7 @@ workshops; and periodic live online masterclass cohorts on a single topic.
 
 ## Profiles
 
-- Blog: https://speakpower1.blogspot.com
+- Blog / Insights: https://speakpower1.blogspot.com
 - LinkedIn: https://www.linkedin.com/in/otieno-thomas-a39b1b21b/
-- Instagram: https://www.instagram.com/otienothomas8/ (@otienothomas8)
-- TikTok: https://www.tiktok.com/@otom323 (@otom323)
+- Instagram: https://www.instagram.com/otienothomas8/
+- TikTok: https://www.tiktok.com/@otom323
