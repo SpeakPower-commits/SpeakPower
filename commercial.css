@@ -189,3 +189,6 @@
 @media (max-width: 540px) {
   .cta-actions .btn { width: 100%; }
 }
+
+
+.case-product-head{display:grid;grid-template-columns:auto 1fr;gap:1rem;align-items:center;margin-bottom:1.25rem}.case-brand{width:84px;height:84px;border-radius:16px;display:grid;place-items:center;background:var(--paper-2);border:1px solid var(--line);overflow:hidden}.case-brand img{width:100%;height:100%;object-fit:contain}.case-product-head .case-head{margin-bottom:0}@media(max-width:520px){.case-product-head{grid-template-columns:1fr}.case-brand{width:72px;height:72px}}
