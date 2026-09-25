@@ -1,0 +1,191 @@
+/* SpeakPower commercial layer
+   Business positioning, proof and conversion components.
+   Loaded after the shared/page styles. */
+
+.positioning-band,
+.cta-panel,
+.proof-band {
+  border-radius: var(--radius-lg);
+  padding: clamp(1.5rem, 1rem + 2.2vw, 3rem);
+}
+
+.positioning-band {
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+}
+
+.positioning-band .eyebrow,
+.cta-panel .eyebrow,
+.proof-band .eyebrow {
+  margin-bottom: .8rem;
+}
+
+.positioning-band h2,
+.proof-band h2,
+.cta-panel h2 {
+  max-width: 18ch;
+  text-wrap: balance;
+}
+
+.positioning-band p {
+  max-width: 68ch;
+  color: var(--text-muted);
+}
+
+.audience-grid,
+.pillar-grid,
+.proof-grid,
+.case-preview-grid {
+  display: grid;
+  gap: clamp(1rem, .8rem + 1.2vw, 1.75rem);
+}
+
+.audience-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+}
+
+.audience-card,
+.pillar-card,
+.proof-card,
+.case-preview {
+  padding: clamp(1.15rem, .9rem + .8vw, 1.5rem);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+}
+
+.audience-card h3,
+.pillar-card h3,
+.proof-card h3,
+.case-preview h3 {
+  margin-bottom: .45rem;
+}
+
+.audience-card p,
+.pillar-card p,
+.proof-card p,
+.case-preview p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: .95rem;
+}
+
+.pillar-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+}
+
+.pillar-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.pillar-card::before {
+  content: "";
+  display: block;
+  width: 2.8rem;
+  height: 3px;
+  margin-bottom: 1rem;
+  background: var(--gold);
+}
+
+.pillar-kicker,
+.case-kicker {
+  display: block;
+  margin-bottom: .55rem;
+  font-family: var(--font-mono);
+  font-size: .68rem;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+  color: var(--gold-text);
+}
+
+.proof-band {
+  background: var(--navy);
+  color: var(--band-text);
+}
+
+.proof-band h2 { color: var(--band-text); }
+.proof-band p { color: var(--band-muted); max-width: 68ch; }
+.proof-band .eyebrow { color: var(--gold-bright); }
+.proof-band .eyebrow::before { background: var(--gold-bright); }
+
+.proof-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  margin-top: 1.5rem;
+}
+
+.proof-card {
+  background: rgba(255,255,255,.045);
+  border-color: rgba(255,255,255,.12);
+}
+
+.proof-card h3 { color: var(--band-text); }
+.proof-card p { color: var(--band-muted); }
+
+.case-preview-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+}
+
+.case-preview .case-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  margin-top: .9rem;
+}
+
+.case-preview .case-meta span {
+  padding: .28rem .58rem;
+  border-radius: 100px;
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: .67rem;
+  color: var(--text-muted);
+}
+
+.case-preview .case-link {
+  display: inline-flex;
+  margin-top: 1.1rem;
+  font-weight: 600;
+  color: var(--navy);
+}
+
+.cta-panel {
+  background:
+    radial-gradient(80% 140% at 90% 10%, rgba(201,162,39,.18), transparent 60%),
+    var(--ink);
+  color: var(--band-text);
+}
+
+.cta-panel h2 { color: var(--band-text); }
+.cta-panel p { color: var(--band-muted); max-width: 60ch; }
+.cta-panel .eyebrow { color: var(--gold-bright); }
+.cta-panel .eyebrow::before { background: var(--gold-bright); }
+
+.cta-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .7rem;
+  margin-top: 1.25rem;
+}
+
+.cta-actions .btn-secondary {
+  background: transparent;
+  border-color: rgba(255,255,255,.3);
+  color: #fff;
+}
+
+.section-intro {
+  max-width: 68ch;
+  color: var(--text-muted);
+}
+
+.form-trust {
+  margin-top: .75rem;
+  font-size: .82rem;
+  color: var(--text-muted);
+}
+
+@media (max-width: 540px) {
+  .cta-actions .btn { width: 100%; }
+}
