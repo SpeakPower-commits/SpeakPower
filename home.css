@@ -35,33 +35,65 @@
 
 .hero-photo { position: relative; }
 
-/* Square crop: the portrait is a head-and-shoulders shot, which a landscape
-   frame would cut badly. object-position keeps the face off the bottom edge. */
-.hero-photo img {
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  object-fit: cover;
-  object-position: center 22%;
+/* --- Hero slider ---------------------------------------------------------
+   Borrows the shared slider (styles.css "8b. SLIDER") and overrides the three
+   things it does for galleries that are wrong for a hero frame: the 16/10
+   crop, the hairline border, and the 62% peek at the next slide. A hero shows
+   one image, edge to edge, in the frame the portrait used to sit in.
+
+   4/3 rather than the old 1/1, because the slides are now mixed — portraits,
+   room shots and product screens. A square frame crops a landscape photograph
+   badly, and this is the only place that ratio is declared. */
+
+.hero-slider .slider-track { grid-auto-columns: 100%; }
+
+.hero-slider .slide-frame {
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
   background: var(--paper-2);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
 }
-.hero-photo.img-fallback {
-  aspect-ratio: 1 / 1;
-  min-height: 0;
-  border-radius: var(--radius-lg);
+.hero-slider .slide-frame img {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;          /* the frame owns the ratio, not the image */
+  object-fit: cover;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
-.hero-photo-caption {
+/* Portraits need headroom above the head. A 4/3 frame showing a 4/5 source
+   crops two thirds of the height away, so the old 22% — tuned when this frame
+   was square — pushed the crown against the top edge. Landscape shots need
+   none of this, which is why it is opt-in per slide. */
+.hero-slider .slide-frame img.crop-face { object-position: center 14%; }
+
+/* For a slide that must not lose any of itself: a poster, a chart, a screen
+   with text on it. Cover would crop two thirds off a portrait-shaped image in
+   this landscape frame. The pillarbox is painted navy rather than paper so it
+   reads as a frame around the artwork instead of a gap behind it. */
+.hero-slider .slide-frame img.fit-whole {
+  object-fit: contain;
+  background: var(--navy);
+}
+
+.hero-slider .slide figcaption {
   margin-top: .85rem;
-  font-family: var(--font-mono);
   font-size: .73rem;
   letter-spacing: .07em;
   text-transform: uppercase;
-  color: var(--text-faint);
-  line-height: 1.6;
 }
-.hero-photo.img-fallback .hero-photo-caption { display: none; }
+
+/* A failed image degrades its own frame and keeps its caption; the other
+   slides are untouched. See the holder chain in script.js section 4. */
+.hero-slider .slide-frame.img-fallback {
+  min-height: 0;
+  border: 1px solid var(--line);
+}
+
+.hero-slider .slider-controls { margin-top: .9rem; }
 
 /* ==========================================================================
    PROOF STRIP
@@ -158,6 +190,56 @@
   background: var(--navy);
   border-color: var(--navy);
   color: #fff;
+}
+
+/* ==========================================================================
+   FREE TOOL BAND
+   ========================================================================== */
+
+.tool-band {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, .75fr);
+  align-items: center;
+  gap: clamp(1.75rem, 1.2rem + 2.6vw, 3.5rem);
+  padding: clamp(1.75rem, 1.2rem + 2.2vw, 3rem);
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--gold);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+.tool-band h2 { margin-bottom: .45em; }
+.tool-band p { color: var(--text-muted); }
+
+.tool-metrics {
+  display: grid;
+  gap: .5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tool-metrics li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: .65rem;
+  align-items: start;
+  font-family: var(--font-mono);
+  font-size: .76rem;
+  letter-spacing: .02em;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+.tool-metrics li::before {
+  content: "";
+  width: 5px; height: 5px;
+  margin-top: .6em;
+  border-radius: 50%;
+  background: var(--gold);
+  flex: none;
+}
+
+@media (max-width: 820px) {
+  .tool-band { grid-template-columns: 1fr; }
 }
 
 /* ==========================================================================
