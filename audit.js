@@ -547,13 +547,13 @@
      ---------------------------------------------------------------------- */
 
   var ROUTES = {
-    readability: { service: "Communication audits",           href: "services.html#svc-audits" },
+    readability: { service: "Communication strategy",      href: "services.html#svc-strategy" },
     rhythm:      { service: "Public speaking through data",   href: "services.html#svc-speaking" },
-    passive:     { service: "Narrative architecture",         href: "services.html#svc-narrative" },
-    hedging:     { service: "Narrative architecture",         href: "services.html#svc-narrative" },
-    jargon:      { service: "Communication audits",           href: "services.html#svc-audits" },
-    evidence:    { service: "Strategy & market development",  href: "services.html#svc-strategy" },
-    nominal:     { service: "Communication audits",           href: "services.html#svc-audits" }
+    passive:     { service: "Brand intelligence & narrative", href: "services.html#svc-narrative" },
+    hedging:     { service: "Brand intelligence & narrative", href: "services.html#svc-narrative" },
+    jargon:      { service: "Communication strategy",      href: "services.html#svc-strategy" },
+    evidence:    { service: "Communication strategy",      href: "services.html#svc-strategy" },
+    nominal:     { service: "Communication strategy",      href: "services.html#svc-strategy" }
   };
 
   function costOf(m, measure) {
