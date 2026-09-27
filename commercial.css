@@ -198,3 +198,59 @@
 
 
 .product-catalog{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:clamp(1rem,.8rem + 1.2vw,1.5rem)}.studio-product{padding:clamp(1.25rem,1rem + .8vw,1.75rem);border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--paper);display:flex;flex-direction:column;min-height:100%}.studio-product--live{border-color:rgba(30,92,73,.28);box-shadow:0 10px 30px rgba(30,92,73,.07)}.studio-product h2{font-size:clamp(1.35rem,1.1rem + .8vw,1.8rem);margin-bottom:.55rem}.studio-product p{color:var(--text-muted);font-size:.95rem}.studio-status{display:inline-flex;align-self:flex-start;padding:.28rem .55rem;border-radius:999px;background:var(--paper-2);border:1px solid var(--line);font-family:var(--font-mono);font-size:.65rem;letter-spacing:.06em;text-transform:uppercase;color:var(--gold-text);margin-bottom:1rem}.studio-meta{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:auto;padding-top:1rem;margin-bottom:1rem}.studio-meta span{padding:.3rem .55rem;border-radius:999px;background:var(--paper-2);font-family:var(--font-mono);font-size:.64rem;color:var(--text-muted)}
+
+
+/* ==========================================================================
+   Studio storefront
+   ========================================================================== */
+.studio-intro{
+  display:flex;align-items:end;justify-content:space-between;gap:2rem;
+  padding:clamp(1.25rem,1rem + 1.2vw,2rem);
+  border:1px solid var(--line);border-radius:var(--radius-lg);
+  background:var(--bg-raised);margin-bottom:1.5rem;
+}
+.studio-intro h2{margin-bottom:.45em}
+.studio-intro p{max-width:62ch;color:var(--text-muted)}
+.studio-intro .btn{flex:none}
+.studio-best{color:var(--text-muted);font-size:.92rem}
+.studio-price{
+  font-family:var(--font-display);font-size:clamp(1.65rem,1.35rem + 1vw,2.15rem);
+  font-weight:600;color:var(--navy-deep);margin:.6rem 0 1rem;
+}
+.studio-includes{
+  margin:0 0 1rem;padding-left:1.1rem;color:var(--text-muted);
+  display:grid;gap:.35rem;font-size:.9rem;
+}
+.studio-includes li::marker{color:var(--gold-text)}
+.studio-delivery{
+  margin:.6rem 0 0;padding-top:.7rem;border-top:1px solid var(--line);
+  color:var(--text-muted);font-size:.84rem;line-height:1.55;
+}
+.studio-order{margin-top:auto}
+.studio-price-note{margin:1rem 0 0;color:var(--text-faint);font-size:.78rem}
+.studio-how{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.75rem;margin-top:1.4rem;
+}
+.studio-how>div{padding:1rem;border:1px solid rgba(255,255,255,.12);border-radius:var(--radius);background:rgba(255,255,255,.04)}
+.studio-how strong{display:block;color:var(--band-text);margin-bottom:.3rem}
+.studio-how span{display:block;color:var(--band-muted);font-size:.82rem;line-height:1.45}
+.service-notice{
+  margin-bottom:1.5rem;padding:clamp(1.25rem,1rem + 1.2vw,2rem);
+  border:1px solid var(--line);border-radius:var(--radius-lg);
+  background:linear-gradient(135deg,var(--paper-2),var(--paper));
+}
+.service-notice p{max-width:72ch;color:var(--text-muted)}
+.service-access{
+  margin-top:1.1rem;padding-top:.9rem;border-top:1px solid var(--line);
+  color:var(--text-muted);font-size:.84rem;line-height:1.55;
+}
+.service-access+.btn{margin-top:1rem}
+.service-notice a{font-weight:600;color:var(--navy)}
+@media(max-width:760px){
+  .studio-intro{align-items:flex-start;flex-direction:column}
+  .studio-intro .btn{width:100%}
+  .studio-how{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:520px){
+  .studio-how{grid-template-columns:1fr}
+}
