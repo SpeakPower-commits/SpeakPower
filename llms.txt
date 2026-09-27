@@ -47,7 +47,9 @@ SpeakPower starts with audience and context rather than generic communication fo
 - Project-based
 - Periodic live masterclasses
 
-## SpeakPower ventures\n\n- **Tonninyira** — an online marketing app bringing local vendors to customers.\n- **CuePointe** — a cuesports marketing and community platform focused on events, talent visibility and participation.\n\n## SpeakPower Studio\n\nSpeakPower Studio is the planned self-service delivery layer. The live first product is the free Pitch & Document Clarity Audit. Planned paid products include Pitch Intelligence Reports, Brand Message Packs, Presentation Rescue and Executive Bio & LinkedIn Packs. The model is: discover → pay → upload → generate → optional expert review.\n\n## Contact
+## SpeakPower ventures\n\n- **Tonninyira** — an online marketing app bringing local vendors to customers.\n- **CuePointe** — a cuesports marketing and community platform focused on events, talent visibility and participation.\n\n## SpeakPower Studio
+SpeakPower Studio is the self-service product layer. Customers choose a defined communication problem, complete a guided questionnaire and receive an automatically generated pack without submitting confidential proposals or booking a meeting.
+Current automated products: WhatsApp Sales Kit, Business Offer Builder, Personal Authority Pack, Speaker Ready Pack, Content Starter Pack, and AI Communication Blueprint.
 
 - Email: thomasotieno583@gmail.com
 - Phone / WhatsApp: +256 743 482 588
