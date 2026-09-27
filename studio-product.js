@@ -217,7 +217,7 @@
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (m) {
-      return { "&":"&amp;", "<":"&lt;", ">":"&gt;", """:"&quot;", "'":"&#39;" }[m];
+      return { "&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;", "'":"&#39;" }[m];
     }).replace(/\n/g, "<br>");
   }
 
