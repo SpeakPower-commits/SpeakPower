@@ -254,3 +254,41 @@
 @media(max-width:520px){
   .studio-how{grid-template-columns:1fr}
 }
+
+
+/* ==========================================================================
+   Studio automated builder
+   ========================================================================== */
+.studio-builder-grid{
+  display:grid;grid-template-columns:minmax(320px,.85fr) minmax(0,1.15fr);
+  gap:clamp(1rem,1rem + 2vw,2rem);align-items:start;
+}
+.studio-builder-panel,.studio-output-panel{
+  padding:clamp(1.25rem,1rem + 1vw,1.75rem);
+  border:1px solid var(--line);border-radius:var(--radius-lg);
+  background:var(--bg-raised);
+}
+.studio-builder-meta{display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1.25rem}
+.studio-builder-meta span{padding:.3rem .6rem;border:1px solid var(--line);border-radius:999px;font-family:var(--font-mono);font-size:.68rem;color:var(--text-muted)}
+#builderForm{display:grid;gap:.9rem}
+.builder-field{display:grid;gap:.35rem}
+.builder-field label{font-weight:600;font-size:.9rem}
+.builder-field input,.builder-field textarea{
+  width:100%;padding:.75rem .8rem;border:1px solid var(--line-strong);
+  border-radius:var(--radius);background:var(--paper);font:inherit;color:var(--ink);
+}
+.builder-field textarea{resize:vertical;min-height:96px}
+.builder-field input:focus,.builder-field textarea:focus{
+  outline:none;border-color:var(--navy);box-shadow:0 0 0 3px rgba(22,35,63,.1)
+}
+.builder-actions{display:flex;flex-wrap:wrap;gap:.65rem;margin-top:1.25rem}
+.builder-note{font-size:.78rem;color:var(--text-faint);line-height:1.5;margin-top:1rem}
+.output-head{display:flex;justify-content:space-between;align-items:end;gap:1rem;border-bottom:1px solid var(--line);padding-bottom:1rem}
+.output-head h2{margin:0}
+.studio-output{display:grid;gap:1rem;padding-top:1.25rem}
+.output-empty{color:var(--text-faint)}
+.output-block{padding:1rem 0;border-bottom:1px solid var(--line)}
+.output-block h3{margin-bottom:.45rem;font-size:1.05rem}
+.output-block div{white-space:normal;color:var(--text-muted);line-height:1.65}
+@media(max-width:860px){.studio-builder-grid{grid-template-columns:1fr}}
+@media(max-width:560px){.output-head{align-items:flex-start;flex-direction:column}.builder-actions .btn{width:100%}}
