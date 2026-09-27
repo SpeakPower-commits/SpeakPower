@@ -615,3 +615,18 @@
 @media (max-width: 460px) {
   .audit-count { margin-left: 0; width: 100%; }
 }
+
+
+.audit-product-recommendation{margin-top:1.25rem}
+.audit-product-card{
+  padding:1.35rem 1.5rem;border:1px solid rgba(22,35,63,.18);
+  border-left:4px solid var(--gold);border-radius:var(--radius-lg);
+  background:var(--bg-raised);box-shadow:var(--shadow-sm)
+}
+.audit-product-card .audit-product-kicker{
+  margin:0 0 .35rem;font-family:var(--font-mono);font-size:.7rem;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--gold-text)
+}
+.audit-product-card h3{margin-bottom:.45rem}
+.audit-product-card p:not(.audit-product-kicker){max-width:62ch;color:var(--text-muted)}
+.audit-product-card .btn{margin-top:.55rem}
