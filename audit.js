@@ -547,13 +547,13 @@
      ---------------------------------------------------------------------- */
 
   var ROUTES = {
-    readability: { service: "Message Fix", href: "studio.html#product-message-fix" },
-    rhythm:      { service: "Presentation Rescue", href: "studio.html#product-presentation-rescue" },
-    passive:     { service: "Message Fix", href: "studio.html#product-message-fix" },
-    hedging:     { service: "Message Fix", href: "studio.html#product-message-fix" },
-    jargon:      { service: "Message Fix", href: "studio.html#product-message-fix" },
-    evidence:    { service: "Pitch Polish", href: "studio.html#product-pitch-polish" },
-    nominal:     { service: "Message Fix", href: "studio.html#product-message-fix" }
+    readability: { service: "Brand Story Builder", href: "studio.html#product-brand-story" },
+    rhythm:      { service: "Speaker Ready Pack", href: "studio.html#product-speaker-ready" },
+    passive:     { service: "SEO Content Starter", href: "studio.html#product-content-seo" },
+    hedging:     { service: "Brand Story Builder", href: "studio.html#product-brand-story" },
+    jargon:      { service: "SEO Content Starter", href: "studio.html#product-content-seo" },
+    evidence:    { service: "Market Development Planner", href: "studio.html#product-market-plan" },
+    nominal:     { service: "Brand Story Builder", href: "studio.html#product-brand-story" }
   };
 
   function costOf(m, measure) {
@@ -618,9 +618,10 @@
     if (!route) return;
 
     var copy = {
-      "Message Fix": "Your biggest loss is in message clarity or density. Start with a focused rewrite rather than a full brand project.",
-      "Presentation Rescue": "Your biggest loss is in rhythm and delivery. A presentation-level rewrite will give you a stronger story to speak.",
-      "Pitch Polish": "Your evidence and argument need a clearer persuasive structure. Pitch Polish is the closest defined product."
+      "Brand Story Builder": "Your message is carrying too much friction. Start by clarifying the story, positioning and message hierarchy.",
+      "Speaker Ready Pack": "Your rhythm is weakening delivery. A stronger speaking structure can make the message easier to follow.",
+      "SEO Content Starter": "Some language is too dense or abstract. A clearer content structure can improve discoverability and understanding.",
+      "Market Development Planner": "Your evidence layer can be stronger. A market-development plan can connect the story to audience, channel and action."
     };
 
     var box = el("div", "audit-product-card");
