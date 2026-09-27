@@ -443,7 +443,7 @@
       }
 
       function shouldRun() {
-        return !stoppedByUser && !hovered && !focused && !document.hidden;
+        return !stoppedByUser && !focused && !document.hidden;
       }
 
       function retime() {
@@ -466,8 +466,7 @@
         retime();
       });
 
-      slider.addEventListener("mouseenter", function () { hovered = true; retime(); });
-      slider.addEventListener("mouseleave", function () { hovered = false; retime(); });
+      // Keep autoplay running over the image; the explicit pause button gives the visitor control.
       slider.addEventListener("focusin", function () { focused = true; retime(); });
       slider.addEventListener("focusout", function () { focused = false; retime(); });
 
