@@ -1,16 +1,17 @@
 # SpeakPower
 
-> Strategic communication, brand intelligence and digital execution for founders, NGO leaders, corporate teams and public-facing professionals in Uganda and East Africa. Founded by Otieno Thomas in Kampala.
+> Brand storytelling and market development, supported by SEO, strategic writing, visual communication, data science, programming and public speaking for founders, NGOs, organisations and public-facing professionals.
 
-SpeakPower helps leaders diagnose why a message is not landing, rebuild it around audience evidence and context, strengthen the delivery, and add AI or digital systems when the strategy needs an operating layer.
+SpeakPower connects brand storytelling with market development: clarifying what an organisation stands for, making it easier to discover and turning strategy into practical communication, data and digital execution.
 
-## Five capabilities
+## Six connected capabilities
 
-- **Communication Strategy** — message audits, positioning, stakeholder communication and go-to-market messaging.
-- **Public Speaking & Leadership Communication** — presentations, pitches, talks and high-stakes communication shaped around audience and evidence.
-- **Brand Intelligence & Narrative** — personal and organizational positioning, narrative architecture and message systems.
-- **AI Communication Systems** — practical AI workflows for research, content, knowledge management and repeatable communication work.
-- **Digital Systems & Applications** — websites, web applications, dashboards and internal tools that carry the strategy into daily use.
+- **Brand Storytelling & Positioning** — brand story, positioning, narrative architecture and message systems.
+- **Market Development & SEO** — search visibility, SEO audits, audience insight, keyword/content opportunities and market-facing digital strategy.
+- **Strategic Writing & Content** — website copy, SEO writing, thought leadership, articles and content systems.
+- **Visual Communication & Graphic Design** — campaigns, presentations, reports, social assets and brand collateral.
+- **Data Science, Analytics & Digital Systems** — data analysis, dashboards, programming, web applications and automation.
+- **Public Speaking & Thought Leadership** — talks, presentations, coaching, facilitation and public-facing expertise.
 
 ## POLSSE framework
 
@@ -48,8 +49,18 @@ SpeakPower starts with audience and context rather than generic communication fo
 - Periodic live masterclasses
 
 ## SpeakPower ventures\n\n- **Tonninyira** — an online marketing app bringing local vendors to customers.\n- **CuePointe** — a cuesports marketing and community platform focused on events, talent visibility and participation.\n\n## SpeakPower Studio
-SpeakPower Studio is the self-service product layer. Customers choose a defined communication problem, complete a guided questionnaire and receive an automatically generated pack without submitting confidential proposals or booking a meeting.
-Current automated products: WhatsApp Sales Kit, Business Offer Builder, Personal Authority Pack, Speaker Ready Pack, Content Starter Pack, and AI Communication Blueprint.
+
+SpeakPower Studio is the self-service product layer. Customers choose a practical problem, complete a guided questionnaire or provide a public URL/non-sensitive CSV, and the software generates a first deliverable without Thomas being in the loop.
+
+Current automated products:
+- Brand Story Builder
+- Website SEO & Visibility Audit
+- Market Development Planner
+- SEO Content Starter
+- Data Story Builder
+- Speaker Ready Pack
+
+The Studio is intentionally separate from bespoke Services. Confidential proposals and sensitive client documents are not required for Studio products.
 
 - Email: thomasotieno583@gmail.com
 - Phone / WhatsApp: +256 743 482 588
