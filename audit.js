@@ -547,13 +547,13 @@
      ---------------------------------------------------------------------- */
 
   var ROUTES = {
-    readability: { service: "Communication strategy",      href: "services.html#svc-strategy" },
-    rhythm:      { service: "Public speaking through data",   href: "services.html#svc-speaking" },
-    passive:     { service: "Brand intelligence & narrative", href: "services.html#svc-narrative" },
-    hedging:     { service: "Brand intelligence & narrative", href: "services.html#svc-narrative" },
-    jargon:      { service: "Communication strategy",      href: "services.html#svc-strategy" },
-    evidence:    { service: "Communication strategy",      href: "services.html#svc-strategy" },
-    nominal:     { service: "Communication strategy",      href: "services.html#svc-strategy" }
+    readability: { service: "Message Fix", href: "studio.html#product-message-fix" },
+    rhythm:      { service: "Presentation Rescue", href: "studio.html#product-presentation-rescue" },
+    passive:     { service: "Message Fix", href: "studio.html#product-message-fix" },
+    hedging:     { service: "Message Fix", href: "studio.html#product-message-fix" },
+    jargon:      { service: "Message Fix", href: "studio.html#product-message-fix" },
+    evidence:    { service: "Pitch Polish", href: "studio.html#product-pitch-polish" },
+    nominal:     { service: "Message Fix", href: "studio.html#product-message-fix" }
   };
 
   function costOf(m, measure) {
@@ -602,6 +602,35 @@
 
       host.appendChild(item);
     });
+  }
+
+  function renderProductRecommendation(m) {
+    var host = document.getElementById("productRecommendation");
+    if (!host) return;
+    host.textContent = "";
+
+    var rows = findings(m).map(function (f) {
+      return { f: f, cost: costOf(m, f.measure) };
+    }).sort(function (a, b) { return b.cost - a.cost; });
+
+    var top = rows[0] && rows[0].f;
+    var route = top && ROUTES[top.measure];
+    if (!route) return;
+
+    var copy = {
+      "Message Fix": "Your biggest loss is in message clarity or density. Start with a focused rewrite rather than a full brand project.",
+      "Presentation Rescue": "Your biggest loss is in rhythm and delivery. A presentation-level rewrite will give you a stronger story to speak.",
+      "Pitch Polish": "Your evidence and argument need a clearer persuasive structure. Pitch Polish is the closest defined product."
+    };
+
+    var box = el("div", "audit-product-card");
+    box.appendChild(el("p", "audit-product-kicker", "Recommended next step"));
+    box.appendChild(el("h3", null, route.service));
+    box.appendChild(el("p", null, copy[route.service] || "This is the closest defined SpeakPower product for the issue the audit found."));
+    var link = el("a", "btn btn-primary", "See this product");
+    link.href = route.href;
+    box.appendChild(link);
+    host.appendChild(box);
   }
 
   function renderTable(m) {
@@ -863,6 +892,7 @@
     renderHistogram(result);
     renderBars(result);
     renderFindings(result);
+    renderProductRecommendation(result);
     renderTable(result);
 
     results.hidden = false;
