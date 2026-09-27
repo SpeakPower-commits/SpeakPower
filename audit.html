@@ -30,7 +30,7 @@
 <meta name="twitter:description" content="Paste your pitch and get a measured diagnosis in six dimensions.">
 <meta name="twitter:image" content="https://speakpower-commits.github.io/SpeakPower-/assets/og-image.png">
 
-<link rel="icon" type="image/png" href="assets/favicon.png?v=3" sizes="512x512"><link rel="shortcut icon" type="image/png" href="assets/favicon.png?v=3"><link rel="apple-touch-icon" href="assets/favicon.png?v=3">
+<link rel="icon" type="image/png" href="assets/logo-mark.png?v=4" sizes="160x160"><link rel="shortcut icon" type="image/png" href="assets/logo-mark.png?v=4"><link rel="apple-touch-icon" href="assets/logo-mark.png?v=4">
 
 <link rel="manifest" href="site.webmanifest">
 
@@ -54,14 +54,7 @@
       <span class="logo-text">Speak<span>Power</span></span>
     </a>
     <nav class="nav-links" id="navLinks" aria-label="Primary">
-      <a href="index.html">Home</a>
-      <a href="services.html">Services</a>
-      <a href="audit.html" aria-current="page">Audit</a><a href="studio.html">Studio</a>
-      <a href="work.html">Work</a>
-      <a href="about.html">About</a>
-      <a href="https://speakpower1.blogspot.com" target="_blank" rel="noopener">Blog</a>
-      <a href="contact.html">Contact</a>
-      <a href="contact.html" class="nav-cta">Book a discovery call</a>
+      <a href="index.html">Home</a><a href="services.html">Services</a><a href="audit.html" aria-current="page">Audit</a><a href="studio.html">Studio</a><a href="work.html">Work</a><a href="about.html">About</a><a href="https://speakpower1.blogspot.com" target="_blank" rel="noopener">Insights</a><a href="contact.html" class="nav-cta">Book a discovery call</a>
     </nav>
     <button class="nav-toggle" id="navToggle" type="button"
             aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">&#9776;</button>
@@ -177,15 +170,15 @@
 
       <!-- Findings -->
       <div class="chart">
-        <h3 class="chart-title">What to do about it, and who fixes it</h3>
+        <h3 class="chart-title">What to do next</h3>
         <p class="chart-sub">
           Ordered by points lost from the composite &mdash; weight &times; (1 &minus; score)
-          for each measure &mdash; so the top row is the one worth fixing first. Each row
-          names the service that repairs it. Where two rows share one measure they also
-          share its cost, so the figure is shown once.
+          for each measure &mdash; so the top row is the one worth fixing first. Each finding points to a defined SpeakPower product that addresses the problem. Where two rows share one measure they also share its cost.
         </p>
         <div class="findings" id="findingHost"></div>
       </div>
+
+      <div id="productRecommendation" class="audit-product-recommendation" aria-live="polite"></div>
 
       <button type="button" class="table-toggle" id="tableToggle" aria-expanded="false">
         View as a table
