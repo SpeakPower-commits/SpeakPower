@@ -50,7 +50,7 @@ SpeakPower starts with audience and context rather than generic communication fo
 
 ## SpeakPower ventures\n\n- **Tonninyira** — an online marketing app bringing local vendors to customers.\n- **CuePointe** — a cuesports marketing and community platform focused on events, talent visibility and participation.\n\n## SpeakPower Studio
 
-SpeakPower Studio is the self-service product layer. Customers choose a practical problem, complete a guided questionnaire or provide a public URL/non-sensitive CSV, and the software generates a first deliverable without Thomas being in the loop.
+SpeakPower Studio is the self-service product layer. Customers sign in with email, receive 3 free generations across the Studio, and then pay per additional product run. Customers choose a practical problem, complete a guided questionnaire or provide a public URL/non-sensitive CSV, and the software generates a first deliverable without Thomas being in the loop.
 
 Current automated products:
 - Brand Story Builder
