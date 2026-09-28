@@ -364,3 +364,35 @@
   .studio-account-card{grid-template-columns:1fr}
   .studio-account-usage{justify-self:start}
 }
+
+
+.studio-access-strip{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:.75rem;
+  margin-top:1.25rem;
+  padding:1rem;
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  background:var(--paper);
+}
+.studio-access-strip>div{
+  padding:.35rem .65rem;
+}
+.studio-access-strip>div+div{
+  border-left:1px solid var(--line);
+}
+.studio-access-strip strong{
+  display:block;
+  margin-bottom:.2rem;
+}
+.studio-access-strip span{
+  display:block;
+  color:var(--text-muted);
+  font-size:.82rem;
+  line-height:1.45;
+}
+@media(max-width:760px){
+  .studio-access-strip{grid-template-columns:1fr}
+  .studio-access-strip>div+div{border-left:0;border-top:1px solid var(--line);padding-top:.75rem}
+}
