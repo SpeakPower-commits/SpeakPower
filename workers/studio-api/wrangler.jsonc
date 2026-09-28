@@ -14,6 +14,14 @@
   ],
   "vars": {
     "SITE_ORIGIN": "https://speakpower-commits.github.io",
-    "SITE_URL": "https://speakpower-commits.github.io/SpeakPower-/"
+    "SITE_URL": "https://speakpower-commits.github.io/SpeakPower-/",
+    "CLERK_PUBLISHABLE_KEY": "pk_live_REPLACE_ME"
+  },
+  "secrets": {
+    "required": [
+      "CLERK_SECRET_KEY",
+      "FLW_SECRET_KEY",
+      "FLW_SECRET_HASH"
+    ]
   }
 }
