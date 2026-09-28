@@ -1,0 +1,8 @@
+/* SpeakPower Studio Clerk configuration.
+   Copy to assets/clerk-config.js and replace the placeholders.
+   The publishable key is safe for the browser. Never put CLERK_SECRET_KEY here. */
+
+window.SPEAKPOWER_CLERK_CONFIG = {
+  publishableKey: "pk_live_REPLACE_ME",
+  frontendApi: "https://YOUR-CLERK-FRONTEND-API"
+};
