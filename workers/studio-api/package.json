@@ -6,6 +6,6 @@
     "@clerk/backend": "3.20.1"
   },
   "devDependencies": {
-    "wrangler": "4.40.2"
+    "wrangler": "4.141.0"
   }
 }
