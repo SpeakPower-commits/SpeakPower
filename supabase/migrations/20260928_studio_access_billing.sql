@@ -186,19 +186,38 @@ language plpgsql
 security definer
 set search_path = pg_catalog, public, studio_private
 as $$
+declare
+  v_run_type text;
+  v_order_id uuid;
 begin
   if p_status not in ('completed','failed') then
     raise exception 'Invalid run status';
   end if;
 
+  select run_type, order_id
+  into v_run_type, v_order_id
+  from public.studio_runs
+  where id = p_run_id
+    and user_id = p_user_id
+    and status = 'reserved'
+  for update;
+
+  if not found then
+    return false;
+  end if;
+
+  if p_status = 'failed' and v_run_type = 'paid' and v_order_id is not null then
+    update public.studio_entitlements
+    set remaining_uses = remaining_uses + 1
+    where order_id = v_order_id;
+  end if;
+
   update public.studio_runs
   set status = p_status,
       completed_at = now()
-  where id = p_run_id
-    and user_id = p_user_id
-    and status = 'reserved';
+  where id = p_run_id;
 
-  return found;
+  return true;
 end;
 $$;
 
