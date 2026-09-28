@@ -33,12 +33,38 @@
 <section><div class="wrap studio-builder-grid">
 <div class="studio-builder-panel">
 <div class="studio-builder-meta"><span id="builderPrice">—</span><span id="builderMode">Automated output</span></div>
+
+<div class="studio-access-card" id="authGate">
+  <span class="eyebrow">Studio access</span>
+  <h2>Sign in before you generate.</h2>
+  <p>Use your email to receive a secure one-time sign-in link. Every account gets 3 free Studio generations across all products.</p>
+  <form id="authForm" class="studio-auth-form">
+    <label for="studioEmail">Email address</label>
+    <input id="studioEmail" type="email" autocomplete="email" placeholder="you@example.com" required>
+    <button class="btn btn-primary" id="studioAuthSubmit" type="submit">Email me the sign-in link</button>
+  </form>
+  <p class="auth-status" id="studioAuthStatus" aria-live="polite"></p>
+</div>
+
+<div class="studio-account-card" id="accountBar" hidden>
+  <div><span class="eyebrow">Signed in</span><strong id="studioAccountEmail">—</strong></div>
+  <div class="studio-account-usage"><strong id="studioTrialCount">3</strong><span id="studioTrialText">3 free Studio generations remaining.</span></div>
+  <button class="btn btn-ghost" id="studioSignOut" type="button">Sign out</button>
+</div>
+
+<div class="studio-payment-card" id="paymentPanel" hidden>
+  <span class="eyebrow">Free trials used</span>
+  <h2>Ready for the next Studio generation?</h2>
+  <p id="paymentText">Your three free generations are complete. Pay once for this product to unlock one generation.</p>
+  <button class="btn btn-primary" id="studioPayButton" type="button">Pay with Flutterwave</button>
+  <p class="auth-status" id="studioPaymentStatus" aria-live="polite"></p>
+</div>
 <form id="builderForm"></form>
 <div class="builder-actions">
 <button class="btn btn-primary" id="generateBtn" type="button">Generate my pack</button>
 <a class="btn btn-ghost" href="studio.html">Back to Studio</a>
 </div>
-<p class="builder-note"><strong>Privacy:</strong> this prototype generates the pack in your browser. Your answers are not uploaded by this page.</p>
+<p class="builder-note"><strong>Access:</strong> sign-in and usage are tracked server-side. <strong>Privacy:</strong> guided answers remain in the browser for the current product engines; non-sensitive CSVs are processed locally by the page.</p>
 </div>
 <div class="studio-output-panel" aria-live="polite">
 <div class="output-head"><div><span class="eyebrow">Your output</span><h2 id="outputTitle">Complete the brief to generate.</h2></div><button class="btn btn-ghost" id="downloadBtn" type="button" disabled>Download pack</button></div>
@@ -53,6 +79,9 @@
 <div><h4>Follow</h4><div class="footer-links"><a href="https://www.linkedin.com/in/otieno-thomas-a39b1b21b/" target="_blank" rel="noopener">LinkedIn</a><a href="https://www.instagram.com/otienothomas8/" target="_blank" rel="noopener">Instagram</a></div></div>
 </div><div class="footer-bottom">&copy; 2026 SpeakPower. All rights reserved.</div></div></footer>
 <script src="script.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="assets/supabase-config.js"></script>
+<script src="studio-auth.js"></script>
 <script src="studio-product.js"></script>
 </body>
 </html>
