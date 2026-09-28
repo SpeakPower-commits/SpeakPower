@@ -292,3 +292,108 @@
 .output-block div{white-space:normal;color:var(--text-muted);line-height:1.65}
 @media(max-width:860px){.studio-builder-grid{grid-template-columns:1fr}}
 @media(max-width:560px){.output-head{align-items:flex-start;flex-direction:column}.builder-actions .btn{width:100%}}
+
+
+/* ==========================================================================
+   Studio access / authentication
+   ========================================================================== */
+.studio-access-strip{
+  display:grid;
+  grid-template-columns:1.2fr 1fr 1fr;
+  gap:.9rem;
+  margin:0 0 1.5rem;
+  padding:1rem 1.15rem;
+  border:1px solid var(--line);
+  border-radius:var(--radius-lg);
+  background:var(--paper-2);
+}
+.studio-access-strip>div{
+  padding:.35rem .75rem;
+}
+.studio-access-strip>div+div{
+  border-left:1px solid var(--line);
+}
+.studio-access-strip strong{
+  display:block;
+  font-size:1rem;
+  line-height:1.4;
+}
+.studio-access-strip span:not(.eyebrow){
+  color:var(--text-muted);
+  font-size:.86rem;
+  line-height:1.45;
+}
+.studio-access-card,
+.studio-account-card,
+.studio-payment-card{
+  margin:0 0 1rem;
+  padding:1rem 1.15rem;
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  background:var(--paper-2);
+}
+.studio-access-card h2,
+.studio-payment-card h2{
+  margin:.25rem 0 .45rem;
+  font-size:1.35rem;
+}
+.studio-access-card p,
+.studio-payment-card p{
+  color:var(--text-muted);
+  max-width:62ch;
+}
+.studio-auth-form{
+  display:grid;
+  gap:.55rem;
+  max-width:480px;
+  margin-top:1rem;
+}
+.studio-auth-form input{
+  width:100%;
+}
+.auth-status{
+  min-height:1.3rem;
+  margin:.65rem 0 0;
+  font-size:.86rem;
+}
+.auth-status[data-state="error"]{color:#9b2c2c}
+.auth-status[data-state="success"]{color:#23664e}
+.auth-status[data-state="working"]{color:var(--gold-text)}
+.studio-account-card{
+  display:grid;
+  grid-template-columns:1fr auto auto;
+  gap:1rem;
+  align-items:center;
+}
+.studio-account-card strong{
+  display:block;
+}
+.studio-account-usage{
+  display:flex;
+  align-items:center;
+  gap:.55rem;
+  padding:.5rem .7rem;
+  border:1px solid var(--line);
+  border-radius:999px;
+  background:var(--paper);
+}
+.studio-account-usage strong{
+  display:grid;
+  place-items:center;
+  min-width:1.6rem;
+  height:1.6rem;
+  border-radius:50%;
+  background:var(--navy);
+  color:#fff;
+  font-size:.78rem;
+}
+.studio-account-usage span{
+  color:var(--text-muted);
+  font-size:.8rem;
+}
+@media(max-width:820px){
+  .studio-access-strip{grid-template-columns:1fr}
+  .studio-access-strip>div+div{border-left:0;border-top:1px solid var(--line);padding-top:.75rem}
+  .studio-account-card{grid-template-columns:1fr}
+  .studio-account-usage{justify-self:start}
+}
