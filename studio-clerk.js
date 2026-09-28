@@ -72,13 +72,11 @@
   async function loadClerk() {
     if (window.Clerk) return;
 
-    var frontendApi = String(clerkConfig.frontendApi || "").replace(/\/$/, "");
-    if (!/^https:\/\//.test(frontendApi)) {
-      throw new Error("Clerk Frontend API URL is not configured.");
-    }
-
-    await loadScript(frontendApi + "/npm/@clerk/ui@1/dist/ui.browser.js");
-    await loadScript(frontendApi + "/npm/@clerk/clerk-js@6.34.1/dist/clerk.browser.js");
+    var encoded = String(clerkConfig.publishableKey || "").split("_")[2];
+    if (!encoded) throw new Error("Clerk Publishable Key is not configured.");
+    var clerkDomain = atob(encoded).replace(/\$/, "");
+    await loadScript("https://" + clerkDomain + "/npm/@clerk/ui@1/dist/ui.browser.js");
+    await loadScript("https://" + clerkDomain + "/npm/@clerk/clerk-js@6/dist/clerk.browser.js");
   }
 
   async function api(path, options) {
