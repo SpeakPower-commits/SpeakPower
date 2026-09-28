@@ -46,9 +46,9 @@ Deno.serve(async (req) => {
     const action = payload.action || "usage";
 
     if (action === "usage") {
-      const { data, error } = await supabase.rpc("studio_usage", {
+      const { data, error } = await supabase.schema("studio_private").rpc("studio_usage", {
         p_user_id: userData.user.id,
-      }).schema("studio_private");
+      });
 
       if (error) throw error;
       return json(data, 200, origin);
@@ -58,10 +58,10 @@ Deno.serve(async (req) => {
       const productKey = String(payload.product_key || "").trim();
       if (!productKey) return json({ error: "product_key is required." }, 400, origin);
 
-      const { data, error } = await supabase.rpc("reserve_run", {
+      const { data, error } = await supabase.schema("studio_private").rpc("reserve_run", {
         p_user_id: userData.user.id,
         p_product_key: productKey,
-      }).schema("studio_private");
+      });
 
       if (error) throw error;
       return json(data, 200, origin);
@@ -74,11 +74,11 @@ Deno.serve(async (req) => {
         return json({ error: "run_id and a valid status are required." }, 400, origin);
       }
 
-      const { data, error } = await supabase.rpc("finish_run", {
+      const { data, error } = await supabase.schema("studio_private").rpc("finish_run", {
         p_user_id: userData.user.id,
         p_run_id: runId,
         p_status: status,
-      }).schema("studio_private");
+      });
 
       if (error) throw error;
       return json({ ok: Boolean(data) }, 200, origin);
