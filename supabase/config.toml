@@ -1,0 +1,11 @@
+[functions.studio-access]
+verify_jwt = true
+
+[functions.studio-create-payment]
+verify_jwt = true
+
+[functions.studio-payment-status]
+verify_jwt = true
+
+[functions.flutterwave-webhook]
+verify_jwt = false
