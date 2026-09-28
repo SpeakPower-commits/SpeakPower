@@ -367,18 +367,45 @@
 
   generateBtn.addEventListener("click", function () {
     if (!form.reportValidity()) return;
+    if (!window.SpeakPowerStudioAccess || !window.SpeakPowerStudioReady) {
+      outputHost.innerHTML = "<p class='output-empty'>Studio access is not ready yet. Please refresh and try again.</p>";
+      return;
+    }
+
     generateBtn.disabled = true;
-    generateBtn.textContent = product.mode === "seo" ? "Auditing…" : "Generating…";
-    runProduct(values()).then(function (sections) {
-      render(sections);
-      generateBtn.disabled = false;
-      generateBtn.textContent = "Generate my pack";
-      outputHost.scrollIntoView({behavior:"smooth",block:"start"});
-    }).catch(function (err) {
-      outputHost.innerHTML = "<p class='output-empty'>" + esc(err && err.message ? err.message : "The product could not generate a result.") + "</p>";
-      generateBtn.disabled = false;
-      generateBtn.textContent = "Generate my pack";
-    });
+    generateBtn.textContent = product.mode === "seo" ? "Checking access…" : "Checking access…";
+
+    var runId = null;
+    window.SpeakPowerStudioReady
+      .then(function () {
+        return window.SpeakPowerStudioAccess.reserveRun();
+      })
+      .then(function (access) {
+        runId = access && access.run_id ? access.run_id : null;
+        generateBtn.textContent = product.mode === "seo" ? "Auditing…" : "Generating…";
+        return runProduct(values());
+      })
+      .then(function (sections) {
+        render(sections);
+        return window.SpeakPowerStudioAccess.finishRun(runId, "completed");
+      })
+      .then(function () {
+        generateBtn.disabled = false;
+        generateBtn.textContent = "Generate my pack";
+        outputHost.scrollIntoView({behavior:"smooth",block:"start"});
+      })
+      .catch(function (err) {
+        if (err && err.message === "payment_required") {
+          generateBtn.disabled = false;
+          generateBtn.textContent = "Generate my pack";
+          return;
+        }
+
+        outputHost.innerHTML = "<p class='output-empty'>" + esc(err && err.message ? err.message : "The product could not generate a result.") + "</p>";
+        window.SpeakPowerStudioAccess.finishRun(runId, "failed").catch(function () {});
+        generateBtn.disabled = false;
+        generateBtn.textContent = "Generate my pack";
+      });
   });
 
   downloadBtn.addEventListener("click", download);
