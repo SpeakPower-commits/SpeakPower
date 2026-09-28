@@ -1,13 +1,21 @@
+/* ==========================================================================
+   SpeakPower Studio — builder page
+   The page collects the brief and renders the result. Generation happens in
+   the Cloudflare Worker (worker/worker.js), which also enforces the free-run
+   allowance — keeping the generators server-side is what makes the limit real.
+
+   Flow: fill the brief → Generate → (first time) email code sign-up →
+   Worker spends one run and returns the pack → render / download.
+
+   Every string written with innerHTML goes through esc(). Depends on
+   window.SP from script.js.
+   ========================================================================== */
+
 (function () {
   "use strict";
 
-  var params = new URLSearchParams(window.location.search);
-  var key = params.get("product") || "brand-story";
+  var SP = window.SP || null;
   var $ = function (id) { return document.getElementById(id); };
-  var form = $("builderForm");
-  var outputHost = $("outputHost");
-  var downloadBtn = $("downloadBtn");
-  var generateBtn = $("generateBtn");
 
   var PRODUCTS = {
     "brand-story": {
@@ -23,22 +31,8 @@
         ["proof", "Proof", "Experience, results, partners, location, credentials, products, etc.", "textarea"],
         ["difference", "What makes you different?", "Your method, perspective, story, access or advantage.", "textarea"],
         ["ambition", "Where are you going?", "The future you are trying to create.", "textarea"]
-      ],
-      generate: function (v) {
-        return [
-          ["Core story", v.brand + " exists to help " + v.audience + " move from " + lower(v.problem) + " to " + lower(v.result) + " through " + lower(v.offer) + "."],
-          ["Positioning statement", v.brand + " helps " + v.audience + " achieve " + lower(v.result) + " by combining " + lower(v.offer) + " with " + lower(v.difference) + "."],
-          ["30-second pitch", "We help " + v.audience + " who are dealing with " + lower(v.problem) + ". Through " + lower(v.offer) + ", we help them " + lower(v.result) + ". What makes us different is " + lower(v.difference) + ". Our experience includes " + lower(v.proof) + "."],
-          ["2-minute story", v.brand + " was built around a simple observation: " + v.problem + ". We therefore focus on " + v.offer + " for " + v.audience + ". The goal is practical: " + v.result + ". We bring " + v.proof + ", and our distinctive approach is " + v.difference + ". We are building toward " + v.ambition + "."],
-          ["Messaging pillar 1", "The problem: " + v.problem],
-          ["Messaging pillar 2", "The value: " + v.result],
-          ["Messaging pillar 3", "The difference: " + v.difference],
-          ["Tagline directions", "Built for " + v.audience + ". | From " + v.problem + " to " + v.result + ". | " + titleCase(v.difference) + "."],
-          ["Call to action", "Ready to " + lower(v.result) + "? Start with " + v.brand + "."]
-        ];
-      }
+      ]
     },
-
     "seo-audit": {
       title: "Website SEO & Visibility Audit",
       price: "UGX 75,000",
@@ -46,9 +40,9 @@
       fields: [
         ["url", "Website URL", "https://example.com", "url"]
       ],
-      mode: "seo"
+      busyLabel: "Auditing… this can take up to a minute",
+      privacy: "only the public URL you enter is sent, to Google PageSpeed via SpeakPower. SpeakPower records only which product you ran."
     },
-
     "market-plan": {
       title: "Market Development Planner",
       price: "UGX 125,000",
@@ -63,22 +57,8 @@
         ["competitors", "Alternatives / competitors", "Who else solves the problem or gets the customer's attention?", "textarea"],
         ["channels", "Current channels", "Website, SEO, LinkedIn, Facebook, referrals, events, partners, etc.", "textarea"],
         ["goal", "90-day goal", "What measurable result do you want?", "textarea"]
-      ],
-      generate: function (v) {
-        return [
-          ["Market opportunity", v.business + " is positioned around " + v.offer + " for " + v.audience + " in " + v.geography + "."],
-          ["Core market problem", v.problem],
-          ["Positioning angle", "Lead with the specific outcome: " + v.goal + ". Support it with the advantage of " + v.advantage + "."],
-          ["Competitive lens", "Map " + v.competitors + " against four questions: who they serve, what they promise, how they prove it and where their visibility is strongest."],
-          ["Visibility priorities", "1. Strengthen the website story.\n2. Build search-focused content around real customer questions.\n3. Make the offer easy to understand on social and professional channels.\n4. Use partnerships and speaking opportunities to reach trusted audiences."],
-          ["30 days", "Clarify the offer, audience and proof. Clean up core website and profile messaging. Establish 3 content themes tied to " + v.problem + "."],
-          ["60 days", "Publish consistently, test calls to action, document customer questions and identify the channels producing qualified attention."],
-          ["90 days", "Double down on the strongest channel, refine the offer using evidence and build a repeatable acquisition routine around the goal: " + v.goal + "."],
-          ["Working KPI set", "Visibility: qualified visits. Engagement: enquiries / conversations. Conversion: offers accepted or next-step actions. Learning: recurring objections and customer questions."]
-        ];
-      }
+      ]
     },
-
     "content-seo": {
       title: "SEO Content Starter",
       price: "UGX 75,000",
@@ -92,36 +72,17 @@
         ["topic2", "Customer topic 2", "A second question or pain point.", "text"],
         ["topic3", "Customer topic 3", "A third question or pain point.", "text"],
         ["proof", "Proof", "One credible thing you can demonstrate regularly.", "textarea"]
-      ],
-      generate: function (v) {
-        return [
-          ["Search themes", v.offer + " " + v.location + "\n" + v.topic1 + "\n" + v.topic2 + "\n" + v.topic3],
-          ["Content opportunity 1", "Answer: " + v.topic1],
-          ["Content opportunity 2", "Explain: " + v.topic2],
-          ["Content opportunity 3", "Compare: " + v.topic3],
-          ["Content opportunity 4", "How-to guide for " + v.audience + " interested in " + v.offer],
-          ["Content opportunity 5", "Local / practical guide for " + v.location + " around " + v.offer],
-          ["Content opportunity 6", "Common mistakes " + v.audience + " make before choosing " + v.offer],
-          ["Content opportunity 7", "What good " + v.offer + " looks like, using proof: " + v.proof],
-          ["Content opportunity 8", "FAQ: " + v.topic1],
-          ["Content opportunity 9", "FAQ: " + v.topic2],
-          ["Content opportunity 10", "FAQ: " + v.topic3],
-          ["CTA bank", "Learn more. | Compare your options. | Request a quote. | Book a consultation. | Start with a quick assessment."],
-          ["Publishing rhythm", "Week 1: question answer. Week 2: educational guide. Week 3: proof. Week 4: offer + CTA."]
-        ];
-      }
+      ]
     },
-
     "data-story": {
       title: "Data Story Builder",
       price: "UGX 100,000",
-      lead: "Upload a non-sensitive CSV and get a first-pass profile, patterns, gaps and plain-language story in your browser.",
+      lead: "Upload a non-sensitive CSV and get a first-pass profile, patterns, gaps and plain-language story.",
       fields: [
         ["csv", "CSV dataset", "Choose a non-sensitive .csv file", "file"]
       ],
-      mode: "data"
+      privacy: "your CSV is read in your browser and never uploaded. Only column-level summary statistics (column names, averages, ranges and the most common repeated categories) are sent to build the report. Unique values such as names, emails or IDs are never sent."
     },
-
     "speaker-ready": {
       title: "Speaker Ready Pack",
       price: "UGX 75,000",
@@ -136,29 +97,35 @@
         ["idea2", "Key idea 2", "", "textarea"],
         ["idea3", "Key idea 3", "", "textarea"],
         ["story", "Story / proof", "A case, experience or example.", "textarea"]
-      ],
-      generate: function (v) {
-        return [
-          ["Talk title", titleCase(v.topic) + ": What Your Audience Needs to Know"],
-          ["Opening hook", "Most people think " + lower(v.topic) + " is mainly about information. The bigger question is what changes for " + v.audience + " when the idea becomes practical."],
-          ["Audience promise", "By the end of this " + v.time + " session, the audience should " + lower(v.goal) + "."],
-          ["Part 1 — The problem", v.idea1],
-          ["Part 2 — The shift", v.idea2],
-          ["Part 3 — The action", v.idea3],
-          ["Story / proof", v.story],
-          ["Transition 1", "Now that we have seen the problem, let's look at what needs to change."],
-          ["Transition 2", "The important point is not only understanding this; it is deciding what to do with it."],
-          ["Closing", "The challenge is simple: " + lower(v.goal) + ". Start with one action and make it visible."],
-          ["Likely Q&A", "What is the biggest obstacle to applying this?\nWhat would you change first?\nCan you give a practical example?\nWhat happens when people disagree?"]
-        ];
-      }
+      ]
     }
   };
 
-  var product = PRODUCTS[key] || PRODUCTS["brand-story"];
+  var requested = new URLSearchParams(window.location.search).get("product");
+  var key = PRODUCTS[requested] ? requested : "brand-story";
+  var product = PRODUCTS[key];
+
+  var form = $("builderForm");
+  var outputHost = $("outputHost");
+  var downloadBtn = $("downloadBtn");
+  var generateBtn = $("generateBtn");
+  var lastSections = [];
+
   $("builderTitle").textContent = product.title;
   $("builderLead").textContent = product.lead;
   $("builderPrice").textContent = product.price;
+  if (product.privacy) {
+    var note = $("privacyNote");
+    note.textContent = "";
+    var strong = document.createElement("strong");
+    strong.textContent = "Privacy: ";
+    note.appendChild(strong);
+    note.appendChild(document.createTextNode(product.privacy));
+  }
+
+  /* ------------------------------------------------------------------------
+     Brief form
+     ---------------------------------------------------------------------- */
 
   function renderForm() {
     form.innerHTML = "";
@@ -170,65 +137,50 @@
       label.textContent = f[1];
       wrap.appendChild(label);
 
+      var input;
       if (f[3] === "textarea") {
-        var ta = document.createElement("textarea");
-        ta.id = "field-" + f[0]; ta.name = f[0]; ta.rows = 4;
-        ta.placeholder = f[2] || ""; ta.required = true;
-        wrap.appendChild(ta);
-      } else if (f[3] === "file") {
-        var fi = document.createElement("input");
-        fi.type = "file"; fi.accept = ".csv,text/csv";
-        fi.id = "field-" + f[0]; fi.name = f[0]; fi.required = true;
-        wrap.appendChild(fi);
-      } else if (f[3] === "url") {
-        var url = document.createElement("input");
-        url.type = "url"; url.id = "field-" + f[0]; url.name = f[0];
-        url.placeholder = f[2] || ""; url.required = true;
-        wrap.appendChild(url);
+        input = document.createElement("textarea");
+        input.rows = 4;
+        input.maxLength = 1500;
       } else {
-        var input = document.createElement("input");
-        input.type = "text"; input.id = "field-" + f[0]; input.name = f[0];
-        input.placeholder = f[2] || ""; input.required = true;
-        wrap.appendChild(input);
+        input = document.createElement("input");
+        input.type = f[3] === "file" ? "file" : f[3] === "url" ? "url" : "text";
+        if (f[3] === "file") input.accept = ".csv,text/csv";
+        else input.maxLength = f[3] === "url" ? 2048 : 300;
       }
+      input.id = "field-" + f[0];
+      input.name = f[0];
+      input.required = true;
+      if (f[3] !== "file") input.placeholder = f[2] || "";
+      wrap.appendChild(input);
       form.appendChild(wrap);
     });
   }
 
-  function values() {
+  function textValues() {
     var v = {};
     product.fields.forEach(function (f) {
       var el = form.elements[f[0]];
-      v[f[0]] = el && el.type === "file" ? el.files[0] : String((el && el.value) || "").trim();
+      v[f[0]] = String((el && el.value) || "").trim();
     });
     return v;
   }
 
-  function lower(s) {
-    s = String(s || "").trim();
-    return s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
-  }
-
-  function titleCase(s) {
-    return String(s || "").replace(/\w\S*/g, function (w) {
-      return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+  // What gets sent to the Worker. For the Data Story the CSV is profiled
+  // here and only the summary leaves the browser.
+  function collectInputs() {
+    if (key !== "data-story") return Promise.resolve(textValues());
+    var file = form.elements.csv && form.elements.csv.files[0];
+    if (!file) return Promise.reject(new Error("Choose a CSV file first."));
+    if (file.size > 20 * 1024 * 1024) return Promise.reject(new Error("That CSV is over 20 MB. Use a smaller extract."));
+    return file.text().then(function (text) {
+      return { summary: summarise(parseCSV(text)) };
     });
   }
 
-  function esc(s) {
-    return String(s == null ? "" : s).replace(/[&<>"']/g, function (m) {
-      return { "&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;", "'":"&#39;" }[m];
-    }).replace(/\n/g, "<br>");
-  }
-
-  function render(sections) {
-    outputHost.innerHTML = sections.map(function (item) {
-      return "<article class=\"output-block\"><h3>" + esc(item[0]) + "</h3><div>" + esc(item.slice(1).join("\n\n")) + "</div></article>";
-    }).join("");
-    $("outputTitle").textContent = product.title + " — generated";
-    downloadBtn.disabled = false;
-    window.__studioSections = sections;
-  }
+  /* ------------------------------------------------------------------------
+     CSV profiling (local only)
+     ---------------------------------------------------------------------- */
 
   function parseCSV(text) {
     var rows = [], row = [], cell = "", quoted = false;
@@ -257,130 +209,383 @@
     return Number.isFinite(n) ? n : null;
   }
 
-  function dataStory(file) {
-    return file.text().then(function (text) {
-      var rows = parseCSV(text);
-      if (rows.length < 2) throw new Error("The CSV needs a header row and at least one data row.");
-      var headers = rows[0].map(function (x, i) { return String(x || "").trim() || ("Column " + (i + 1)); });
-      var data = rows.slice(1);
-      var sections = [];
-      sections.push(["Dataset profile", data.length + " data rows across " + headers.length + " columns."]);
+  function summarise(rows) {
+    if (rows.length < 2) throw new Error("The CSV needs a header row and at least one data row.");
+    var headers = rows[0].map(function (x, i) { return String(x || "").trim() || ("Column " + (i + 1)); });
+    var data = rows.slice(1);
+    var numeric = [], categorical = [], missing = [];
 
-      var numeric = [];
-      var categorical = [];
-      var missing = [];
+    headers.forEach(function (h, idx) {
+      var vals = data.map(function (r) { return r[idx] == null ? "" : r[idx]; });
+      var nonempty = vals.filter(function (v) { return String(v).trim() !== ""; });
+      var nums = nonempty.map(numValue).filter(function (v) { return v !== null; });
+      var miss = vals.length - nonempty.length;
+      if (miss > 0) missing.push({ name: h, ratio: vals.length ? miss / vals.length : 0 });
 
-      headers.forEach(function (h, idx) {
-        var vals = data.map(function (r) { return r[idx] == null ? "" : r[idx]; });
-        var nonempty = vals.filter(function (v) { return String(v).trim() !== ""; });
-        var nums = nonempty.map(numValue).filter(function (v) { return v !== null; });
-        var miss = vals.length - nonempty.length;
-        missing.push([h, miss, vals.length ? miss / vals.length : 0]);
-        if (nonempty.length && nums.length >= Math.max(3, nonempty.length * .7)) {
-          var sum = nums.reduce(function (a,b){ return a+b; },0);
-          var mean = sum / nums.length;
-          var min = Math.min.apply(Math, nums), max = Math.max.apply(Math, nums);
-          numeric.push([h, nums.length, mean, min, max]);
-        } else {
-          var counts = {};
-          nonempty.forEach(function (v){ var k=String(v).trim(); counts[k]=(counts[k]||0)+1; });
-          var top = Object.keys(counts).sort(function(a,b){return counts[b]-counts[a];}).slice(0,5);
-          categorical.push([h, nonempty.length, top.map(function(k){return k+" ("+counts[k]+")";}).join(", ")]);
-        }
-      });
-
-      var missTop = missing.filter(function(x){return x[1]>0;}).sort(function(a,b){return b[2]-a[2];}).slice(0,5);
-      sections.push(["Missing values", missTop.length ? missTop.map(function(x){return x[0]+": "+Math.round(x[2]*100)+"% missing";}).join("\n") : "No missing values found in the inspected columns."]);
-
-      if (numeric.length) {
-        sections.push(["Numeric summary", numeric.map(function(x){return x[0]+": mean "+x[2].toFixed(2)+" | min "+x[3].toFixed(2)+" | max "+x[4].toFixed(2);}).join("\n")]);
-        var biggest = numeric.slice().sort(function(a,b){return (b[4]-b[3])-(a[4]-a[3]);})[0];
-        if (biggest) sections.push(["Largest numeric range", biggest[0]+" spans from "+biggest[3].toFixed(2)+" to "+biggest[4].toFixed(2)+"."]);
+      if (nonempty.length && nums.length >= Math.max(3, nonempty.length * 0.7)) {
+        var sum = 0, min = Infinity, max = -Infinity;
+        nums.forEach(function (n) { sum += n; if (n < min) min = n; if (n > max) max = n; });
+        numeric.push({ name: h, mean: sum / nums.length, min: min, max: max });
+      } else {
+        var counts = {};
+        nonempty.forEach(function (v) { var k = String(v).trim(); counts[k] = (counts[k] || 0) + 1; });
+        var distinct = Object.keys(counts).length;
+        // Only genuine categories leave the browser: values that repeat, in a
+        // column that is not mostly unique. Names, emails, IDs and free text
+        // are reported as a distinct count, never as values.
+        var isCategory = distinct <= Math.max(20, nonempty.length * 0.5);
+        var top = !isCategory ? [] : Object.keys(counts)
+          .filter(function (k) { return counts[k] > 1; })
+          .sort(function (a, b) { return counts[b] - counts[a]; })
+          .slice(0, 5);
+        categorical.push({ name: h, distinct: distinct, top: top.map(function (k) { return [k, counts[k]]; }) });
       }
-
-      if (categorical.length) {
-        sections.push(["Category patterns", categorical.map(function(x){return x[0]+": "+x[2];}).join("\n")]);
-      }
-
-      var story = [];
-      story.push("The dataset contains "+data.length+" observations and "+headers.length+" variables.");
-      if (numeric.length) story.push("The strongest first-pass quantitative story is around "+numeric.map(function(x){return x[0];}).slice(0,4).join(", ")+".");
-      if (categorical.length) story.push("The most useful segmentation fields appear to include "+categorical.map(function(x){return x[0];}).slice(0,4).join(", ")+".");
-      if (missTop.length) story.push("Data quality needs attention in "+missTop[0][0]+" first because "+Math.round(missTop[0][2]*100)+"% of values are missing.");
-      story.push("This is a descriptive first pass, not a causal conclusion. The next analysis should test the questions that matter to the decision behind the dataset.");
-      sections.push(["Plain-language data story", story.join(" ")]);
-      sections.push(["Next questions", "What changed most?\nWhich groups differ?\nWhich variables move together?\nWhat decision is this dataset supposed to support?"]);
-      return sections;
     });
+
+    return {
+      rows: data.length,
+      columns: headers.length,
+      numeric: numeric.slice(0, 200),
+      categorical: categorical.slice(0, 200),
+      missing: missing.slice(0, 200)
+    };
   }
 
-  function seoAudit(url) {
-    var endpoint = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=" +
-      encodeURIComponent(url) + "&category=seo&category=performance&category=accessibility&category=best-practices";
-    return fetch(endpoint).then(function (res) {
-      if (!res.ok) throw new Error("Google PageSpeed could not analyse that URL right now.");
-      return res.json();
+  /* ------------------------------------------------------------------------
+     Account state
+     ---------------------------------------------------------------------- */
+
+  var SESSION_KEY = "sp_studio_session";
+  var session = loadSession();
+  var account = session ? session.account : null;
+  var pendingEmail = "";
+
+  function loadSession() {
+    if (!SP) return null;
+    var raw = SP.storageGet(SESSION_KEY);
+    if (!raw) return null;
+    try {
+      var s = JSON.parse(raw);
+      if (!s || !s.token || !s.expiresAt || s.expiresAt * 1000 < Date.now()) return null;
+      return s;
+    } catch (e) { return null; }
+  }
+
+  function saveSession(s) {
+    session = s;
+    if (SP) SP.storageSet(SESSION_KEY, s ? JSON.stringify(s) : null);
+  }
+
+  function setAccount(a) {
+    if (!a) return;
+    account = a;
+    if (session) { session.account = a; saveSession(session); }
+    renderAccount();
+  }
+
+  function runsLabel(a) {
+    if (a.trialsRemaining > 0) return a.trialsRemaining + " of " + a.freeTrials + " free runs left";
+    if (a.credits > 0) return a.credits + (a.credits === 1 ? " paid run left" : " paid runs left");
+    return "Free runs used";
+  }
+
+  function renderAccount() {
+    var signedIn = !!(session && account);
+    $("accountBar").hidden = !signedIn;
+    $("signInPrompt").hidden = signedIn || !(SP && SP.connected);
+    if (signedIn) {
+      $("accountEmail").textContent = account.email;
+      $("accountRuns").textContent = runsLabel(account);
+      $("runsChip").textContent = runsLabel(account);
+    } else {
+      $("runsChip").textContent = "3 free runs on sign-up";
+    }
+  }
+
+  function signOut() {
+    saveSession(null);
+    account = null;
+    renderAccount();
+  }
+
+  /* ------------------------------------------------------------------------
+     Status helpers
+     ---------------------------------------------------------------------- */
+
+  function setMsg(id, message, state) {
+    var el = $(id);
+    if (!el) return;
+    el.textContent = message || "";
+    if (state && message) el.setAttribute("data-state", state);
+    else el.removeAttribute("data-state");
+  }
+
+  function setBusy(button, busy, label) {
+    if (!button) return;
+    if (busy) {
+      button.setAttribute("data-label", button.textContent);
+      button.textContent = label;
+      button.disabled = true;
+    } else {
+      button.textContent = button.getAttribute("data-label") || button.textContent;
+      button.disabled = false;
+    }
+  }
+
+  /* ------------------------------------------------------------------------
+     Sign-up / sign-in (email code)
+     ---------------------------------------------------------------------- */
+
+  var turnstileWidget = null;
+  var turnstileToken = "";
+  var signupTracked = false;
+
+  function ensureTurnstile() {
+    var siteKey = SP && SP.config.turnstileSiteKey;
+    if (!siteKey || turnstileWidget !== null) return;
+    turnstileWidget = "loading";
+    window.spTurnstileReady = function () {
+      turnstileWidget = window.turnstile.render("#turnstileHost", {
+        sitekey: siteKey,
+        callback: function (token) { turnstileToken = token; },
+        "expired-callback": function () { turnstileToken = ""; },
+        "error-callback": function () { turnstileToken = ""; }
+      });
+    };
+    var s = document.createElement("script");
+    s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?onload=spTurnstileReady&render=explicit";
+    s.async = true;
+    s.defer = true;
+    document.head.appendChild(s);
+  }
+
+  function resetTurnstile() {
+    turnstileToken = "";
+    if (window.turnstile && turnstileWidget && turnstileWidget !== "loading") {
+      try { window.turnstile.reset(turnstileWidget); } catch (e) { /* widget gone */ }
+    }
+  }
+
+  function showStep(step) {
+    $("signupStep").hidden = step !== "signup";
+    $("verifyStep").hidden = step !== "verify";
+  }
+
+  function openSignup(message) {
+    $("upgradePanel").hidden = true;
+    $("signupPanel").hidden = false;
+    showStep("signup");
+    setMsg("signupStatus", message || "", message ? "error" : null);
+    ensureTurnstile();
+    if (!signupTracked && SP) { SP.track("signup_started", { product: key }); signupTracked = true; }
+    $("signupPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+    $("su-email").focus({ preventScroll: true });
+  }
+
+  $("signupForm").addEventListener("submit", function (event) {
+    event.preventDefault();
+    var form1 = event.currentTarget;
+    if (!form1.reportValidity()) return;
+    if (SP.config.turnstileSiteKey && !turnstileToken) {
+      setMsg("signupStatus", "Please complete the security check first.", "error");
+      return;
+    }
+    var email = $("su-email").value.trim();
+    var btn = $("signupBtn");
+    setBusy(btn, true, "Sending…");
+    setMsg("signupStatus", "");
+
+    SP.api("/auth/start", {
+      body: { email: email, name: $("su-name").value.trim(), turnstileToken: turnstileToken }
     }).then(function (data) {
-      var lh = data.lighthouseResult || {};
-      var scores = lh.categories || {};
-      var sections = [];
-      ["seo","performance","accessibility","best-practices"].forEach(function (key) {
-        if (scores[key] && typeof scores[key].score === "number") {
-          sections.push([titleCase(key.replace("-", " ")), Math.round(scores[key].score * 100) + " / 100"]);
-        }
-      });
-
-      var audits = lh.audits || {};
-      var failures = Object.keys(audits).map(function (id) {
-        var a = audits[id];
-        if (!a || !a.title || a.scoreDisplayMode === "informative" || a.score === null) return null;
-        return {id:id,title:a.title,score:a.score,display:a.displayValue||""};
-      }).filter(Boolean).filter(function(a){return a.score < 1;}).sort(function(a,b){return a.score-b.score;}).slice(0,10);
-
-      sections.push(["Top findings", failures.length ? failures.map(function(a){return a.title + (a.display ? " — "+a.display : "");}).join("\n") : "No failed Lighthouse audits were returned."]);
-      sections.push(["What to fix first", "1. Address the highest-impact failed SEO checks.\n2. Improve pages with weak search intent alignment and unclear headings.\n3. Improve performance and accessibility issues that affect user experience.\n4. Re-run the audit after changes."]);
-      sections.push(["Important note", "This is an automated technical audit based on the public URL. Search Console data, rankings, backlinks and conversion performance require access to the website's own data and are outside this automated check."]);
-      return sections;
-    });
-  }
-
-  function runProduct(v) {
-    if (product.mode === "seo") return seoAudit(v.url);
-    if (product.mode === "data") return dataStory(v.csv);
-    return Promise.resolve(product.generate(v));
-  }
-
-  function download() {
-    var sections = window.__studioSections || [];
-    if (!sections.length) return;
-    var body = sections.map(function (item) {
-      return "<section><h2>" + esc(item[0]) + "</h2><p>" + esc(item.slice(1).join("\n\n")) + "</p></section>";
-    }).join("");
-    var html = "<!doctype html><html><head><meta charset='utf-8'><title>" + esc(product.title) + " — SpeakPower</title><style>body{font-family:Arial,sans-serif;max-width:800px;margin:40px auto;line-height:1.6;color:#182236}h1{font-size:28px}h2{margin-top:32px;border-bottom:1px solid #ddd;padding-bottom:6px}section{page-break-inside:avoid}footer{margin-top:48px;font-size:13px;color:#777}</style></head><body><h1>" + esc(product.title) + "</h1>" + body + "<footer>Generated by SpeakPower Studio.</footer></body></html>";
-    var blob = new Blob([html], {type:"text/html;charset=utf-8"});
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement("a");
-    a.href = url; a.download = product.title.toLowerCase().replace(/[^a-z0-9]+/g,"-") + "-speakpower.html";
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(function(){URL.revokeObjectURL(url);},1000);
-  }
-
-  generateBtn.addEventListener("click", function () {
-    if (!form.reportValidity()) return;
-    generateBtn.disabled = true;
-    generateBtn.textContent = product.mode === "seo" ? "Auditing…" : "Generating…";
-    runProduct(values()).then(function (sections) {
-      render(sections);
-      generateBtn.disabled = false;
-      generateBtn.textContent = "Generate my pack";
-      outputHost.scrollIntoView({behavior:"smooth",block:"start"});
-    }).catch(function (err) {
-      outputHost.innerHTML = "<p class='output-empty'>" + esc(err && err.message ? err.message : "The product could not generate a result.") + "</p>";
-      generateBtn.disabled = false;
-      generateBtn.textContent = "Generate my pack";
+      pendingEmail = email;
+      $("verifyEmail").textContent = email;
+      showStep("verify");
+      setMsg("verifyStatus", "");
+      var code = $("vf-code");
+      code.value = data.devCode || ""; // development mode only
+      code.focus();
+    }, function (err) {
+      setMsg("signupStatus", err.message, "error");
+    }).then(function () {
+      setBusy(btn, false);
+      resetTurnstile();
     });
   });
 
+  $("verifyForm").addEventListener("submit", function (event) {
+    event.preventDefault();
+    var code = $("vf-code").value.replace(/\D/g, "");
+    if (code.length !== 6) {
+      setMsg("verifyStatus", "Enter the 6-digit code from the email.", "error");
+      return;
+    }
+    var btn = $("verifyBtn");
+    setBusy(btn, true, "Verifying…");
+
+    SP.api("/auth/verify", {
+      body: { email: pendingEmail, code: code, anonId: SP.anonId, page: window.location.pathname }
+    }).then(function (data) {
+      saveSession({ token: data.token, expiresAt: data.expiresAt, account: data.account });
+      setAccount(data.account);
+      $("signupPanel").hidden = true;
+      $("vf-code").value = "";
+      // They already wrote the brief: generate straight away if it is complete.
+      if (form.checkValidity()) run();
+      else {
+        var first = form.querySelector(":invalid");
+        if (first) first.focus();
+      }
+    }, function (err) {
+      setMsg("verifyStatus", err.message, "error");
+    }).then(function () {
+      setBusy(btn, false);
+    });
+  });
+
+  $("restartBtn").addEventListener("click", function () {
+    showStep("signup");
+    setMsg("signupStatus", "");
+    $("su-email").focus();
+  });
+
+  $("signInBtn").addEventListener("click", function () { openSignup(); });
+  $("signOutBtn").addEventListener("click", signOut);
+
+  /* ------------------------------------------------------------------------
+     Generation
+     ---------------------------------------------------------------------- */
+
+  function showUpgrade(data) {
+    var panel = $("upgradePanel");
+    var used = account ? account.freeTrials : 3;
+    $("upgradeTitle").textContent = "You have used your " + used + " free runs.";
+    $("upgradePrice").textContent = (data.productTitle || product.title) + " — " + (data.price || product.price) + " per run";
+
+    var link = $("checkoutLink");
+    var url = data.checkoutUrl || (SP && SP.config.checkoutUrl) || "";
+    if (url) {
+      link.href = url;
+      link.textContent = "Continue with a paid run";
+    } else {
+      link.href = "contact.html";
+      link.textContent = "Arrange a paid run";
+    }
+    panel.hidden = false;
+    panel.scrollIntoView({ behavior: "smooth", block: "start" });
+
+    // Hook for the Flutterwave integration: listen for this event to open an
+    // inline checkout instead of following the link.
+    try {
+      window.dispatchEvent(new CustomEvent("sp:trials-exhausted", {
+        detail: { product: key, title: product.title, price: product.price, email: account ? account.email : "" }
+      }));
+    } catch (e) { /* very old browser: the link still works */ }
+  }
+
+  $("checkoutLink").addEventListener("click", function () {
+    if (SP) SP.track("checkout_click", { product: key });
+  });
+
+  function run() {
+    setMsg("generateStatus", "");
+    $("upgradePanel").hidden = true;
+    setBusy(generateBtn, true, product.busyLabel || "Generating…");
+
+    collectInputs().then(function (inputs) {
+      return SP.api("/studio/generate", {
+        token: session.token,
+        body: { product: key, inputs: inputs, anonId: SP.anonId, page: window.location.pathname }
+      });
+    }).then(function (data) {
+      setAccount(data.account);
+      render(data.sections || []);
+      outputHost.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, function (err) {
+      if (err.status === 401) {
+        signOut();
+        openSignup("Your session has ended. Sign in again to continue — your brief is still here.");
+        return;
+      }
+      if (err.status === 402) {
+        if (err.data && err.data.account) setAccount(err.data.account);
+        showUpgrade(err.data || {});
+        return;
+      }
+      setMsg("generateStatus", err.message || "The product could not generate a result.", "error");
+    }).then(function () {
+      setBusy(generateBtn, false);
+    });
+  }
+
+  generateBtn.addEventListener("click", function () {
+    if (!SP || !SP.connected) {
+      $("offlineNotice").hidden = false;
+      return;
+    }
+    if (!form.reportValidity()) return;
+    if (!session) { openSignup(); return; }
+    run();
+  });
+
+  /* ------------------------------------------------------------------------
+     Output
+     ---------------------------------------------------------------------- */
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (m) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[m];
+    }).replace(/\n/g, "<br>");
+  }
+
+  function render(sections) {
+    lastSections = sections;
+    outputHost.innerHTML = sections.map(function (item) {
+      return "<article class=\"output-block\"><h3>" + esc(item[0]) + "</h3><div>" + esc(item.slice(1).join("\n\n")) + "</div></article>";
+    }).join("");
+    $("outputTitle").textContent = product.title + " — generated";
+    downloadBtn.disabled = !sections.length;
+  }
+
+  function download() {
+    if (!lastSections.length) return;
+    var body = lastSections.map(function (item) {
+      return "<section><h2>" + esc(item[0]) + "</h2><p>" + esc(item.slice(1).join("\n\n")) + "</p></section>";
+    }).join("");
+    var html = "<!doctype html><html><head><meta charset='utf-8'><title>" + esc(product.title) + " — SpeakPower</title><style>body{font-family:Arial,sans-serif;max-width:800px;margin:40px auto;line-height:1.6;color:#182236}h1{font-size:28px}h2{margin-top:32px;border-bottom:1px solid #ddd;padding-bottom:6px}section{page-break-inside:avoid}footer{margin-top:48px;font-size:13px;color:#777}</style></head><body><h1>" + esc(product.title) + "</h1>" + body + "<footer>Generated by SpeakPower Studio.</footer></body></html>";
+    var blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = product.title.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-speakpower.html";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    if (SP) SP.track("studio_download", { product: key });
+  }
+
   downloadBtn.addEventListener("click", download);
+
+  /* ------------------------------------------------------------------------
+     Start-up
+     ---------------------------------------------------------------------- */
+
   renderForm();
+  renderAccount();
+
+  if (!SP || !SP.connected) {
+    $("offlineNotice").hidden = false;
+    generateBtn.disabled = true;
+  } else {
+    SP.track("studio_view", { product: key });
+    if (session) {
+      // Refresh the run balance; a revoked or expired session signs out quietly.
+      SP.api("/me", { token: session.token }).then(function (data) {
+        setAccount(data.account);
+      }, function (err) {
+        if (err.status === 401) signOut();
+      });
+    }
+  }
 })();

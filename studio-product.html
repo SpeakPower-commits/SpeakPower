@@ -4,7 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Studio Builder — SpeakPower</title>
-<meta name="description" content="Complete a guided brief and generate a SpeakPower communication pack online.">
+<meta name="description" content="Complete a guided brief and generate a SpeakPower communication pack online. New accounts get 3 free runs.">
+<meta name="robots" content="noindex, follow">
+<link rel="canonical" href="https://speakpower-commits.github.io/SpeakPower/studio-product.html">
+<meta name="theme-color" content="#16233f">
 <link rel="icon" type="image/png" href="assets/logo-mark.png?v=4" sizes="160x160">
 <link rel="shortcut icon" type="image/png" href="assets/logo-mark.png?v=4">
 <link rel="apple-touch-icon" href="assets/logo-mark.png?v=4">
@@ -32,14 +35,74 @@
 
 <section><div class="wrap studio-builder-grid">
 <div class="studio-builder-panel">
-<div class="studio-builder-meta"><span id="builderPrice">—</span><span id="builderMode">Automated output</span></div>
-<form id="builderForm"></form>
+
+<div class="studio-account" id="accountBar" hidden>
+<span>Signed in as <strong id="accountEmail"></strong></span>
+<span class="studio-account-runs" id="accountRuns"></span>
+<button type="button" class="link-button" id="signOutBtn">Sign out</button>
+</div>
+
+<div class="studio-builder-meta"><span id="builderPrice">—</span><span id="runsChip">3 free runs on sign-up</span></div>
+
+<div class="studio-notice" id="offlineNotice" role="status" hidden>
+<strong>Studio accounts are launching shortly.</strong>
+<p>Free runs open as soon as sign-up goes live. Need this now? <a href="contact.html">Talk to SpeakPower</a> or <a href="https://wa.me/256743482588" target="_blank" rel="noopener">WhatsApp us</a>.</p>
+</div>
+
+<form id="builderForm" novalidate></form>
+
 <div class="builder-actions">
 <button class="btn btn-primary" id="generateBtn" type="button">Generate my pack</button>
 <a class="btn btn-ghost" href="studio.html">Back to Studio</a>
 </div>
-<p class="builder-note"><strong>Privacy:</strong> this prototype generates the pack in your browser. Your answers are not uploaded by this page.</p>
+<p class="builder-signin" id="signInPrompt">Already have an account? <button type="button" class="link-button" id="signInBtn">Sign in</button></p>
+
+<!-- Sign-up / sign-in: one email-code flow serves both. -->
+<div class="studio-signup" id="signupPanel" hidden>
+<div id="signupStep">
+<span class="eyebrow">Free account</span>
+<h2 class="studio-signup-title">Get 3 free runs.</h2>
+<p class="studio-signup-lead">Enter your email and we will send a 6-digit code. No password, no card. Your brief stays filled in.</p>
+<form id="signupForm" novalidate>
+<div class="builder-field"><label for="su-name">Your name</label><input type="text" id="su-name" name="name" autocomplete="name" maxlength="120"></div>
+<div class="builder-field"><label for="su-email">Email</label><input type="email" id="su-email" name="email" autocomplete="email" maxlength="254" required></div>
+<div id="turnstileHost" class="turnstile-host"></div>
+<button type="submit" class="btn btn-primary" id="signupBtn">Email me a code</button>
+<div class="form-status" id="signupStatus" role="status" aria-live="polite"></div>
+</form>
 </div>
+
+<div id="verifyStep" hidden>
+<span class="eyebrow">Check your inbox</span>
+<h2 class="studio-signup-title">Enter your code.</h2>
+<p class="studio-signup-lead">Sent to <strong id="verifyEmail"></strong>. It expires in 10 minutes.</p>
+<form id="verifyForm" novalidate>
+<div class="builder-field"><label for="vf-code">6-digit code</label><input type="text" id="vf-code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></div>
+<button type="submit" class="btn btn-primary" id="verifyBtn">Verify and continue</button>
+<button type="button" class="link-button" id="restartBtn">Send a new code or use a different email</button>
+<div class="form-status" id="verifyStatus" role="status" aria-live="polite"></div>
+</form>
+</div>
+</div>
+
+<!-- Shown when the free runs are used up. The checkout itself (Flutterwave)
+     plugs in via CHECKOUT_URL / SP_CONFIG.checkoutUrl, or by listening for
+     the "sp:trials-exhausted" window event. -->
+<div class="studio-upgrade" id="upgradePanel" hidden>
+<span class="eyebrow">Free runs used</span>
+<h2 class="studio-signup-title" id="upgradeTitle">You have used your free runs.</h2>
+<p class="studio-signup-lead">Your brief is still here. Continue with a paid run to generate this pack.</p>
+<p class="studio-upgrade-price" id="upgradePrice"></p>
+<div class="builder-actions">
+<a class="btn btn-primary" id="checkoutLink" href="contact.html">Continue with a paid run</a>
+<a class="btn btn-ghost" href="contact.html">Talk to SpeakPower</a>
+</div>
+</div>
+
+<div class="form-status" id="generateStatus" role="status" aria-live="polite"></div>
+<p class="builder-note" id="privacyNote"><strong>Privacy:</strong> your answers are sent securely to generate your pack. They are not stored — SpeakPower records only which product you ran.</p>
+</div>
+
 <div class="studio-output-panel" aria-live="polite">
 <div class="output-head"><div><span class="eyebrow">Your output</span><h2 id="outputTitle">Complete the brief to generate.</h2></div><button class="btn btn-ghost" id="downloadBtn" type="button" disabled>Download pack</button></div>
 <div id="outputHost" class="studio-output"><p class="output-empty">Your generated pack will appear here.</p></div>
@@ -47,11 +110,12 @@
 </div></section>
 </main>
 <footer class="site-footer"><div class="wrap"><div class="footer-grid">
-<div><h4>SpeakPower</h4><p class="footer-tagline">Articulate is key.</p><p>Strategic communication, brand intelligence and digital execution. Kampala, Uganda.</p></div>
+<div><h4>SpeakPower</h4><p class="footer-tagline">Articulate is key.</p><p>Brand storytelling and market development, backed by SEO, writing, design, data, programming and public speaking. Kampala, Uganda.</p></div>
 <div><h4>Explore</h4><div class="footer-links"><a href="services.html">Services</a><a href="audit.html">Audit</a><a href="studio.html">Studio</a><a href="work.html">Work</a><a href="about.html">About</a></div></div>
-<div><h4>Contact</h4><div class="footer-links"><a href="tel:+256743482588">+256 743 482 588</a><a href="mailto:thomasotieno583@gmail.com">thomasotieno583@gmail.com</a></div></div>
-<div><h4>Follow</h4><div class="footer-links"><a href="https://www.linkedin.com/in/otieno-thomas-a39b1b21b/" target="_blank" rel="noopener">LinkedIn</a><a href="https://www.instagram.com/otienothomas8/" target="_blank" rel="noopener">Instagram</a></div></div>
+<div><h4>Contact</h4><div class="footer-links"><a href="tel:+256743482588">+256 743 482 588</a><a href="mailto:thomasotieno583@gmail.com">thomasotieno583@gmail.com</a><a href="https://wa.me/256743482588" target="_blank" rel="noopener">WhatsApp</a></div></div>
+<div><h4>Follow</h4><div class="footer-links"><a href="https://www.linkedin.com/in/otieno-thomas-a39b1b21b/" target="_blank" rel="noopener">LinkedIn</a><a href="https://www.instagram.com/otienothomas8/" target="_blank" rel="noopener">Instagram</a><a href="https://www.tiktok.com/@otom323" target="_blank" rel="noopener">TikTok</a></div></div>
 </div><div class="footer-bottom">&copy; 2026 SpeakPower. All rights reserved.</div></div></footer>
+<script src="site-config.js"></script>
 <script src="script.js"></script>
 <script src="studio-product.js"></script>
 </body>

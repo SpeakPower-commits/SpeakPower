@@ -1,59 +1,73 @@
 # SpeakPower
 
-SpeakPower is the marketing site for a Kampala-based strategic communication and brand intelligence practice founded by Otieno Thomas.
+SpeakPower is the marketing site and self-service product platform for a Kampala-based brand storytelling and market development practice founded by Otieno Thomas.
 
-The site positions SpeakPower around five connected capabilities:
+The site positions SpeakPower around six connected capabilities:
 
-1. Communication Strategy
-2. Public Speaking & Leadership Communication
-3. Brand Intelligence & Narrative
-4. AI Communication Systems
-5. Digital Systems & Applications
+1. Brand Storytelling & Positioning
+2. Market Development & SEO
+3. Strategic Writing & Content
+4. Visual Communication & Design
+5. Data, Analytics & Digital Systems
+6. Public Speaking & Thought Leadership
 
-The core idea is simple: diagnose what is not landing, rebuild the message around evidence and context, then stay close to delivery and digital execution when the strategy needs a system to run on.
+The core idea: tell a better story, find the market, and make the strategy move. SpeakPower diagnoses what is not landing, rebuilds the message around evidence and context, and stays close to delivery and digital execution when the strategy needs a system to run on.
 
 ## Technical approach
 
-- Static HTML, CSS and vanilla JavaScript
-- No build step
-- No framework dependency
-- Hosted through GitHub Pages
-- Progressive enhancement and accessible interaction patterns
-- Shared visual tokens in `styles.css`
-- Commercial positioning/conversion layer in `commercial.css`
+- The front end is static HTML, CSS and vanilla JavaScript, served by GitHub Pages. There is no build step and no framework.
+- The back end is Cloudflare only:
+  - a Worker for the API;
+  - D1 for data;
+  - Email Service for sign-in codes and lead alerts;
+  - Turnstile for bot protection;
+  - Web Analytics for page views.
 
-This is intentionally lightweight. A marketing site does not need a heavy application framework unless the business requirements justify it.
+  See [`worker/README.md`](worker/README.md).
+- Progressive enhancement and accessible interaction patterns throughout.
+- Shared visual tokens live in `styles.css`; the commercial and Studio layer lives in `commercial.css`.
+- `site-config.js` holds the only deploy-time settings: the Worker URL, the Turnstile site key and the Web Analytics token. All are public values.
 
 ## Pages
 
 | Page | Purpose |
 |---|---|
-| `index.html` | Positioning, audience, five capabilities, POLSSE, selected work and primary CTA |
-| `services.html` | Detailed commercial service architecture and POLSSE framework |
-| `work.html` | Evidence-led case studies for Tonninyira and CuePointe |
+| `index.html` | Positioning, ventures, audience, six capabilities, POLSSE, Studio and primary CTA |
+| `services.html` | Detailed service architecture and the POLSSE framework |
+| `audit.html` | Free Pitch & Document Clarity Audit (runs in the browser) |
+| `studio.html` | Studio catalogue: six self-service products, 3 free runs on sign-up |
+| `studio-product.html` | Studio builder: brief, sign-up, generation, download (`noindex`) |
+| `work.html` | Case studies for Tonninyira and CuePointe (both live) |
 | `about.html` | Founder story, principles and company direction |
-| `contact.html` | Lead qualification and contact options |
+| `contact.html` | Lead capture |
 | `404.html` | Not-found page |
+
+## Studio: 3 free runs, then paid
+
+- New accounts sign up with an emailed 6-digit code, protected by Turnstile, and get **3 free runs** usable on any product.
+- Generation runs inside the Cloudflare Worker. The Worker enforces the allowance, so it cannot be bypassed from the browser.
+- When the runs are used up, the builder shows an upgrade panel. Payment is handed off to Flutterwave through `CHECKOUT_URL` or the `sp:trials-exhausted` window event. Paid runs are stored as `credits` in D1.
+- Until `apiBase` is set in `site-config.js`, Studio shows a "launching shortly" notice instead of generating.
 
 ## Lead handling
 
-The contact form currently prepares an email addressed to `thomasotieno583@gmail.com`. It does not claim that a lead has been stored because there is no server-side form endpoint in the repository.
+The contact form posts to the Worker (`POST /lead`). The Worker:
+- stores the enquiry in D1;
+- emails a notification to `LEAD_NOTIFY_TO`;
+- protects the form with a honeypot field and per-IP rate limiting.
 
-For production lead capture, connect the form to a server-side service such as:
+If the Worker is not configured or cannot be reached, the form falls back to opening the visitor's email client.
 
-- Formspree or Basin for the quickest deployment
-- A Cloudflare Worker + mail/API service for more control
-- Supabase for stored leads, CRM-style fields and future automation
+Never put API keys, SMTP passwords or tokens in `script.js`, `site-config.js` or any other browser-served file. Secrets live only in the Worker's encrypted settings.
 
-Do not put API keys, SMTP passwords or personal access tokens in `script.js` or any browser-served asset.
+## Measurement
 
-The form already captures:
-
-- Name
-- Organization
-- Email
-- Area of help
-- Context/problem description
+- **Cloudflare Web Analytics** provides cookieless page views when `webAnalyticsToken` is set.
+- **First-party funnel events** are stored in D1:
+  - audit run → Studio view → sign-up started → verified → generate → download → trials exhausted → checkout click → contact.
+  - Sign-up, generate and trials-exhausted events are recorded server-side.
+  - No names, emails or content are stored with events.
+  - Starter SQL is in `worker/README.md`.
 
 ## Content and proof policy
 
@@ -65,17 +79,15 @@ Publish numbers only when they are documented and attributable.
 
 ## SEO / AI discovery
 
-The site includes:
-
-- Page titles and meta descriptions
-- Canonical URLs
-- Open Graph and X/Twitter metadata
-- `robots.txt`
-- `sitemap.xml`
-- `llms.txt`
+- Page titles, meta descriptions, canonical URLs, Open Graph and X/Twitter metadata
+- `robots.txt`, `sitemap.xml` and `llms.txt`
 - Structured data on key pages
 
-The current canonical host remains the GitHub Pages URL until a custom SpeakPower domain is connected.
+The canonical host is `https://speakpower-commits.github.io/SpeakPower/`, matching this repository's name. If a custom domain is connected, update:
+- the canonicals;
+- `sitemap.xml`, `robots.txt` and `llms.txt`;
+- the absolute paths in `404.html`;
+- `ALLOWED_ORIGINS` in the Worker.
 
 ## Brand system
 
@@ -93,40 +105,16 @@ Typography:
 
 ## Assets
 
-The site expects these assets in `assets/`:
-
-- `logo.png`
-- `favicon.png`
-- `otieno-thomas.jpg`
-- `og-image.png`
-
 Keep image filenames lowercase and predictable because GitHub Pages URLs are case-sensitive.
 
 ## Deployment
 
-GitHub Pages can serve the `main` branch from the repository root.
-
-The current production branch is expected to remain stable. Feature work should happen on a branch and move to `main` through review.
-
-For this commercial upgrade, the working branch is:
-
-`professional-commercial-upgrade`
-
-## Next commercial phase
-
-The next major upgrade should be real server-side lead capture and a lightweight analytics/CRM flow:
-
-**Visit → Diagnose → Enquire → Capture → Qualify → Discovery call → Proposal**
-
-That turns SpeakPower from a brochure into a business acquisition system without requiring a frontend rewrite.
-
+- **Front end:** GitHub Pages serves the `main` branch from the repository root. Feature work happens on a branch and reaches `main` through review.
+- **Back end:** deploy the Worker and create the D1 database, following [`worker/README.md`](worker/README.md). Then set `apiBase` in `site-config.js`.
 
 ## Free diagnostic engine
 
-`audit.html` + `audit.js` provide the **Pitch & Document Clarity Audit**. Visitors can paste text or locally open PDF, DOCX, TXT or Markdown files. Analysis happens in the browser; documents are not uploaded or stored.
-
-The engine measures readability, sentence rhythm, passive voice, hedging, category jargon and evidence density. Findings route to the relevant SpeakPower capability through a shared `ROUTES` map.
-
-## Commercial proof layer
-
-The homepage now includes an accessible hero slideshow, venture packaging for **Tonninyira** and **CuePointe**, selected field experience, and a direct path into the diagnostic engine.
+`audit.html` + `audit.js` provide the **Pitch & Document Clarity Audit**. Visitors can paste text or locally open PDF, DOCX, TXT or Markdown files.
+- Analysis happens in the browser; documents are not uploaded or stored. Only an anonymous "audit run" count is recorded.
+- The engine measures readability, sentence rhythm, passive voice, hedging, category jargon and evidence density.
+- Findings route to the relevant Studio product through a shared `ROUTES` map.

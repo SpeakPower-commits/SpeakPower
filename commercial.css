@@ -292,3 +292,55 @@
 .output-block div{white-space:normal;color:var(--text-muted);line-height:1.65}
 @media(max-width:860px){.studio-builder-grid{grid-template-columns:1fr}}
 @media(max-width:560px){.output-head{align-items:flex-start;flex-direction:column}.builder-actions .btn{width:100%}}
+
+
+/* ==========================================================================
+   Studio accounts: sign-up, run balance, upgrade
+   ========================================================================== */
+.studio-intro-actions{display:flex;flex-wrap:wrap;gap:.65rem;flex:none}
+.link-button{
+  padding:0;border:0;background:none;font:inherit;font-weight:600;
+  color:var(--navy);text-decoration:underline;text-underline-offset:3px;cursor:pointer;
+}
+.link-button:hover{color:var(--navy-deep)}
+.link-button:focus-visible{outline:2px solid var(--navy);outline-offset:2px;border-radius:2px}
+.studio-account{
+  display:flex;flex-wrap:wrap;align-items:center;gap:.4rem 1rem;
+  margin-bottom:1rem;padding:.7rem .9rem;border:1px solid var(--line);
+  border-radius:var(--radius);background:var(--paper-2);font-size:.85rem;color:var(--text-muted);
+}
+.studio-account strong{color:var(--ink);font-weight:600;word-break:break-all}
+.studio-account-runs{font-family:var(--font-mono);font-size:.7rem;color:var(--gold-text)}
+.studio-account .link-button{margin-left:auto;font-size:.85rem}
+.builder-signin{margin:.9rem 0 0;font-size:.85rem;color:var(--text-muted)}
+.studio-notice{
+  margin-bottom:1.25rem;padding:1rem 1.1rem;border:1px solid var(--line);
+  border-left:3px solid var(--gold);border-radius:var(--radius);background:var(--paper-2);
+}
+.studio-notice p{margin:.35rem 0 0;font-size:.9rem;color:var(--text-muted)}
+.studio-notice a{font-weight:600;color:var(--navy)}
+.studio-signup,.studio-upgrade{
+  margin-top:1.5rem;padding:clamp(1.1rem,.9rem + .8vw,1.5rem);
+  border:1px solid var(--line-strong);border-radius:var(--radius-lg);background:var(--paper);
+}
+.studio-upgrade{border-color:var(--gold);box-shadow:0 10px 30px rgba(201,162,39,.12)}
+.studio-signup-title{font-size:clamp(1.3rem,1.1rem + .7vw,1.65rem);margin:.4rem 0 .45rem}
+.studio-signup-lead{margin:0 0 1rem;color:var(--text-muted);font-size:.92rem}
+#signupForm,#verifyForm{display:grid;gap:.9rem;justify-items:start}
+#signupForm .builder-field,#verifyForm .builder-field{width:100%}
+#vf-code{max-width:12rem;font-family:var(--font-mono);font-size:1.2rem;letter-spacing:.3em}
+.turnstile-host:empty{display:none}
+.studio-upgrade-price{
+  margin:0 0 .25rem;font-family:var(--font-display);font-weight:600;
+  font-size:clamp(1.15rem,1rem + .6vw,1.4rem);color:var(--navy-deep);
+}
+#generateStatus:not(:empty){margin-top:1rem}
+
+/* Contact-form honeypot: off-screen for people, visible to naive bots. */
+.hp-field{position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden}
+
+/* Venture tiles: the GitHub line is now a secondary link. */
+a.venture-repo{text-decoration:underline;text-underline-offset:2px}
+a.venture-repo:hover{color:var(--gold-bright)}
+
+@media(max-width:760px){.studio-intro-actions{width:100%}.studio-intro-actions .btn{width:100%}}

@@ -15,6 +15,110 @@
 
   var CONTACT_EMAIL = "thomasotieno583@gmail.com";
 
+  /* ------------------------------------------------------------------------
+     0. Platform: config, API client, measurement
+     Talks to the Cloudflare Worker named in site-config.js. With no Worker
+     configured every feature below degrades to the old behaviour instead of
+     breaking. Exposed as window.SP for studio-product.js and audit.js.
+     ---------------------------------------------------------------------- */
+
+  var CONFIG = window.SP_CONFIG || {};
+  var API_BASE = String(CONFIG.apiBase || "").replace(/\/+$/, "");
+
+  // Storage can throw (private mode, blocked site data); never let it matter.
+  function storageGet(key) {
+    try { return window.localStorage.getItem(key); } catch (e) { return null; }
+  }
+  function storageSet(key, value) {
+    try {
+      if (value == null) window.localStorage.removeItem(key);
+      else window.localStorage.setItem(key, value);
+    } catch (e) { /* non-essential */ }
+  }
+
+  // A random id per browser, so the funnel can be read end to end without
+  // storing who anyone is.
+  var anonId = storageGet("sp_anon");
+  if (!anonId) {
+    anonId = (window.crypto && window.crypto.randomUUID)
+      ? window.crypto.randomUUID()
+      : Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
+    storageSet("sp_anon", anonId);
+  }
+
+  function api(path, options) {
+    options = options || {};
+    if (!API_BASE) {
+      var off = new Error("The SpeakPower service is not connected yet.");
+      off.code = "not_configured";
+      return Promise.reject(off);
+    }
+    var headers = {};
+    if (options.body) headers["Content-Type"] = "application/json";
+    if (options.token) headers.Authorization = "Bearer " + options.token;
+
+    return fetch(API_BASE + path, {
+      method: options.body ? "POST" : "GET",
+      headers: headers,
+      body: options.body ? JSON.stringify(options.body) : undefined
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (data) {
+        if (res.ok) return data;
+        var err = new Error(data.message || "The request could not be completed.");
+        err.status = res.status;
+        err.code = data.error;
+        err.data = data;
+        throw err;
+      });
+    }, function () {
+      var err = new Error("Could not reach SpeakPower. Check your connection and try again.");
+      err.code = "network";
+      throw err;
+    });
+  }
+
+  // Fire-and-forget funnel event. text/plain keeps it a simple request (no
+  // CORS preflight), and sendBeacon survives the page being closed.
+  function track(name, props) {
+    if (!API_BASE) return;
+    var payload = JSON.stringify({
+      name: name,
+      page: window.location.pathname,
+      product: (props && props.product) || undefined,
+      anonId: anonId
+    });
+    try {
+      if (navigator.sendBeacon &&
+          navigator.sendBeacon(API_BASE + "/event", new Blob([payload], { type: "text/plain" }))) {
+        return;
+      }
+      fetch(API_BASE + "/event", {
+        method: "POST", body: payload, keepalive: true,
+        headers: { "Content-Type": "text/plain" }
+      }).catch(function () {});
+    } catch (e) { /* measurement must never break the page */ }
+  }
+
+  // Cloudflare Web Analytics: cookieless page views, loaded only when a token
+  // is configured.
+  if (CONFIG.webAnalyticsToken) {
+    var beacon = document.createElement("script");
+    beacon.defer = true;
+    beacon.src = "https://static.cloudflareinsights.com/beacon.min.js";
+    beacon.setAttribute("data-cf-beacon", JSON.stringify({ token: CONFIG.webAnalyticsToken }));
+    document.head.appendChild(beacon);
+  }
+
+  window.SP = {
+    api: api,
+    track: track,
+    anonId: anonId,
+    connected: !!API_BASE,
+    config: CONFIG,
+    storageGet: storageGet,
+    storageSet: storageSet
+  };
+
   // Read once and share: both the slider and the scroll reveal branch on it.
   var prefersReducedMotion =
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -195,9 +299,11 @@
 
   /* ------------------------------------------------------------------------
      5. Forms
-     There is no server behind this site, so both forms compose an email in the
-     visitor's own mail client. The status line reports exactly that — it never
-     claims a submission was received, because nothing here can receive one.
+     The contact form posts to the Worker, which stores the lead and notifies
+     SpeakPower. With no Worker configured, or if it cannot be reached, the
+     form composes an email in the visitor's own mail client instead. The
+     status line only says an enquiry was received when the Worker confirmed
+     it. The masterclass form still uses email.
      ---------------------------------------------------------------------- */
 
   function setStatus(el, state, message) {
@@ -247,12 +353,53 @@
         message.trim()
       ].join("\n");
 
-      setStatus(
-        contactStatus,
-        "success",
-        "Opening your email client with the enquiry ready to send. If nothing opens, email " + CONTACT_EMAIL + " directly."
-      );
-      openMail(subject, body);
+      var viaEmail = function (lead) {
+        setStatus(
+          contactStatus,
+          "success",
+          lead + "Opening your email client with the enquiry ready to send. If nothing opens, email " + CONTACT_EMAIL + " directly."
+        );
+        openMail(subject, body);
+      };
+
+      if (!API_BASE) {
+        viaEmail("");
+        return;
+      }
+
+      var submit = contactForm.querySelector('button[type="submit"]');
+      if (submit) submit.disabled = true;
+      setStatus(contactStatus, "busy", "Sending your enquiry…");
+
+      api("/lead", {
+        body: {
+          name: name.trim(),
+          organization: organization.trim(),
+          email: email.trim(),
+          service: service,
+          message: message.trim(),
+          website: (document.getElementById("c-website") || {}).value || "",
+          page: window.location.pathname,
+          anonId: anonId
+        }
+      }).then(function () {
+        if (submit) submit.disabled = false;
+        contactForm.reset();
+        setStatus(
+          contactStatus,
+          "success",
+          "Thank you — your enquiry has been received. SpeakPower will reply to " + email.trim() + "."
+        );
+      }, function (err) {
+        if (submit) submit.disabled = false;
+        // A validation or rate-limit answer is the visitor's to fix; anything
+        // else means the service is unreachable, so fall back to email.
+        if (err.status === 400 || err.status === 429) {
+          setStatus(contactStatus, "error", err.message);
+        } else {
+          viaEmail("The form could not send just now. ");
+        }
+      });
     });
   }
 
