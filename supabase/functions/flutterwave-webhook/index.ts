@@ -20,20 +20,45 @@ function serviceKey() {
   throw new Error("Supabase server key is not configured.");
 }
 
+async function validSignature(req: Request, rawBody: string) {
+  const secretHash = Deno.env.get("FLW_SECRET_HASH");
+  if (!secretHash) return false;
+
+  const legacy = req.headers.get("verif-hash");
+  if (legacy && legacy === secretHash) return true;
+
+  const current = req.headers.get("flutterwave-signature");
+  if (!current) return false;
+
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secretHash),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const digest = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(rawBody),
+  );
+  const encoded = btoa(String.fromCharCode(...new Uint8Array(digest)));
+  return encoded === current;
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ ok: true });
 
   try {
-    const secretHash = Deno.env.get("FLW_SECRET_HASH");
-    const signature = req.headers.get("verif-hash");
-    if (!secretHash || !signature || signature !== secretHash) {
+    const rawBody = await req.text();
+    if (!(await validSignature(req, rawBody))) {
       return json({ error: "Invalid webhook signature." }, 401);
     }
 
     const flwSecret = Deno.env.get("FLW_SECRET_KEY");
     if (!flwSecret) return json({ error: "Flutterwave secret is not configured." }, 503);
 
-    const payload = await req.json();
+    const payload = JSON.parse(rawBody);
     const data = payload?.data || {};
     const txRef = String(data.tx_ref || "").trim();
     const transactionId = data.id;
