@@ -76,12 +76,7 @@ grant all on table public.studio_orders to service_role;
 grant all on table public.studio_entitlements to service_role;
 grant all on table public.studio_runs to service_role;
 
-create schema if not exists studio_private;
-
-revoke all on schema studio_private from public;
-grant usage on schema studio_private to service_role;
-
-create or replace function studio_private.reserve_run(
+create or replace function public.studio_reserve_run(
   p_user_id uuid,
   p_product_key text
 )
@@ -176,7 +171,7 @@ begin
 end;
 $$;
 
-create or replace function studio_private.finish_run(
+create or replace function public.studio_finish_run(
   p_user_id uuid,
   p_run_id uuid,
   p_status text
@@ -221,7 +216,7 @@ begin
 end;
 $$;
 
-create or replace function studio_private.studio_usage(p_user_id uuid)
+create or replace function public.studio_usage(p_user_id uuid)
 returns jsonb
 language sql
 security definer
@@ -247,6 +242,9 @@ as $$
   );
 $$;
 
-grant execute on function studio_private.reserve_run(uuid, text) to service_role;
-grant execute on function studio_private.finish_run(uuid, uuid, text) to service_role;
-grant execute on function studio_private.studio_usage(uuid) to service_role;
+revoke execute on function public.studio_reserve_run(uuid, text) from public, anon, authenticated;
+revoke execute on function public.studio_finish_run(uuid, uuid, text) from public, anon, authenticated;
+revoke execute on function public.studio_usage(uuid) from public, anon, authenticated;
+grant execute on function public.studio_reserve_run(uuid, text) to service_role;
+grant execute on function public.studio_finish_run(uuid, uuid, text) to service_role;
+grant execute on function public.studio_usage(uuid) to service_role;
