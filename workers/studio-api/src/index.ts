@@ -188,7 +188,10 @@ async function reserveRun(env: Env, userId: string, productKey: string) {
         SELECT 1
         FROM studio_runs existing
         WHERE existing.order_id = o.id
-          AND existing.status IN ('reserved','completed')
+          AND (
+            existing.status = 'completed'
+            OR (existing.status = 'reserved' AND existing.reserved_until > CURRENT_TIMESTAMP)
+          )
       )
     ORDER BY o.paid_at ASC, o.created_at ASC
     LIMIT 1
