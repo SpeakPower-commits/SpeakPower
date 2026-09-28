@@ -1,0 +1,9 @@
+/* Copy this file to assets/supabase-config.js after creating the SpeakPower Supabase project.
+   The publishable key is safe for browser use when RLS and server-side authorization are configured.
+   NEVER put a Supabase secret/service-role key or a Flutterwave secret in this file. */
+
+window.SPEAKPOWER_SUPABASE_CONFIG = {
+  url: "https://YOUR_PROJECT_REF.supabase.co",
+  publishableKey: "sb_publishable_REPLACE_ME",
+  functionsBase: "https://YOUR_PROJECT_REF.supabase.co/functions/v1"
+};
