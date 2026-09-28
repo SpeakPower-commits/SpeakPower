@@ -1,0 +1,39 @@
+# SpeakPower Studio API — Worker configuration.
+#
+# Used when the Worker is deployed with Cloudflare "Workers Builds"
+# (dashboard → Workers & Pages → Create → Import a repository, root
+# directory: worker). If you deploy by pasting worker.js into the dashboard
+# editor instead, set the same bindings and variables in the dashboard and
+# ignore this file.
+#
+# Secrets (SESSION_SECRET, TURNSTILE_SECRET, PAGESPEED_KEY) are never
+# written here. Add them in the dashboard: Settings → Variables and Secrets.
+
+name = "speakpower-api"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+
+[vars]
+ENVIRONMENT = "production"
+ALLOWED_ORIGINS = "https://speakpower-commits.github.io"
+FREE_TRIALS = "3"
+# Sender on a domain onboarded to Cloudflare Email Service, e.g. studio@yourdomain.com
+MAIL_FROM = ""
+# Inbox that receives contact-form enquiries.
+LEAD_NOTIFY_TO = ""
+# Flutterwave checkout / payment link shown when free runs are used up.
+CHECKOUT_URL = ""
+
+[[d1_databases]]
+binding = "DB"
+database_name = "speakpower"
+# Paste the database ID from the D1 dashboard.
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+# Cloudflare Email Service binding used for sign-in codes and lead alerts.
+[[send_email]]
+name = "SEND_EMAIL"
+
+[triggers]
+# Daily housekeeping: prunes old rate-limit rows and expired codes.
+crons = ["17 3 * * *"]

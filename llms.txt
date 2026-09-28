@@ -23,10 +23,34 @@ POLSSE is a SpeakPower strategic lens for testing whether communication is ready
 4. **Security** — protecting the message, data and reputation after communication leaves the room.
 5. **Socioeconomics** — connecting communication to social impact, economic opportunity and the wider purpose of the work.
 
-## Free diagnostic\n\n- **Pitch & Document Clarity Audit** — https://speakpower-commits.github.io/SpeakPower-/audit.html\n  A browser-only diagnostic for pasted or locally selected pitch/proposal documents. It measures readability, sentence rhythm, passive voice, hedging, jargon and evidence density; the source document is not uploaded or stored.\n\n## Selected work
+## Free diagnostic
 
-- **Tonninyira** — a browser-first commerce system designed around product discovery, customer ordering, digital payments and operational workflows.
-- **CuePointe** — a pool tournament and league concept designed around players, events, matches, talent records and community visibility.
+- **Pitch & Document Clarity Audit** — https://speakpower-commits.github.io/SpeakPower/audit.html
+  A browser-only diagnostic for pasted or locally selected pitch/proposal documents. It measures readability, sentence rhythm, passive voice, hedging, jargon and evidence density; the source document is not uploaded or stored.
+
+## SpeakPower Studio
+
+https://speakpower-commits.github.io/SpeakPower/studio.html
+
+SpeakPower Studio is the self-service product layer. Customers create a free account with a verified email, choose a practical problem, complete a guided questionnaire or provide a public URL/non-sensitive CSV, and the software generates a first deliverable without a meeting.
+
+Every new account includes **3 free runs**, usable on any product. Listed prices (UGX 75,000–125,000 per product) apply after the free runs.
+
+Current automated products:
+
+- Brand Story Builder — UGX 100,000
+- Website SEO & Visibility Audit — UGX 75,000
+- Market Development Planner — UGX 125,000
+- SEO Content Starter — UGX 75,000
+- Data Story Builder — UGX 100,000 (the CSV is analysed in the browser and never uploaded)
+- Speaker Ready Pack — UGX 75,000
+
+The Studio is intentionally separate from bespoke Services. Confidential proposals and sensitive client documents are not required for Studio products.
+
+## SpeakPower ventures
+
+- **Tonninyira** — https://speakpower-commits.github.io/tonninyira/ — a live online marketplace app bringing local vendors to customers, with product discovery, ordering, digital payments and operational workflows.
+- **CuePointe** — https://speakpower-commits.github.io/CuePointe.github.io/ — a live cuesports marketing and community platform focused on events, player records, talent visibility and participation.
 
 SpeakPower publishes verified outcomes rather than invented case-study numbers. Future case studies follow **Problem → Strategy → Build → Outcome**.
 
@@ -47,25 +71,14 @@ SpeakPower starts with audience and context rather than generic communication fo
 - Live virtual
 - Project-based
 - Periodic live masterclasses
+- Self-service through SpeakPower Studio
 
-## SpeakPower ventures\n\n- **Tonninyira** — an online marketing app bringing local vendors to customers.\n- **CuePointe** — a cuesports marketing and community platform focused on events, talent visibility and participation.\n\n## SpeakPower Studio
-
-SpeakPower Studio is the self-service product layer. Customers choose a practical problem, complete a guided questionnaire or provide a public URL/non-sensitive CSV, and the software generates a first deliverable without Thomas being in the loop.
-
-Current automated products:
-- Brand Story Builder
-- Website SEO & Visibility Audit
-- Market Development Planner
-- SEO Content Starter
-- Data Story Builder
-- Speaker Ready Pack
-
-The Studio is intentionally separate from bespoke Services. Confidential proposals and sensitive client documents are not required for Studio products.
+## Contact
 
 - Email: thomasotieno583@gmail.com
 - Phone / WhatsApp: +256 743 482 588
 - Location: Kampala, Uganda
-- Site: https://speakpower-commits.github.io/SpeakPower-/
+- Site: https://speakpower-commits.github.io/SpeakPower/
 
 ## Profiles
 

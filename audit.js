@@ -887,6 +887,8 @@
     }
 
     setStatus("");
+    // Counts that an audit ran. The text itself is never sent anywhere.
+    if (window.SP) window.SP.track("audit_run");
 
     renderScore(result);
     renderTiles(result);
