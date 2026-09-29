@@ -2,5 +2,5 @@
    Example: https://speakpower-studio-api.<your-subdomain>.workers.dev */
 
 window.SPEAKPOWER_STUDIO_API = {
-  baseUrl: "https://YOUR-WORKER.workers.dev"
+  baseUrl: "https://speakpower-studio-api.thomasotieno583.workers.dev"
 };
