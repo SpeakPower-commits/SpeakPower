@@ -8,7 +8,7 @@
     {
       "binding": "DB",
       "database_name": "speakpower-studio",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "database_id": "42b3843f-8caa-4a7a-8491-e8f59ff1377d",
       "migrations_dir": "migrations"
     }
   ],
