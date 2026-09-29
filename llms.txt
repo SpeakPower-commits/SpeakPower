@@ -60,7 +60,7 @@ Current automated products:
 - Data Story Builder
 - Speaker Ready Pack
 
-The Studio is intentionally separate from bespoke Services. Confidential proposals and sensitive client documents are not required for Studio products.
+The Studio uses Clerk for email authentication and a Cloudflare Worker + D1 for server-side usage and payment records. Customers get 3 free Studio generations across all products, then pay per additional generation. The Studio is intentionally separate from bespoke Services. Confidential proposals and sensitive client documents are not required for Studio products.
 
 - Email: thomasotieno583@gmail.com
 - Phone / WhatsApp: +256 743 482 588

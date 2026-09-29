@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "speakpower-studio-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-28",
+  "workers_dev": true,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "speakpower-studio",
+      "database_id": "42b3843f-8caa-4a7a-8491-e8f59ff1377d",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "SITE_ORIGIN": "https://speakpower-commits.github.io",
+    "SITE_URL": "https://speakpower-commits.github.io/SpeakPower-/",
+    "CLERK_PUBLISHABLE_KEY": "pk_live_REPLACE_ME"
+  },
+  "secrets": {
+    "required": [
+      "CLERK_SECRET_KEY",
+      "FLW_SECRET_KEY",
+      "FLW_SECRET_HASH"
+    ]
+  }
+}
