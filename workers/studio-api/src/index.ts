@@ -1,4 +1,5 @@
 import { createClerkClient, verifyToken } from "@clerk/backend";
+import { runPagespeedAudit } from "./pagespeed";
 
 interface Env {
   DB: D1Database;
@@ -8,6 +9,10 @@ interface Env {
   SITE_URL: string;
   FLW_SECRET_KEY: string;
   FLW_SECRET_HASH: string;
+  /** Google Cloud API key with the PageSpeed Insights API enabled. Optional:
+   *  without it the SEO audit still returns SpeakPower's own technical checks,
+   *  just no Lighthouse scores. */
+  PAGESPEED_API_KEY?: string;
 }
 
 const PRODUCTS: Record<string, { title: string; amount: number }> = {
@@ -464,6 +469,21 @@ export default {
       if (request.method === "POST" && url.pathname === "/create-payment") {
         const body = await request.json().catch(() => ({})) as any;
         return createPayment(env, request, userId, String(body.product_key || ""));
+      }
+
+      if (request.method === "POST" && url.pathname === "/pagespeed") {
+        const body = await request.json().catch(() => ({})) as any;
+        try {
+          const result = await runPagespeedAudit(env, body.url);
+          return json(env, result);
+        } catch (error) {
+          // A bad address or an unreachable page is the customer's problem to
+          // correct, not a server fault — 400 so the client shows the message
+          // and marks the run failed rather than consuming it.
+          return json(env, {
+            error: error instanceof Error ? error.message : "The audit could not run."
+          }, 400);
+        }
       }
 
       if (request.method === "POST" && url.pathname === "/payment-status") {

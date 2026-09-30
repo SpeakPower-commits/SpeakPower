@@ -63,11 +63,12 @@
 </div>
 
 <form id="builderForm"></form>
+<p class="builder-error" id="builderError" role="alert" hidden></p>
 <div class="builder-actions">
 <button class="btn btn-primary" id="generateBtn" type="button">Generate my pack</button>
 <a class="btn btn-ghost" href="studio.html">Back to Studio</a>
 </div>
-<p class="builder-note"><strong>Access:</strong> your Studio entitlement is checked server-side. <strong>Privacy:</strong> guided answers remain in the browser for the current product engines; non-sensitive CSVs are processed locally by the page.</p>
+<p class="builder-note"><strong>Access:</strong> your Studio entitlement is checked server-side. <strong>Privacy:</strong> guided answers and CSV files are processed in your browser and are never uploaded. The one exception is the Website SEO &amp; Visibility Audit &mdash; it sends only the public web address you enter to the SpeakPower audit service, which fetches that page and scores it.</p>
 </div>
 <div class="studio-output-panel" aria-live="polite">
 <div class="output-head"><div><span class="eyebrow">Your output</span><h2 id="outputTitle">Complete the brief to generate.</h2></div><button class="btn btn-ghost" id="downloadBtn" type="button" disabled>Download pack</button></div>

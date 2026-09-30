@@ -53,6 +53,10 @@
   --line-strong:  #c4ccd8;
   --brand:        var(--navy);
   --ring:         #1f5c92;
+  /* Validation errors. 6.91:1 on --paper and 6.48:1 on --danger-tint, so it
+     passes AA as text and the 3:1 bar as a border. */
+  --danger:       #a4231b;
+  --danger-tint:  #fdeceb;
 
   /* --- Inverted bands (footer, masterclass, proof strip) ----------------- */
   --band-bg:    var(--navy);

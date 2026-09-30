@@ -292,6 +292,10 @@
   if (payButton) payButton.addEventListener("click", startPayment);
 
   window.SpeakPowerStudioAccess = {
+    // Exposed so a product engine can call an authenticated Worker route of
+    // its own — the SEO audit runs server-side via /pagespeed, because its
+    // Google API key must never reach the browser.
+    api: api,
     reserveRun: reserveRun,
     finishRun: finishRun,
     refreshUsage: refreshUsage,
