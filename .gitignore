@@ -1,0 +1,15 @@
+# Cloudflare Worker build artefacts and dependencies.
+# node_modules is restored by `npm install` (and by Cloudflare Workers Builds
+# from package-lock.json), so committing it would only bloat the repo
+# permanently — git history never forgets a blob.
+workers/*/node_modules/
+workers/*/.wrangler/
+workers/*/dist/
+
+# Real secret values. Only the .example files belong in the repository.
+workers/*/.dev.vars
+.dev.vars
+
+# OS noise
+.DS_Store
+Thumbs.db

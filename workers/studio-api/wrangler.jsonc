@@ -22,6 +22,11 @@
       "CLERK_SECRET_KEY",
       "FLW_SECRET_KEY",
       "FLW_SECRET_HASH"
+    ],
+    // Optional: without it the SEO audit still returns SpeakPower's own
+    // technical checks, it just omits the Google Lighthouse scores.
+    "optional": [
+      "PAGESPEED_API_KEY"
     ]
   }
 }

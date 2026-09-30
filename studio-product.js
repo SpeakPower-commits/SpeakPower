@@ -8,6 +8,7 @@
   var outputHost = $("outputHost");
   var downloadBtn = $("downloadBtn");
   var generateBtn = $("generateBtn");
+  var errorHost = $("builderError");
 
   var PRODUCTS = {
     "brand-story": {
@@ -314,34 +315,29 @@
     });
   }
 
+  /**
+   * The audit runs in the Cloudflare Worker, not here.
+   *
+   * It used to call Google's PageSpeed API straight from the browser with no
+   * API key. Keyless calls share one exhausted global quota, so that path
+   * returned HTTP 429 every single time and the product never worked. The key
+   * cannot live in this file — GitHub Pages serves it as readable text — so
+   * the call moved server-side, where the Worker also adds SpeakPower's own
+   * technical checks and a 24-hour cache.
+   */
   function seoAudit(url) {
-    var endpoint = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=" +
-      encodeURIComponent(url) + "&category=seo&category=performance&category=accessibility&category=best-practices";
-    return fetch(endpoint).then(function (res) {
-      if (!res.ok) throw new Error("Google PageSpeed could not analyse that URL right now.");
-      return res.json();
-    }).then(function (data) {
-      var lh = data.lighthouseResult || {};
-      var scores = lh.categories || {};
-      var sections = [];
-      ["seo","performance","accessibility","best-practices"].forEach(function (key) {
-        if (scores[key] && typeof scores[key].score === "number") {
-          sections.push([titleCase(key.replace("-", " ")), Math.round(scores[key].score * 100) + " / 100"]);
+    var access = window.SpeakPowerStudioAccess;
+    if (!access || typeof access.api !== "function") {
+      return Promise.reject(new Error("Studio access is still loading. Please try again in a moment."));
+    }
+    return access.api("/pagespeed", { method: "POST", body: { url: url } })
+      .then(function (data) {
+        var sections = data && data.sections;
+        if (!sections || !sections.length) {
+          throw new Error("The audit returned no findings for that address.");
         }
+        return sections;
       });
-
-      var audits = lh.audits || {};
-      var failures = Object.keys(audits).map(function (id) {
-        var a = audits[id];
-        if (!a || !a.title || a.scoreDisplayMode === "informative" || a.score === null) return null;
-        return {id:id,title:a.title,score:a.score,display:a.displayValue||""};
-      }).filter(Boolean).filter(function(a){return a.score < 1;}).sort(function(a,b){return a.score-b.score;}).slice(0,10);
-
-      sections.push(["Top findings", failures.length ? failures.map(function(a){return a.title + (a.display ? " — "+a.display : "");}).join("\n") : "No failed Lighthouse audits were returned."]);
-      sections.push(["What to fix first", "1. Address the highest-impact failed SEO checks.\n2. Improve pages with weak search intent alignment and unclear headings.\n3. Improve performance and accessibility issues that affect user experience.\n4. Re-run the audit after changes."]);
-      sections.push(["Important note", "This is an automated technical audit based on the public URL. Search Console data, rankings, backlinks and conversion performance require access to the website's own data and are outside this automated check."]);
-      return sections;
-    });
   }
 
   function runProduct(v) {
@@ -365,8 +361,67 @@
     setTimeout(function(){URL.revokeObjectURL(url);},1000);
   }
 
+  /**
+   * Validation used to be a bare `if (!form.reportValidity()) return;`.
+   *
+   * Leave one of nine required fields blank and the page did nothing at all:
+   * no message, no highlight, no error — the only feedback was the browser's
+   * native tooltip, which mobile browsers routinely suppress. The product
+   * looked broken when it was simply waiting for an answer. So: name the
+   * field, in the page, and take the customer to it.
+   */
+  function clearFormError() {
+    errorHost.hidden = true;
+    errorHost.textContent = "";
+    var flagged = form.querySelectorAll(".builder-field--invalid");
+    for (var i = 0; i < flagged.length; i++) {
+      flagged[i].classList.remove("builder-field--invalid");
+    }
+  }
+
+  function firstInvalidField() {
+    for (var i = 0; i < product.fields.length; i++) {
+      var name = product.fields[i][0];
+      var el = form.elements[name];
+      if (el && typeof el.checkValidity === "function" && !el.checkValidity()) {
+        return { el: el, label: product.fields[i][1] };
+      }
+    }
+    return null;
+  }
+
+  function validate() {
+    clearFormError();
+    var bad = firstInvalidField();
+    if (!bad) return true;
+
+    var wrap = bad.el.closest(".builder-field");
+    if (wrap) wrap.classList.add("builder-field--invalid");
+
+    // textContent, not innerHTML — the label is our own string, but this stays
+    // an escaping-free path by construction rather than by review.
+    errorHost.textContent = bad.el.value
+      ? "Check “" + bad.label + "” — " + (bad.el.validationMessage || "that answer is not valid yet.")
+      : "“" + bad.label + "” still needs an answer before the pack can be generated.";
+    errorHost.hidden = false;
+
+    bad.el.focus({ preventScroll: true });
+    (wrap || bad.el).scrollIntoView({ behavior: "smooth", block: "center" });
+    return false;
+  }
+
+  // "input" covers text and textarea; a file picker only fires "change".
+  ["input", "change"].forEach(function (evt) {
+    form.addEventListener(evt, function (e) {
+      var wrap = e.target && e.target.closest ? e.target.closest(".builder-field") : null;
+      if (wrap && wrap.classList.contains("builder-field--invalid") && e.target.checkValidity()) {
+        clearFormError();
+      }
+    });
+  });
+
   generateBtn.addEventListener("click", function () {
-    if (!form.reportValidity()) return;
+    if (!validate()) return;
 
     if (!window.SpeakPowerStudioAccess || !window.SpeakPowerStudioReady) {
       outputHost.innerHTML = "<p class='output-empty'>Studio access is still loading. Please try again in a moment.</p>";
