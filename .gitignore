@@ -1,0 +1,19 @@
+# Cloudflare Worker dependencies and build artefacts. node_modules is restored
+# by `npm install`; committing it would bloat the repo permanently, because git
+# history never forgets a blob.
+workers/*/node_modules/
+workers/*/.wrangler/
+workers/*/dist/
+worker/node_modules/
+
+# Python virtualenvs
+.venv/
+venv/
+
+# Real secret values. Only .example files belong in the repository.
+.dev.vars
+workers/*/.dev.vars
+
+# OS noise
+.DS_Store
+Thumbs.db
