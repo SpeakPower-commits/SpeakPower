@@ -222,6 +222,23 @@
   if (contactForm) {
     var contactStatus = document.getElementById("contactStatus");
 
+    // A product page can name the reason for contact: contact.html?service=griot
+    // Matching on a prefix of the option text keeps the link short and survives
+    // the option being reworded, which it will be.
+    (function preselectService() {
+      var wanted = (new URLSearchParams(window.location.search).get("service") || "")
+        .trim().toLowerCase();
+      if (!wanted) return;
+      var select = document.getElementById("c-service");
+      if (!select) return;
+      for (var i = 0; i < select.options.length; i++) {
+        if (select.options[i].text.toLowerCase().indexOf(wanted) === 0) {
+          select.selectedIndex = i;
+          return;
+        }
+      }
+    })();
+
     contactForm.addEventListener("submit", function (event) {
       event.preventDefault();
 

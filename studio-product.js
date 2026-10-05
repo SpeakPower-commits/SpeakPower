@@ -8,6 +8,7 @@
   var outputHost = $("outputHost");
   var downloadBtn = $("downloadBtn");
   var generateBtn = $("generateBtn");
+  var errorHost = $("builderError");
 
   var PRODUCTS = {
     "brand-story": {
@@ -365,8 +366,68 @@
     setTimeout(function(){URL.revokeObjectURL(url);},1000);
   }
 
+  /**
+   * Validation used to be a bare `if (!form.reportValidity()) return;`.
+   *
+   * Leave one of nine required fields blank and the page did nothing at all:
+   * no message, no highlight, no error. The only feedback was the browser's
+   * native tooltip, which mobile browsers routinely suppress -- so the product
+   * looked broken when it was simply waiting for an answer. Name the field, in
+   * the page, and take the customer to it.
+   */
+  function clearFormError() {
+    errorHost.hidden = true;
+    errorHost.textContent = "";
+    var flagged = form.querySelectorAll(".builder-field--invalid");
+    for (var i = 0; i < flagged.length; i++) {
+      flagged[i].classList.remove("builder-field--invalid");
+    }
+  }
+
+  function firstInvalidField() {
+    for (var i = 0; i < product.fields.length; i++) {
+      var name = product.fields[i][0];
+      var el = form.elements[name];
+      if (el && typeof el.checkValidity === "function" && !el.checkValidity()) {
+        return { el: el, label: product.fields[i][1] };
+      }
+    }
+    return null;
+  }
+
+  function validate() {
+    clearFormError();
+    var bad = firstInvalidField();
+    if (!bad) return true;
+
+    var wrap = bad.el.closest(".builder-field");
+    if (wrap) wrap.classList.add("builder-field--invalid");
+
+    // textContent, not innerHTML: an escaping-free path by construction
+    // rather than by review.
+    errorHost.textContent = bad.el.value
+      ? "Check \u201c" + bad.label + "\u201d \u2014 " +
+        (bad.el.validationMessage || "that answer is not valid yet.")
+      : "\u201c" + bad.label + "\u201d still needs an answer before the pack can be generated.";
+    errorHost.hidden = false;
+
+    bad.el.focus({ preventScroll: true });
+    (wrap || bad.el).scrollIntoView({ behavior: "smooth", block: "center" });
+    return false;
+  }
+
+  // "input" covers text and textarea; a file picker only fires "change".
+  ["input", "change"].forEach(function (evt) {
+    form.addEventListener(evt, function (e) {
+      var wrap = e.target && e.target.closest ? e.target.closest(".builder-field") : null;
+      if (wrap && wrap.classList.contains("builder-field--invalid") && e.target.checkValidity()) {
+        clearFormError();
+      }
+    });
+  });
+
   generateBtn.addEventListener("click", function () {
-    if (!form.reportValidity()) return;
+    if (!validate()) return;
     generateBtn.disabled = true;
     generateBtn.textContent = product.mode === "seo" ? "Auditing…" : "Generating…";
     runProduct(values()).then(function (sections) {

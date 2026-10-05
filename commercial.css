@@ -281,6 +281,17 @@
 .builder-field input:focus,.builder-field textarea:focus{
   outline:none;border-color:var(--navy);box-shadow:0 0 0 3px rgba(22,35,63,.1)
 }
+/* Validation state. A blank required field used to fail silently; these two
+   rules are what make the refusal visible. */
+.builder-field--invalid input,.builder-field--invalid textarea{
+  border-color:var(--danger);background:var(--danger-tint)
+}
+.builder-error{
+  margin:1rem 0 0;padding:.7rem .85rem;border-left:3px solid var(--danger);
+  border-radius:var(--radius);background:var(--danger-tint);
+  color:var(--danger);font-size:.87rem;line-height:1.5;font-weight:500
+}
+.builder-error[hidden]{display:none}
 .builder-actions{display:flex;flex-wrap:wrap;gap:.65rem;margin-top:1.25rem}
 .builder-note{font-size:.78rem;color:var(--text-faint);line-height:1.5;margin-top:1rem}
 .output-head{display:flex;justify-content:space-between;align-items:end;gap:1rem;border-bottom:1px solid var(--line);padding-bottom:1rem}
