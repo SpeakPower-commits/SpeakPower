@@ -303,3 +303,51 @@
 .output-block div{white-space:normal;color:var(--text-muted);line-height:1.65}
 @media(max-width:860px){.studio-builder-grid{grid-template-columns:1fr}}
 @media(max-width:560px){.output-head{align-items:flex-start;flex-direction:column}.builder-actions .btn{width:100%}}
+
+/* --------------------------------------------------------------------------
+   GRIOT app — sign-up, conversation, top-up
+   Built from the same tokens as the Studio builder, so it inherits both
+   themes. The log flows with the page rather than scrolling inside a box:
+   on a phone, a nested scroll area is the thing people get stuck in.
+   ------------------------------------------------------------------------ */
+.griot-app{display:grid;gap:1.25rem;max-width:860px}
+.griot-app h2{margin-top:0}
+.griot-chat-head{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;
+  padding-bottom:1rem;border-bottom:1px solid var(--line)}
+.griot-chat-head .studio-builder-meta{margin:0}
+.griot-signout{padding:.45rem .9rem;font-size:.82rem}
+.griot-log{display:grid;gap:1rem;padding:1.25rem 0}
+.griot-msg{display:grid;gap:.35rem;padding:.9rem 1rem;border-radius:var(--radius);
+  border:1px solid var(--line);background:var(--paper)}
+.griot-msg--user{background:var(--bg-sunken);border-color:transparent;margin-left:clamp(0rem,6vw,4rem)}
+.griot-msg--griot{border-left:3px solid var(--gold)}
+.griot-msg--pending .griot-body{color:var(--text-faint);font-style:italic}
+.griot-who{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--text-muted)}
+.griot-body{line-height:1.65;color:var(--text);overflow-wrap:anywhere}
+.griot-meta{margin:.25rem 0 0;font-size:.76rem;color:var(--text-faint);line-height:1.5}
+/* GRIOT's evidence labels are its differentiator, so they read at a glance.
+   The text carries the meaning; colour only reinforces it. */
+.griot-label{font-family:var(--font-mono);font-size:.74rem;letter-spacing:.04em;
+  padding:.05rem .35rem;border-radius:4px;background:var(--bg-sunken);color:var(--ink)}
+.griot-label--fact{box-shadow:inset 3px 0 0 var(--navy)}
+.griot-label--inference{box-shadow:inset 3px 0 0 var(--gold)}
+.griot-label--hypothesis,.griot-label--unknown{box-shadow:inset 3px 0 0 var(--text-faint)}
+.griot-label--recommendation{box-shadow:inset 3px 0 0 var(--danger)}
+.griot-composer{border-top:1px solid var(--line);padding-top:1.25rem}
+.griot-topup{border-color:var(--gold)}
+.griot-topup[hidden],.griot-app [hidden]{display:none}
+@media(max-width:560px){
+  .griot-msg--user{margin-left:0}
+  .griot-chat-head{align-items:flex-start;flex-direction:column}
+}
+
+.studio-learn{display:inline-block;margin-top:.7rem;font-size:.85rem;font-weight:500}
+.griot-google{margin:1rem 0 .25rem;min-height:44px}
+.griot-or{display:flex;align-items:center;gap:.75rem;margin:1.1rem 0 .9rem;color:var(--text-faint);font-size:.8rem}
+.griot-or::before,.griot-or::after{content:"";flex:1;height:1px;background:var(--line)}
+#gaEmailFields{display:grid;gap:.9rem}
+#gaEmailFields[hidden],.griot-or[hidden],.griot-google[hidden]{display:none}
+.griot-notice{margin:0 0 1rem;padding:.7rem .85rem;border-left:3px solid var(--gold);border-radius:var(--radius);
+  background:var(--bg-sunken);color:var(--text);font-size:.88rem;line-height:1.5}
+.griot-notice[hidden]{display:none}

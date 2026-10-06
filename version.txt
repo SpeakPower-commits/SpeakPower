@@ -1,17 +1,15 @@
 SpeakPower — deployed build marker
 ==================================
 
-Open this file on the live site to see which branch and commit GitHub Pages is
-actually serving:
+Open this file on the live site to see which build GitHub Pages is serving:
 
     https://speakpower-commits.github.io/SpeakPower/version.txt
 
 branch:   claude/studio-griot-live
-built:    2026-10-06
-expects:  studio.html shows 7 product cards, GRIOT last
-          studio-griot.html exists and returns 200
-          404.html links point at /SpeakPower/ (not /SpeakPower-/)
+build:    griot-self-service (2026-10-06)
+expects:  studio.html — GRIOT card says "Try GRIOT free"
+          griot-app.html — sign up, 3 free messages, then top up
+          studio-griot.html — "Start free", no "request access"
 
-If this file 404s, Pages is serving a different branch.
-If it loads but studio-griot.html still 404s, the build is stale — check
-Settings > Pages for a failed build.
+If this file still shows an older build, Pages has not rebuilt yet: wait a
+minute and reload. If it 404s, Pages is serving a different branch.

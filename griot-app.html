@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GRIOT — SpeakPower</title>
+<meta name="description" content="Sign up and try GRIOT, SpeakPower's strategic analyst that remembers your business. Three free messages, no card needed.">
+<meta name="robots" content="noindex, follow">
+<meta name="theme-color" content="#16233f">
+<link rel="icon" type="image/png" href="assets/logo-mark.png?v=4" sizes="160x160">
+<link rel="shortcut icon" type="image/png" href="assets/logo-mark.png?v=4">
+<link rel="apple-touch-icon" href="assets/logo-mark.png?v=4">
+<link rel="manifest" href="site.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="commercial.css">
+<script>document.documentElement.classList.add("js");</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><div class="wrap">
+<a href="index.html" class="logo" aria-label="SpeakPower — home"><img class="logo-mark" src="assets/logo-mark.png" alt="" width="160" height="160"><span class="logo-text">Speak<span>Power</span></span></a>
+<nav class="nav-links" id="navLinks" aria-label="Primary">
+<a href="index.html">Home</a><a href="services.html">Services</a><a href="audit.html">Audit</a><a href="studio.html">Studio</a><a href="work.html">Work</a><a href="about.html">About</a><a href="https://speakpower1.blogspot.com" target="_blank" rel="noopener">Insights</a><a href="contact.html" class="nav-cta">Book a discovery call</a>
+</nav>
+<button class="nav-toggle" id="navToggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">&#9776;</button>
+</div></header>
+
+<main id="main">
+<div class="page-hero"><div class="wrap">
+<span class="eyebrow">SpeakPower Studio &middot; GRIOT</span>
+<h1>Ask GRIOT.</h1>
+<p>Three free messages to see whether it earns a place in how you decide. No card, no call. It remembers what you tell it, and it marks every claim as fact, inference or hypothesis.</p>
+</div></div>
+
+<section style="padding-top:0"><div class="wrap griot-app">
+
+<!-- Shown only when the site has no Worker configured. -->
+<div class="studio-builder-panel" id="gaOffline" hidden>
+<h2>GRIOT is being connected.</h2>
+<p>Sign-up opens here shortly. Nothing you type on this page is sent anywhere until then.</p>
+<div class="builder-actions"><a class="btn btn-ghost" href="studio-griot.html">What GRIOT does</a></div>
+</div>
+
+<!-- Step 1: sign up -->
+<form class="studio-builder-panel" id="gaSignup" hidden novalidate>
+<h2>Start free</h2>
+<p class="builder-note" style="margin-top:0">Three free messages. No password, no card.</p>
+<div class="griot-google" id="gaGoogle" hidden>
+<div id="gaGoogleBtn"></div>
+</div>
+<p class="griot-or" id="gaOr" hidden><span>or use your email</span></p>
+<div id="gaEmailFields" hidden>
+<div class="builder-field"><label for="ga-name">Your name</label><input id="ga-name" name="name" autocomplete="name" maxlength="120"></div>
+<div class="builder-field"><label for="ga-email">Email</label><input id="ga-email" name="email" type="email" autocomplete="email" maxlength="254" required></div>
+<div id="turnstileHost"></div>
+<div class="builder-actions"><button class="btn btn-primary" type="submit" id="gaSignupBtn">Send my code</button></div>
+</div>
+<p class="builder-error" id="gaSignupError" role="alert" hidden></p>
+</form>
+
+<!-- Step 2: verify -->
+<form class="studio-builder-panel" id="gaVerify" hidden novalidate>
+<h2>Check your email</h2>
+<p class="builder-note" style="margin-top:0">We sent a six-digit code to <strong id="gaVerifyEmail"></strong>. It expires in ten minutes.</p>
+<div class="builder-field"><label for="ga-code">Code</label><input id="ga-code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></div>
+<p class="builder-error" id="gaVerifyError" role="alert" hidden></p>
+<div class="builder-actions">
+<button class="btn btn-primary" type="submit" id="gaVerifyBtn">Continue</button>
+<button class="btn btn-ghost" type="button" id="gaRestart">Use a different email</button>
+</div>
+</form>
+
+<!-- Step 3: the conversation -->
+<div class="studio-builder-panel griot-chat" id="gaChat" hidden>
+<p class="griot-notice" id="gaNotice" role="status" hidden></p>
+<div class="griot-chat-head">
+<div class="studio-builder-meta" aria-live="polite"><span id="gaBalance">&mdash;</span><span id="gaWho"></span></div>
+<button class="btn btn-ghost griot-signout" type="button" id="gaSignout">Sign out</button>
+</div>
+<div class="griot-log" id="gaLog" aria-live="polite" aria-relevant="additions">
+<p class="output-empty" id="gaEmpty">Start with the decision in front of you &mdash; pricing, positioning, a hire, a donor narrative. Give GRIOT the context once; it keeps it.</p>
+</div>
+<form id="gaComposer" class="griot-composer" novalidate>
+<div class="builder-field"><label for="ga-message">Your question</label>
+<textarea id="ga-message" rows="4" maxlength="20000" placeholder="We sell solar kits to rural schools in Uganda. Donors are cooling. Where should the next quarter go?" required></textarea></div>
+<p class="builder-error" id="gaChatError" role="alert" hidden></p>
+<div class="builder-actions"><button class="btn btn-primary" type="submit" id="gaSendBtn">Ask GRIOT</button></div>
+</form>
+</div>
+
+<!-- Shown when free messages are used up. -->
+<div class="studio-builder-panel griot-topup" id="gaTopup" hidden>
+<h2>Your free messages are used.</h2>
+<p>GRIOT still remembers everything you told it. Top up to carry on from exactly where you stopped.</p>
+<div class="builder-actions"><a class="btn btn-primary" id="gaCheckout" href="#" rel="noopener">Top up</a><a class="btn btn-ghost" href="contact.html?service=griot#main">Talk to me instead</a></div>
+<p class="builder-error" id="gaTopupError" role="alert" hidden></p>
+<p class="builder-note" id="gaTopupNote">Pay by card or mobile money. You come straight back here with your messages added.</p>
+</div>
+
+<p class="builder-note">GRIOT answers are analysis, not professional advice. What you send is stored against your account so GRIOT can remember it, and is never visible to any other account.</p>
+</div></section>
+</main>
+
+<footer class="site-footer"><div class="wrap"><div class="footer-grid">
+<div><h4>SpeakPower</h4><p class="footer-tagline">Articulate is key.</p><p>Brand storytelling and market development, backed by SEO, writing, design, data, programming and public speaking. Kampala, Uganda.</p></div>
+<div><h4>Explore</h4><div class="footer-links"><a href="services.html">Services</a><a href="audit.html">Audit</a><a href="studio.html">Studio</a><a href="work.html">Work</a><a href="about.html">About</a></div></div>
+<div><h4>Contact</h4><div class="footer-links"><a href="tel:+256743482588">+256 743 482 588</a><a href="mailto:thomasotieno583@gmail.com">thomasotieno583@gmail.com</a><a href="https://wa.me/256743482588" target="_blank" rel="noopener">WhatsApp</a></div></div>
+<div><h4>Follow</h4><div class="footer-links"><a href="https://www.linkedin.com/in/otieno-thomas-a39b1b21b/" target="_blank" rel="noopener">LinkedIn</a><a href="https://www.instagram.com/otienothomas8/" target="_blank" rel="noopener">Instagram</a><a href="https://www.tiktok.com/@otom323" target="_blank" rel="noopener">TikTok</a></div></div>
+</div><div class="footer-bottom">&copy; 2026 SpeakPower. All rights reserved.</div></div></footer>
+<script src="site-config.js"></script>
+<script src="script.js"></script>
+<script src="griot-app.js"></script>
+</body>
+</html>

@@ -5,6 +5,7 @@ workers/*/node_modules/
 workers/*/.wrangler/
 workers/*/dist/
 worker/node_modules/
+worker/.wrangler/
 
 # Python virtualenvs
 .venv/

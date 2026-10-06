@@ -1,0 +1,64 @@
+# SpeakPower Studio API — Worker configuration.
+#
+# Used when the Worker is deployed with Cloudflare "Workers Builds"
+# (dashboard → Workers & Pages → Create → Import a repository, root
+# directory: worker). If you deploy by pasting worker.js into the dashboard
+# editor instead, set the same bindings and variables in the dashboard and
+# ignore this file.
+#
+# Secrets are never written here. Add them in the dashboard: Settings →
+# Variables and Secrets, type "Secret":
+#   SESSION_SECRET    32+ random characters; changing it signs everyone out
+#   GRIOT_API_KEY     the same value as GRIOT_API_KEY on the GRIOT deployment
+#   FLW_SECRET_KEY    Flutterwave → Settings → API keys → Secret key
+#   FLW_SECRET_HASH   Flutterwave → Settings → Webhooks → Secret hash
+#   TURNSTILE_SECRET  only if email-code sign-in is switched on
+#   PAGESPEED_KEY     only for the Studio SEO audit
+
+name = "speakpower-api"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+
+[vars]
+ENVIRONMENT = "production"
+ALLOWED_ORIGINS = "https://speakpower-commits.github.io"
+FREE_TRIALS = "3"
+# Sender on a domain onboarded to Cloudflare Email Service, e.g. studio@yourdomain.com
+MAIL_FROM = ""
+# Inbox that receives contact-form enquiries.
+LEAD_NOTIFY_TO = ""
+# Optional manual fallback: a plain Flutterwave payment link, shown only when
+# automatic top-up (the GRIOT_PACK_* settings below) is not configured.
+# Payments through it are NOT credited automatically.
+CHECKOUT_URL = ""
+# Where the site lives; Flutterwave returns customers to /griot-app.html here.
+SITE_URL = "https://speakpower-commits.github.io/SpeakPower"
+
+# Sign in with Google. Public value — the same OAuth client ID goes in
+# site-config.js as googleClientId.
+GOOGLE_CLIENT_ID = ""
+
+# Where GRIOT OS is deployed, e.g. "https://claude-central-agent.vercel.app".
+# Deploy GRIOT with tenancy first: the Worker refuses to send it any client
+# message until its /health reports "tenancy": true.
+GRIOT_API_BASE = ""
+
+# The top-up on sale. Automatic checkout switches on only when both are set,
+# together with FLW_SECRET_KEY and FLW_SECRET_HASH. Price is in whole units.
+GRIOT_PACK_MESSAGES = ""
+GRIOT_PACK_PRICE = ""
+GRIOT_PACK_CURRENCY = "UGX"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "speakpower"
+# Paste the database ID from the D1 dashboard.
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+# Cloudflare Email Service binding used for sign-in codes and lead alerts.
+[[send_email]]
+name = "SEND_EMAIL"
+
+[triggers]
+# Daily housekeeping: prunes old rate-limit rows and expired codes.
+crons = ["17 3 * * *"]

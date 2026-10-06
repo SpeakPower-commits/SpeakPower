@@ -13,6 +13,77 @@
 (function () {
   "use strict";
 
+  /* ------------------------------------------------------------------------
+     0. Platform: config and API client
+     Talks to the Cloudflare Worker named in site-config.js. With no Worker
+     configured, features that need it say so plainly instead of breaking.
+     Exposed as window.SP for griot-app.js.
+     ---------------------------------------------------------------------- */
+
+  var CONFIG = window.SP_CONFIG || {};
+  var API_BASE = String(CONFIG.apiBase || "").replace(/\/+$/, "");
+
+  // Storage can throw (private mode, blocked site data); never let it matter.
+  function storageGet(key) {
+    try { return window.localStorage.getItem(key); } catch (e) { return null; }
+  }
+  function storageSet(key, value) {
+    try {
+      if (value == null) window.localStorage.removeItem(key);
+      else window.localStorage.setItem(key, value);
+    } catch (e) { /* non-essential */ }
+  }
+
+  // A random id per browser, so the funnel can be read end to end without
+  // storing who anyone is.
+  var anonId = storageGet("sp_anon");
+  if (!anonId) {
+    anonId = (window.crypto && window.crypto.randomUUID)
+      ? window.crypto.randomUUID()
+      : Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
+    storageSet("sp_anon", anonId);
+  }
+
+  function api(path, options) {
+    options = options || {};
+    if (!API_BASE) {
+      var off = new Error("The SpeakPower service is not connected yet.");
+      off.code = "not_configured";
+      return Promise.reject(off);
+    }
+    var headers = {};
+    if (options.body) headers["Content-Type"] = "application/json";
+    if (options.token) headers.Authorization = "Bearer " + options.token;
+
+    return fetch(API_BASE + path, {
+      method: options.body ? "POST" : "GET",
+      headers: headers,
+      body: options.body ? JSON.stringify(options.body) : undefined
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (data) {
+        if (res.ok) return data;
+        var err = new Error(data.message || "The request could not be completed.");
+        err.status = res.status;
+        err.code = data.error;
+        err.data = data;
+        throw err;
+      });
+    }, function () {
+      var err = new Error("Could not reach SpeakPower. Check your connection and try again.");
+      err.code = "network";
+      throw err;
+    });
+  }
+
+  window.SP = {
+    api: api,
+    anonId: anonId,
+    connected: !!API_BASE,
+    config: CONFIG,
+    storageGet: storageGet,
+    storageSet: storageSet
+  };
+
   var CONTACT_EMAIL = "thomasotieno583@gmail.com";
 
   // Read once and share: both the slider and the scroll reveal branch on it.
