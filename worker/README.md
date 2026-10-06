@@ -59,15 +59,21 @@ To rebuild it from scratch: Dashboard → **Storage & Databases → D1 → Creat
 
 > The older `speakpower-studio` database (29 September) belongs to an earlier, Clerk-based attempt: no customers (0 users, 0 orders). Once the Worker below is bound to `speakpower`, nothing uses it; it can be deleted.
 
-### 3. The Worker — reuse `speakpower-studio-api`
+### 3. The Worker — `speakpower-studio-api`, deployed from GitHub
 
-Your existing Worker, `https://speakpower-studio-api.thomasotieno583.workers.dev`, becomes this API. The site already points at it (`apiBase` in `site-config.js`).
+Your existing Worker, `https://speakpower-studio-api.thomasotieno583.workers.dev`, becomes this API, and the site already points at it (`apiBase` in `site-config.js`). It deploys **from this repository**, so there is nothing to paste — and no "Edit code" button, which Cloudflare hides on Git-connected Workers.
 
-1. Dashboard → **Workers & Pages → speakpower-studio-api → Edit code**. Select everything, delete it, paste the whole of `worker.js` (on GitHub: open the file → **Copy raw file**), **Deploy**. This replaces the earlier attempt's code.
-2. **Settings → Bindings**: there must be a **D1 database** binding named exactly `DB`, set to the database **`speakpower`**. If one exists pointing at `speakpower-studio`, edit it to `speakpower`; otherwise add it.
-3. Variables left over from the earlier attempt can stay — this code ignores names it does not use.
+Dashboard → **Workers & Pages → speakpower-studio-api → Settings → Builds**:
 
-Check: `…workers.dev/health` returns `{"ok":true}`. The old `/studio` address will answer `not_found` from now on; that is expected.
+- A repository already connected → edit it. **Connect** showing instead → connect `SpeakPower-commits/SpeakPower` (authorise Cloudflare on GitHub if asked).
+- **Branch:** `claude/studio-griot-live` while testing on the preview; `main` once merged.
+- **Root directory / Path:** `worker`
+- **Build command:** leave empty. **Deploy command:** `npx wrangler deploy`
+- Save. The next push deploys; **Retry build** deploys the current commit at once.
+
+`wrangler.toml` in this folder does the rest on every deploy: the D1 binding `DB` → `speakpower`, the public variables, and the daily clean-up schedule. It keeps any plain-text variable you add in the dashboard (`keep_vars = true`) and never touches secrets.
+
+Check: `…workers.dev/health` returns `{"ok":true}`. The old `/studio` address answers `not_found` from now on; that is expected.
 
 ### 4. Google sign-in
 
@@ -101,20 +107,17 @@ Google Cloud Console (same project as step 4) → **APIs & Services → Library 
 
 Worker → **Settings → Variables and Secrets**. Paste each secret straight from where it was issued — never into a chat, a file or a screenshot.
 
+Only the secrets go here — the public settings are already in `wrangler.toml` and arrive with every deploy.
+
 | Name | Type | Value |
 |---|---|---|
 | `SESSION_SECRET` | **Secret** | 32+ random characters. Changing it signs everyone out. |
 | `GRIOT_API_KEY` | **Secret** | Same value as on Vercel. |
-| `FLW_SECRET_KEY` | **Secret** | From step 5. |
+| `FLW_SECRET_KEY` | **Secret** | From step 5 — when you switch on top-ups. |
 | `FLW_SECRET_HASH` | **Secret** | The secret hash you chose in step 5. |
 | `PAGESPEED_KEY` | **Secret** | Optional, from step 6. |
-| `GRIOT_API_BASE` | Text | `https://<your-griot>.vercel.app` |
-| `GOOGLE_CLIENT_ID` | Text | From step 4. |
-| `TOPUP_AMOUNTS` | Text | `50000,100000,250000` |
-| `SITE_URL` | Text | `https://speakpower-commits.github.io/SpeakPower` |
-| `ALLOWED_ORIGINS` | Text | `https://speakpower-commits.github.io` |
-| `FREE_TRIALS` | Text | `3` |
-| `ENVIRONMENT` | Text | `production` |
+
+Already in `wrangler.toml`: `ENVIRONMENT`, `ALLOWED_ORIGINS`, `FREE_TRIALS`, `SITE_URL`, `GRIOT_API_BASE`, `TOPUP_AMOUNTS`. `GOOGLE_CLIENT_ID` is added there (it is public) once step 4 is done.
 
 Top-up switches on only when `FLW_SECRET_KEY` and `FLW_SECRET_HASH` are both set. Until then the pay wall offers a "talk to me" link instead — it never shows a button that takes money it cannot credit.
 
