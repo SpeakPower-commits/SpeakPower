@@ -13,10 +13,11 @@ CREATE TABLE IF NOT EXISTS users (
   email_canonical  TEXT NOT NULL UNIQUE,
   name             TEXT,
   verified         INTEGER NOT NULL DEFAULT 0,
+  -- Free tries, shared across every service: 3 in total, granted once.
   trials_remaining INTEGER NOT NULL DEFAULT 3,
-  -- Paid runs. Your Flutterwave webhook adds to this column; the API spends
-  -- free trials first, then credits.
-  credits          INTEGER NOT NULL DEFAULT 0,
+  -- Prepaid balance in Uganda shillings, like airtime. Top-ups add to it;
+  -- each paid use deducts that service's price. Never negative.
+  balance          INTEGER NOT NULL DEFAULT 0 CHECK (balance >= 0),
   plan             TEXT NOT NULL DEFAULT 'trial',
   -- Bump this to sign a user out of every device (invalidates old tokens).
   session_version  INTEGER NOT NULL DEFAULT 1,
@@ -34,13 +35,15 @@ CREATE TABLE IF NOT EXISTS otp_codes (
   created_at      INTEGER NOT NULL
 );
 
--- Every metered Studio run. status = 'ok' or 'refunded' (the run failed and
--- the trial/credit was given back).
+-- Every use of a service, Studio and GRIOT alike. paid_with = 'trial' or
+-- 'balance'; amount = shillings deducted (0 for a free try). status = 'ok' or
+-- 'refunded' (it failed and exactly what was taken was given back).
 CREATE TABLE IF NOT EXISTS runs (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id    TEXT NOT NULL,
   product    TEXT NOT NULL,
   paid_with  TEXT NOT NULL,
+  amount     INTEGER NOT NULL DEFAULT 0,
   status     TEXT NOT NULL DEFAULT 'ok',
   created_at INTEGER NOT NULL
 );
@@ -82,19 +85,22 @@ CREATE TABLE IF NOT EXISTS rate_log (
 );
 CREATE INDEX IF NOT EXISTS idx_rate_key ON rate_log (key, created_at);
 
--- GRIOT top-up orders. A row is written when checkout starts, so the payment
--- webhook credits from OUR record of what was bought — never from amounts or
--- account ids in the payment payload, which an attacker can shape.
--- status: 'pending' until Flutterwave confirms, then 'paid' exactly once.
-CREATE TABLE IF NOT EXISTS griot_orders (
-  tx_ref         TEXT PRIMARY KEY,
-  user_id        TEXT NOT NULL,
-  messages       INTEGER NOT NULL,
-  amount         INTEGER NOT NULL,
-  currency       TEXT NOT NULL,
-  status         TEXT NOT NULL DEFAULT 'pending',
-  flw_tx_id      TEXT UNIQUE,
-  created_at     INTEGER NOT NULL,
-  paid_at        INTEGER
+-- Balance top-ups. A row is written when checkout starts, so a payment is
+-- credited from OUR record of what was asked — never from an amount or account
+-- id in the payment notification, which an attacker can shape.
+-- provider: 'flutterwave' now; 'bank' slots in later without a schema change.
+-- provider_ref: the provider's own transaction id, unique, so one real payment
+-- can never be counted twice. status: 'pending' → 'paid' exactly once, or
+-- 'failed' when checkout could not be opened.
+CREATE TABLE IF NOT EXISTS payments (
+  tx_ref       TEXT PRIMARY KEY,
+  user_id      TEXT NOT NULL,
+  amount       INTEGER NOT NULL CHECK (amount > 0),
+  currency     TEXT NOT NULL,
+  provider     TEXT NOT NULL DEFAULT 'flutterwave',
+  status       TEXT NOT NULL DEFAULT 'pending',
+  provider_ref TEXT UNIQUE,
+  created_at   INTEGER NOT NULL,
+  paid_at      INTEGER
 );
-CREATE INDEX IF NOT EXISTS idx_griot_orders_user ON griot_orders (user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_payments_user ON payments (user_id, created_at);

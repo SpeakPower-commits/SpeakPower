@@ -13,7 +13,7 @@
 #   FLW_SECRET_KEY    Flutterwave → Settings → API keys → Secret key
 #   FLW_SECRET_HASH   Flutterwave → Settings → Webhooks → Secret hash
 #   TURNSTILE_SECRET  only if email-code sign-in is switched on
-#   PAGESPEED_KEY     only for the Studio SEO audit
+#   PAGESPEED_KEY     optional: adds Google Lighthouse scores to the SEO audit
 
 name = "speakpower-api"
 main = "worker.js"
@@ -27,11 +27,7 @@ FREE_TRIALS = "3"
 MAIL_FROM = ""
 # Inbox that receives contact-form enquiries.
 LEAD_NOTIFY_TO = ""
-# Optional manual fallback: a plain Flutterwave payment link, shown only when
-# automatic top-up (the GRIOT_PACK_* settings below) is not configured.
-# Payments through it are NOT credited automatically.
-CHECKOUT_URL = ""
-# Where the site lives; Flutterwave returns customers to /griot-app.html here.
+# Where the site lives; Flutterwave returns customers to a page on it.
 SITE_URL = "https://speakpower-commits.github.io/SpeakPower"
 
 # Sign in with Google. Public value — the same OAuth client ID goes in
@@ -43,11 +39,10 @@ GOOGLE_CLIENT_ID = ""
 # message until its /health reports "tenancy": true.
 GRIOT_API_BASE = ""
 
-# The top-up on sale. Automatic checkout switches on only when both are set,
-# together with FLW_SECRET_KEY and FLW_SECRET_HASH. Price is in whole units.
-GRIOT_PACK_MESSAGES = ""
-GRIOT_PACK_PRICE = ""
-GRIOT_PACK_CURRENCY = "UGX"
+# Suggested top-ups in whole shillings, shown on the pay wall and the account
+# page. Top-up itself switches on when FLW_SECRET_KEY and FLW_SECRET_HASH are
+# set. Prices per service are in worker.js (PRICES), not here.
+TOPUP_AMOUNTS = "50000,100000,250000"
 
 [[d1_databases]]
 binding = "DB"

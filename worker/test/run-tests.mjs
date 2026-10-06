@@ -2,7 +2,8 @@
 // Run: node --experimental-sqlite worker/test/run-tests.mjs   (Node 22.5+)
 //
 // Exercises the real worker.js fetch handler. Only D1, the email binding and
-// outbound fetch (Turnstile, PageSpeed) are replaced with local fakes.
+// outbound fetch (Turnstile, PageSpeed, Google certificates, GRIOT,
+// Flutterwave) are replaced with local fakes.
 
 import { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
@@ -11,6 +12,14 @@ import { dirname, join } from "node:path";
 import worker from "../worker.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
+
+// Node has no HTMLRewriter. This stand-in passes the page through without
+// parsing it, so this suite covers the SEO audit's billing, address guard,
+// failure refunds and Google layer. What the parser finds in a page is
+// verified separately, under Cloudflare's real runtime: run-workerd-tests.mjs.
+if (typeof globalThis.HTMLRewriter === "undefined") {
+  globalThis.HTMLRewriter = class { on() { return this; } transform(res) { return res; } };
+}
 
 /* ---------------------------------------------------------------- D1 fake */
 
@@ -45,7 +54,7 @@ class FakeD1 {
 
 /* ------------------------------------------------------- outbound fakes */
 
-const net = { pagespeed: "ok", griot: "ok" };
+const net = { pagespeed: "ok", griot: "ok", pagespeedCalls: [], pageFetches: [] };
 // The public half of a real RSA key the tests sign Google ID tokens with, so
 // the Worker's signature check runs for real rather than against a stub.
 const googleJwks = { keys: [] };
@@ -72,6 +81,8 @@ globalThis.fetch = async (input, init) => {
   const verifyMatch = url.match(/^https:\/\/api\.flutterwave\.com\/v3\/transactions\/([^/]+)\/verify$/);
   if (verifyMatch) {
     flw.verifies++;
+    // Hold every verification open so concurrent settles genuinely overlap.
+    if (net.flwVerifyDelay) await new Promise((r) => setTimeout(r, net.flwVerifyDelay));
     if (net.flwVerify === "down") return new Response("upstream down", { status: 503 });
     const tx = flw.transactions[decodeURIComponent(verifyMatch[1])];
     if (!tx) return new Response(JSON.stringify({ status: "error", message: "No transaction was found" }), { status: 404 });
@@ -126,7 +137,13 @@ globalThis.fetch = async (input, init) => {
     return new Response(JSON.stringify({ success: token === "pass" }));
   }
   if (url.startsWith("https://www.googleapis.com/pagespeedonline/")) {
+    net.pagespeedCalls.push(url);
     if (net.pagespeed === "fail") return new Response("nope", { status: 500 });
+    if (net.pagespeed === "quota") return new Response(JSON.stringify({ error: { code: 429, message: "Quota exceeded" } }), { status: 429 });
+    if (net.pagespeed === "badkey") {
+      return new Response(JSON.stringify({ error: { code: 400, message: "API key not valid. Please pass a valid API key.",
+        details: [{ reason: "API_KEY_INVALID" }] } }), { status: 400 });
+    }
     return new Response(JSON.stringify({
       lighthouseResult: {
         categories: { seo: { score: 0.82 }, performance: { score: 0.5 }, accessibility: { score: 0.9 }, "best-practices": { score: 1 } },
@@ -137,7 +154,25 @@ globalThis.fetch = async (input, init) => {
       }
     }));
   }
-  return realFetch(input, init);
+  // The sites customers ask to have audited.
+  const page = PAGES[url.replace(/\/$/, "")];
+  if (page !== undefined) {
+    net.pageFetches.push({ url, redirect: init && init.redirect });
+    if (page === "unreachable") throw new TypeError("fetch failed");
+    if (typeof page === "function") return page();
+    return new Response(page, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  }
+  throw new Error("Unexpected outbound fetch in tests: " + url); // never the real network
+};
+
+const PAGES = {
+  "https://example.com": "<!doctype html><html lang=en><title>Example</title><h1>Hi</h1></html>",
+  "https://down.test": "unreachable",
+  "https://missing.test": () => new Response("not here", { status: 404, headers: { "Content-Type": "text/html" } }),
+  "https://pdf.test": () => new Response("%PDF-1.7", { headers: { "Content-Type": "application/pdf" } }),
+  "https://moved.test": () => new Response(null, { status: 301, headers: { Location: "https://example.com/" } }),
+  "https://sneaky.test": () => new Response(null, { status: 302, headers: { Location: "http://169.254.169.254/latest/meta-data/" } }),
+  "https://loop.test": () => new Response(null, { status: 302, headers: { Location: "https://loop.test/" } })
 };
 
 /* ------------------------------------------------------------- harness */
@@ -155,7 +190,6 @@ const env = {
   ALLOWED_ORIGINS: ORIGIN,
   MAIL_FROM: "studio@example.com",
   LEAD_NOTIFY_TO: "owner@example.com",
-  CHECKOUT_URL: "https://checkout.example.com/pay",
   FREE_TRIALS: "3",
   ENVIRONMENT: "production"
 };
@@ -207,6 +241,16 @@ const BRIEF = {
   brand: "Acme", offer: "Solar kits", audience: "rural schools", problem: "Unreliable power",
   result: "Reliable lessons after dark", proof: "40 installs", difference: "Local installers", ambition: "Every school lit"
 };
+const SPEAKER = {
+  speaker: "A", topic: "Clean energy", audience: "Teachers", time: "20 minutes", goal: "Switch to solar",
+  idea1: "Cost", idea2: "Reliability", idea3: "Maintenance", story: "Gulu school"
+};
+
+// Stands in for a completed top-up when a test is about spending, not paying.
+function setBalance(email, balance) {
+  db.db.prepare("UPDATE users SET balance = ?, plan = 'paid' WHERE email_canonical = ?").run(balance, email.toLowerCase());
+}
+function userId(email) { return userRow(email).id; }
 
 /* ---------------------------------------------------------------- tests */
 
@@ -288,26 +332,42 @@ await test("signing in again via a Gmail-style alias never resets trials", async
   eq(db.one("SELECT COUNT(*) AS n FROM users WHERE email_canonical = 'deedee@gmail.com'").n, 1, "one account");
 });
 
-await test("failed PageSpeed run is refunded", async () => {
-  net.pagespeed = "fail";
-  const r = await call("POST", "/studio/generate", { token: alice.token, body: { product: "seo-audit", inputs: { url: "https://example.com" } } });
-  net.pagespeed = "ok";
+await test("an audit of a page that cannot be reached is refunded", async () => {
+  const r = await call("POST", "/studio/generate", { token: alice.token, body: { product: "seo-audit", inputs: { url: "https://down.test" } } });
   eq(r.status, 502); eq(r.data.error, "generation_failed");
-  ok(/not used/.test(r.data.message), "message says run not used");
+  ok(/could not be reached/.test(r.data.message), "says why");
+  ok(/not charged/.test(r.data.message), "message says nothing was charged");
   eq(db.one("SELECT trials_remaining AS t FROM users WHERE email = 'alice@example.com'").t, 2);
   eq(db.one("SELECT status FROM runs WHERE product = 'seo-audit' ORDER BY id DESC").status, "refunded");
 });
 
-await test("SEO audit rejects non-public URLs before spending", async () => {
-  const r = await call("POST", "/studio/generate", { token: alice.token, body: { product: "seo-audit", inputs: { url: "javascript:alert(1)" } } });
-  eq(r.status, 400); eq(r.data.error, "invalid_url");
+await test("SEO audit refuses anything but a public website, before spending or fetching", async () => {
+  const fetchesBefore = net.pageFetches.length;
+  for (const bad of [
+    "", "javascript:alert(1)", "file:///etc/passwd", "ftp://example.com", "data:text/html,hi",
+    "http://localhost", "http://localhost.:80", "https://LOCALHOST./admin", "http://printer.local", "http://db.internal",
+    "http://router.home.arpa", "http://metadata.google.internal", "http://169.254.169.254/latest/meta-data/",
+    "http://127.0.0.1", "http://2130706433", "http://0x7f.1", "http://10.0.0.5", "http://192.168.1.1",
+    "http://172.16.0.1", "http://8.8.8.8", "http://[::1]", "http://[::ffff:127.0.0.1]", "http://[fd00::1]",
+    "https://example.com:8443", "https://user:pass@example.com", "intranet", "https://" + "a".repeat(2100) + ".com"
+  ]) {
+    const r = await call("POST", "/studio/generate", { token: alice.token, body: { product: "seo-audit", inputs: { url: bad } } });
+    eq(r.status, 400, "status for " + JSON.stringify(bad.slice(0, 60)));
+    eq(r.data.error, "invalid_url"); eq(r.data.field, "url");
+  }
+  eq(net.pageFetches.length, fetchesBefore, "nothing was fetched");
+  eq(userRow("alice@example.com").trials_remaining, 2, "nothing was spent");
 });
 
-await test("SEO audit succeeds with scores and findings", async () => {
-  const r = await call("POST", "/studio/generate", { token: alice.token, body: { product: "seo-audit", inputs: { url: "https://example.com" } } });
+await test("SEO audit without a Google key: delivered, no doomed Google call, and it says so", async () => {
+  net.pagespeedCalls.length = 0;
+  const r = await call("POST", "/studio/generate", { token: alice.token, body: { product: "seo-audit", inputs: { url: "example.com" } } });
   eq(r.status, 200);
-  eq(r.data.sections[0][0], "Seo"); eq(r.data.sections[0][1], "82 / 100");
-  ok(r.data.sections.some((s) => /meta description/.test(s[1])), "finding listed");
+  eq(net.pagespeedCalls.length, 0, "no keyless call into Google's exhausted shared quota");
+  eq(net.pageFetches[net.pageFetches.length - 1].url, "https://example.com/", "a bare domain is audited over https");
+  const g = r.data.sections.find((x) => x[0] === "Google Lighthouse scores");
+  ok(g && /not switched on/.test(g[1]), "explains the missing scores");
+  ok(r.data.sections.some((x) => x[0] === "Summary"), "SpeakPower checks delivered");
   eq(r.data.account.trialsRemaining, 1);
 });
 
@@ -335,21 +395,30 @@ await test("data story works from summary statistics only", async () => {
   ok(/customer_email: 120 distinct values/.test(cats), "unique column reported as a count");
 });
 
-await test("fourth run returns 402 with checkout hand-off", async () => {
+await test("three free tries were shared across three services; the fourth use asks for payment", async () => {
+  // Alice used brand-story, seo-audit and data-story once each (the failed
+  // audit was given back), so any fourth use — of any service — is paid.
+  const used = db.q("SELECT product FROM runs WHERE user_id = ? AND status = 'ok' ORDER BY id", userId("alice@example.com"))
+    .map((r) => r.product).join(",");
+  eq(used, "brand-story,seo-audit,data-story", "one free try on each of three services");
   const r = await call("POST", "/studio/generate", { token: alice.token, body: { product: "brand-story", inputs: BRIEF } });
-  eq(r.status, 402); eq(r.data.error, "trials_exhausted");
-  eq(r.data.checkoutUrl, env.CHECKOUT_URL); eq(r.data.price, "UGX 100,000");
-  eq(db.one("SELECT COUNT(*) AS n FROM events WHERE name = 'trials_exhausted'").n, 1);
+  eq(r.status, 402); eq(r.data.error, "payment_required");
+  eq(r.data.service, "brand-story"); eq(r.data.title, "Brand Story Builder");
+  eq(r.data.price, 100000, "price"); eq(r.data.balance, 0, "balance"); eq(r.data.shortfall, 100000, "shortfall");
+  ok(/UGX 100,000/.test(r.data.message), "message names the price in shillings");
+  eq(r.data.account.trialsRemaining, 0);
+  eq(db.one("SELECT COUNT(*) AS n FROM events WHERE name = 'payment_required'").n, 1);
+  eq(db.one("SELECT COUNT(*) AS n FROM runs WHERE user_id = ?", userId("alice@example.com")).n, 4, "no run recorded for the refusal");
 });
 
-await test("paid credits are spent after free runs", async () => {
-  db.db.prepare("UPDATE users SET credits = 1, plan = 'paid' WHERE email_canonical = ?").run("alice@example.com");
-  const r = await call("POST", "/studio/generate", { token: alice.token, body: { product: "speaker-ready", inputs: {
-    speaker: "A", topic: "Clean energy", audience: "Teachers", time: "20 minutes", goal: "Switch to solar",
-    idea1: "Cost", idea2: "Reliability", idea3: "Maintenance", story: "Gulu school"
-  } } });
-  eq(r.status, 200); eq(r.data.paidWith, "credit"); eq(r.data.account.credits, 0);
-  eq((await call("POST", "/studio/generate", { token: alice.token, body: { product: "brand-story", inputs: BRIEF } })).status, 402);
+await test("the balance pays once free tries are gone: the exact price, then a shortfall", async () => {
+  setBalance("alice@example.com", 80000);
+  const r = await call("POST", "/studio/generate", { token: alice.token, body: { product: "speaker-ready", inputs: SPEAKER } });
+  eq(r.status, 200); eq(r.data.paidWith, "balance"); eq(r.data.amount, 75000);
+  eq(r.data.account.balance, 5000, "80,000 − 75,000");
+  const short = await call("POST", "/studio/generate", { token: alice.token, body: { product: "brand-story", inputs: BRIEF } });
+  eq(short.status, 402); eq(short.data.balance, 5000); eq(short.data.shortfall, 95000);
+  eq(userRow("alice@example.com").balance, 5000, "a refusal takes nothing");
 });
 
 await test("parallel requests can never spend the same run", async () => {
@@ -360,6 +429,17 @@ await test("parallel requests can never spend the same run", async () => {
   eq(results.filter((r) => r.status === 200).length, 1, "successes");
   eq(results.filter((r) => r.status === 402).length, 3, "402s");
   eq(db.one("SELECT trials_remaining AS t FROM users WHERE email_canonical = 'eve@example.com'").t, 0);
+});
+
+await test("parallel paid requests can never overdraw the balance", async () => {
+  const s = await signUp("eve.paid@example.com");
+  db.db.prepare("UPDATE users SET trials_remaining = 0, balance = 250000 WHERE email_canonical = ?").run("eve.paid@example.com");
+  // 250,000 covers two Brand Stories (100,000 each) and not a third.
+  const results = await Promise.all([1, 2, 3, 4, 5].map(() =>
+    call("POST", "/studio/generate", { token: s.token, body: { product: "brand-story", inputs: BRIEF } })));
+  eq(results.filter((r) => r.status === 200).length, 2, "successes");
+  eq(results.filter((r) => r.status === 402).length, 3, "402s");
+  eq(userRow("eve.paid@example.com").balance, 50000, "exactly two prices taken");
 });
 
 await test("bumping session_version signs a user out everywhere", async () => {
@@ -482,15 +562,16 @@ await test("griot: sign up, then exactly three free messages", async () => {
   eq(griotCalls.length, 3, "three upstream calls");
 });
 
-await test("griot: fourth message returns 402 with checkout, GRIOT not called", async () => {
+await test("griot: fourth message returns 402 with the per-message price, GRIOT not called", async () => {
   const s = await call("POST", "/auth/start", { body: { email: "g-three@example.com", turnstileToken: "pass" } });
   eq(s.status, 200);
   const v = await call("POST", "/auth/verify", { body: { email: "g-three@example.com", code: lastCodeFor("g-three@example.com") } });
   griotCalls.length = 0;
   const r = await chat(v.data.token, "one more");
-  eq(r.status, 402, "status"); eq(r.data.error, "trials_exhausted");
-  eq(r.data.checkoutUrl, "https://checkout.example.com/pay");
-  eq(griotCalls.length, 0, "exhausted account never reaches GRIOT");
+  eq(r.status, 402, "status"); eq(r.data.error, "payment_required");
+  eq(r.data.service, "griot"); eq(r.data.price, 2500); eq(r.data.shortfall, 2500);
+  ok(r.data.account.topUps.length > 0, "top-up options come with the pay wall");
+  eq(griotCalls.length, 0, "an account that cannot pay never reaches GRIOT");
 });
 
 await test("griot: tenant is the account's own id; key stays server-side; no project sent", async () => {
@@ -563,7 +644,7 @@ for (const [mode, status, code] of [
     const r = await chat(s.token, "hello");
     net.griot = "ok";
     eq(r.status, status, "status"); eq(r.data.error, code, "error code");
-    ok(/not used/.test(r.data.message), "tells the customer they were not charged");
+    ok(/not charged/.test(r.data.message), "tells the customer they were not charged");
     const text = JSON.stringify(r.data);
     ok(!text.includes("Traceback") && !text.includes("sk-live") && !text.includes("slow down"),
       "upstream wording never reaches the customer");
@@ -584,38 +665,63 @@ await test("griot: hung upstream times out and refunds", async () => {
   eq(userRow("g-hang@example.com").trials_remaining, 3, "trial given back");
 });
 
-await test("griot: paid credits are spent once free messages run out", async () => {
+await test("griot: the balance pays per message once free messages run out", async () => {
   const s = await signUp("g-paid@example.com");
-  db.db.prepare("UPDATE users SET trials_remaining = 0, credits = 2 WHERE email_canonical = ?")
+  db.db.prepare("UPDATE users SET trials_remaining = 0, balance = 5000 WHERE email_canonical = ?")
     .run("g-paid@example.com");
   const r = await chat(s.token, "paid question");
-  eq(r.status, 200); eq(r.data.paidWith, "credit");
-  eq(r.data.account.credits, 1); eq(r.data.account.trialsRemaining, 0);
+  eq(r.status, 200); eq(r.data.paidWith, "balance"); eq(r.data.amount, 2500);
+  eq(r.data.account.balance, 2500); eq(r.data.account.trialsRemaining, 0);
 });
 
-await test("griot: the checkout link rides on every account response, not only the 402", async () => {
-  // The last free message succeeds (200), so the page must learn where to pay
-  // from that response — and from /me after a reload — or the pay wall shows
-  // with no way to pay at the moment of highest intent.
+await test("griot: a paid message that fails gives back exactly its price", async () => {
+  const s = await signUp("g-paidfail@example.com");
+  db.db.prepare("UPDATE users SET trials_remaining = 0, balance = 7000 WHERE email_canonical = ?")
+    .run("g-paidfail@example.com");
+  net.griot = "fail";
+  const r = await chat(s.token, "hello");
+  net.griot = "ok";
+  eq(r.status, 502); ok(/not charged/.test(r.data.message));
+  eq(userRow("g-paidfail@example.com").balance, 7000, "every shilling back");
+  eq(userRow("g-paidfail@example.com").trials_remaining, 0, "and no free try invented");
+  const run = griotRuns("g-paidfail@example.com")[0];
+  eq(run.paid_with, "balance"); eq(run.amount, 2500); eq(run.status, "refunded");
+});
+
+await test("griot: top-up options ride on every account response, not only the 402", async () => {
+  // The last free message succeeds (200), so the page must learn how to top
+  // up from that response — and from /me after a reload — or the pay wall
+  // shows with no way to pay at the moment of highest intent.
   const s = await signUp("g-checkout@example.com");
-  eq(s.account.checkoutUrl, "https://checkout.example.com/pay", "on sign-in");
+  const offer = (a) => JSON.stringify({ topUps: a.topUps, canTopUp: a.canTopUp, currency: a.currency });
+  const expected = JSON.stringify({ topUps: [50000, 100000, 250000], canTopUp: false, currency: "UGX" });
+  eq(offer(s.account), expected, "on sign-in");
   const me = await call("GET", "/me", { token: s.token });
-  eq(me.data.account.checkoutUrl, "https://checkout.example.com/pay", "on /me");
+  eq(offer(me.data.account), expected, "on /me");
   db.db.prepare("UPDATE users SET trials_remaining = 1 WHERE email_canonical = ?").run("g-checkout@example.com");
   const last = await chat(s.token, "my last free one");
   eq(last.status, 200);
   eq(last.data.account.trialsRemaining, 0);
-  eq(last.data.account.checkoutUrl, "https://checkout.example.com/pay", "on the final successful message");
+  eq(offer(last.data.account), expected, "on the final successful message");
 });
 
 await test("griot: parallel sends can never overspend the last message", async () => {
   const s = await signUp("g-race@example.com");
-  db.db.prepare("UPDATE users SET trials_remaining = 1, credits = 0 WHERE email_canonical = ?")
+  db.db.prepare("UPDATE users SET trials_remaining = 1, balance = 0 WHERE email_canonical = ?")
     .run("g-race@example.com");
   const results = await Promise.all([1, 2, 3, 4, 5].map((i) => chat(s.token, "race " + i)));
   eq(results.filter((r) => r.status === 200).length, 1, "exactly one succeeds");
   eq(results.filter((r) => r.status === 402).length, 4, "the rest are told to top up");
   eq(userRow("g-race@example.com").trials_remaining, 0, "never negative");
+});
+
+await test("griot: parallel paid sends take at most what the balance holds", async () => {
+  const s = await signUp("g-race-paid@example.com");
+  db.db.prepare("UPDATE users SET trials_remaining = 0, balance = 6000 WHERE email_canonical = ?")
+    .run("g-race-paid@example.com");
+  const results = await Promise.all([1, 2, 3, 4, 5].map((i) => chat(s.token, "race " + i)));
+  eq(results.filter((r) => r.status === 200).length, 2, "6,000 covers two 2,500 messages");
+  eq(userRow("g-race-paid@example.com").balance, 1000, "never below zero");
 });
 
 /* ------------------------------------------------------- Google sign-in */
@@ -734,7 +840,198 @@ await test("google: certificates are cached, refetched only for an unseen key", 
   eq(net.googleCertFetches, before + 1, "one refetch for an unseen key");
 });
 
-/* ------------------------------------------------- GRIOT automatic top-up */
+/* --------------------------------------------- one price list, everywhere */
+
+const STUDIO_HTML = readFileSync(join(here, "..", "..", "studio.html"), "utf8");
+// The price printed on a product's card in studio.html.
+function cardPrice(key) {
+  const card = STUDIO_HTML.match(new RegExp('<article[^>]*id="product-' + key + '"[^>]*>([\\s\\S]*?)</article>'));
+  ok(card, "studio.html has a card for " + key);
+  const price = card[1].match(/<div class="studio-price">([\s\S]*?)<\/div>/);
+  ok(price, "the " + key + " card shows a price");
+  return price[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+const ugx = (n) => "UGX " + n.toLocaleString("en-US");
+
+let PRICES;
+await test("prices: the Worker charges exactly what studio.html shows, for every service", async () => {
+  const s = await signUp("p-list@example.com");
+  const r = await call("GET", "/account", { token: s.token });
+  eq(r.status, 200);
+  PRICES = r.data.prices;
+  const keys = Object.keys(PRICES).sort().join(",");
+  eq(keys, "brand-story,content-seo,data-story,griot,market-plan,seo-audit,speaker-ready", "every service priced");
+  for (const [key, amount] of Object.entries(PRICES)) {
+    ok(Number.isInteger(amount) && amount > 0, key + " has a whole-shilling price");
+    ok(cardPrice(key).startsWith(ugx(amount)),
+      key + ": studio.html shows " + JSON.stringify(cardPrice(key)) + " but the Worker charges " + ugx(amount));
+  }
+  // Every catalog card is priced by the Worker — no card can sell something
+  // the Worker would refuse, or give away something it would charge for.
+  const cards = [...STUDIO_HTML.matchAll(/id="product-([a-z-]+)"/g)].map((m) => m[1]).sort().join(",");
+  eq(cards, keys, "catalog cards and price list name the same services");
+});
+
+await test("prices: the builder page, the GRIOT app and the GRIOT pages quote the same prices", async () => {
+  const site = (f) => readFileSync(join(here, "..", "..", f), "utf8");
+  const builder = site("studio-product.js");
+  for (const [key, amount] of Object.entries(PRICES)) {
+    if (key === "griot") continue;
+    const m = builder.match(new RegExp('"' + key + '": \\{\\s*title: "[^"]+",\\s*price: (\\d+)'));
+    ok(m, "studio-product.js prices " + key);
+    eq(Number(m[1]), amount, "studio-product.js price for " + key);
+  }
+  eq(Number(site("griot-app.js").match(/var PRICE = (\d+);/)[1]), PRICES.griot, "griot-app.js message price");
+  for (const page of ["griot-app.html", "studio-griot.html"]) {
+    const quoted = [...site(page).matchAll(/UGX ([\d,]+)/g)].map((m) => Number(m[1].replace(/,/g, "")));
+    ok(quoted.length > 0, page + " states the price");
+    ok(quoted.every((n) => n === PRICES.griot), page + " quotes " + quoted.join(", "));
+  }
+});
+
+// Valid inputs for every service, so each one can be run for real.
+const INPUTS = {
+  "brand-story": BRIEF,
+  "seo-audit": { url: "https://example.com" },
+  "market-plan": {
+    business: "Acme", offer: "Solar kits", audience: "Rural schools", geography: "Northern Uganda",
+    problem: "Unreliable power", advantage: "Local installers", competitors: "Generators", channels: "Radio", goal: "40 schools"
+  },
+  "content-seo": {
+    business: "Acme", offer: "Solar kits", audience: "Head teachers", location: "Gulu",
+    topic1: "Cost of solar", topic2: "Battery life", topic3: "Grants", proof: "40 installs"
+  },
+  "data-story": { summary: { rows: 10, columns: 1, numeric: [{ name: "kwh", mean: 4, min: 1, max: 9 }], categorical: [], missing: [] } },
+  "speaker-ready": SPEAKER
+};
+async function use(token, service, inputs) {
+  return service === "griot"
+    ? chat(token, "a paid question")
+    : call("POST", "/studio/generate", { token, body: { product: service, inputs: inputs || INPUTS[service] } });
+}
+
+await test("prices: each paid use deducts exactly that service's price — no more, no less", async () => {
+  const s = await signUp("p-each@example.com");
+  const total = Object.values(PRICES).reduce((a, b) => a + b, 0);
+  db.db.prepare("UPDATE users SET trials_remaining = 0, balance = ? WHERE email_canonical = ?").run(total, "p-each@example.com");
+  let expected = total;
+  for (const [service, price] of Object.entries(PRICES)) {
+    const r = await use(s.token, service);
+    eq(r.status, 200, service + " status");
+    eq(r.data.paidWith, "balance", service + " paid from the balance");
+    eq(r.data.amount, price, service + " amount");
+    expected -= price;
+    eq(r.data.account.balance, expected, service + " balance in the response");
+    eq(userRow("p-each@example.com").balance, expected, service + " balance stored");
+  }
+  eq(expected, 0, "the exact total of every price, spent to the shilling");
+});
+
+await test("prices: a failed paid use gives back exactly that service's price", async () => {
+  const s = await signUp("p-refund@example.com");
+  db.db.prepare("UPDATE users SET trials_remaining = 0, balance = 300000 WHERE email_canonical = ?").run("p-refund@example.com");
+  const failedAudit = await use(s.token, "seo-audit", { url: "https://down.test" });
+  net.griot = "fail";
+  const msg = await use(s.token, "griot");
+  net.griot = "ok";
+  eq(failedAudit.status, 502); eq(msg.status, 502);
+  eq(userRow("p-refund@example.com").balance, 300000, "both refunded in full");
+  const runs = db.q("SELECT product, amount, status FROM runs WHERE user_id = ? ORDER BY id", userId("p-refund@example.com"));
+  eq(JSON.stringify(runs), JSON.stringify([
+    { product: "seo-audit", amount: 75000, status: "refunded" },
+    { product: "griot", amount: 2500, status: "refunded" }
+  ]));
+});
+
+await test("prices: three free tries in any mix of services, then the balance", async () => {
+  const s = await signUp("p-mix@example.com");
+  const free = [];
+  for (const service of ["griot", "market-plan", "seo-audit"]) {
+    const r = await use(s.token, service);
+    eq(r.status, 200, service);
+    eq(r.data.paidWith, "trial", service + " is free"); eq(r.data.amount, 0);
+    free.push(r.data.account.trialsRemaining);
+  }
+  eq(free.join(","), "2,1,0", "one shared allowance, counting down");
+  const fourth = await use(s.token, "griot");
+  eq(fourth.status, 402, "fourth use, even of the cheapest service");
+  eq(fourth.data.price, 2500); eq(fourth.data.shortfall, 2500);
+});
+
+/* ------------------------------------- SEO audit: the Google layer, keyed */
+
+async function audit(token, url = "https://example.com") {
+  return call("POST", "/studio/generate", { token, body: { product: "seo-audit", inputs: { url } } });
+}
+const lighthouseSection = (r) => r.data.sections.find((x) => /^Google Lighthouse/.test(x[0]));
+
+await test("seo: with a key, Lighthouse scores and findings are added, key sent server-side only", async () => {
+  const s = await signUp("seo-key@example.com");
+  env.PAGESPEED_KEY = "psi-test-key";
+  net.pagespeedCalls.length = 0;
+  const r = await audit(s.token);
+  eq(r.status, 200);
+  const call0 = new URL(net.pagespeedCalls[0]);
+  eq(call0.searchParams.get("key"), "psi-test-key"); eq(call0.searchParams.get("strategy"), "mobile");
+  eq(call0.searchParams.get("url"), "https://example.com/");
+  eq(call0.searchParams.getAll("category").join(","), "seo,performance,accessibility,best-practices");
+  const g = lighthouseSection(r);
+  eq(g[0], "Google Lighthouse scores (mobile)");
+  ok(/^Seo: 82 \/ 100$/m.test(g[1]) && /^Performance: 50 \/ 100$/m.test(g[1]), "scores");
+  const f = r.data.sections.find((x) => x[0] === "Lighthouse findings");
+  ok(f && /meta description/.test(f[1]), "failed audits listed");
+  ok(!/Image elements have/.test(f[1]), "passed audits left out");
+  ok(!JSON.stringify(r.data).includes("psi-test-key"), "key never reaches the customer");
+});
+
+for (const [mode, expect] of [
+  ["badkey", /on our side/],
+  ["quota", /quota is used up/],
+  ["fail", /could not load the page/]
+]) {
+  await test("seo: Google " + mode + " still delivers the full SpeakPower report, and is charged", async () => {
+    const email = "seo-" + mode + "@example.com";
+    const s = await signUp(email);
+    net.pagespeed = mode;
+    const r = await audit(s.token);
+    net.pagespeed = "ok";
+    eq(r.status, 200, "delivered");
+    ok(expect.test(lighthouseSection(r)[1]), "explains: " + lighthouseSection(r)[1]);
+    ok(!/Lighthouse findings/.test(JSON.stringify(r.data.sections)), "no invented scores");
+    eq(r.data.paidWith, "trial", "a delivered report is a used try");
+    if (mode === "badkey") ok(!/your (site|page)/i.test(lighthouseSection(r)[1]), "our fault is never blamed on their page");
+  });
+}
+
+for (const [url, expect] of [
+  ["https://missing.test", /HTTP 404/],
+  ["https://pdf.test", /not a web page \(application\/pdf\)/],
+  ["https://sneaky.test", /redirects somewhere that cannot be audited/],
+  ["https://loop.test", /redirects too many times/]
+]) {
+  await test("seo: " + url.slice(8) + " is refunded with a reason the customer can act on", async () => {
+    const email = "seo-" + url.slice(8, -5) + "@example.com";
+    const s = await signUp(email);
+    const r = await audit(s.token, url);
+    eq(r.status, 502); eq(r.data.error, "generation_failed");
+    ok(expect.test(r.data.message), r.data.message);
+    ok(/not charged/.test(r.data.message));
+    eq(userRow(email).trials_remaining, 3, "try given back");
+  });
+}
+
+await test("seo: redirects are followed by hand, and every hop is checked", async () => {
+  const s = await signUp("seo-moved@example.com");
+  net.pageFetches.length = 0;
+  const r = await audit(s.token, "https://moved.test");
+  eq(r.status, 200);
+  eq(net.pageFetches.map((x) => x.url + " " + x.redirect).join(" | "),
+    "https://moved.test/ manual | https://example.com/ manual", "never redirect: follow");
+  ok(/Redirected from https:\/\/moved\.test\//.test(r.data.sections[0][1]), "the report says it was redirected");
+  delete env.PAGESPEED_KEY;
+});
+
+/* ---------------------------------------------- top-ups (Flutterwave) */
 
 // Flutterwave's servers call the webhook directly: no Origin, a verif-hash.
 async function webhook(payload, hash = "flw-hash-secret") {
@@ -745,64 +1042,111 @@ async function webhook(payload, hash = "flw-hash-secret") {
   }), env, { waitUntil() {} });
   return { status: res.status, text: await res.text() };
 }
-function order(txRef) { return db.db.prepare("SELECT * FROM griot_orders WHERE tx_ref = ?").get(txRef); }
+function payment(txRef) { return db.db.prepare("SELECT * FROM payments WHERE tx_ref = ?").get(txRef); }
 let flwId = 9000000;
-// Flutterwave records a payment against an order, the way a real charge would.
+// Flutterwave records a charge against a top-up, the way a real payment would.
 function pay(txRef, over) {
   const id = String(++flwId);
   flw.transactions[id] = Object.assign({ id: Number(id), tx_ref: txRef, status: "successful", amount: 50000, currency: "UGX" }, over || {});
   return id;
 }
 const charge = (id, txRef) => ({ event: "charge.completed", data: { id: Number(id), tx_ref: txRef, status: "successful" } });
-async function checkout(token) { return call("POST", "/griot/checkout", { token, body: {} }); }
+function checkout(token, amount = 50000, returnTo) {
+  return call("POST", "/wallet/checkout", { token, body: { amount, returnTo } });
+}
+function confirm(token, txRef, transactionId) {
+  return call("POST", "/wallet/confirm", { token, body: { txRef, transactionId } });
+}
+// Checkout, pay and settle through the webhook: a completed top-up.
+async function topUp(token, amount) {
+  const c = await checkout(token, amount);
+  eq(c.status, 200, "checkout for " + amount);
+  const id = pay(c.data.txRef, { amount });
+  eq((await webhook(charge(id, c.data.txRef))).status, 200);
+  return { txRef: c.data.txRef, id };
+}
 
-await test("topup: not switched on → 503, account offers no pack", async () => {
+await test("topup: not switched on → 503, and the account says so", async () => {
   const s = await signUp("t-off@example.com");
-  eq(s.account.pack, null, "no pack advertised");
+  eq(s.account.canTopUp, false, "no top-up offered");
   const r = await checkout(s.token);
   eq(r.status, 503); eq(r.data.error, "checkout_unconfigured");
   eq(flw.checkouts.length, 0, "Flutterwave never called");
 });
 
-env.GRIOT_PACK_MESSAGES = "20";
-env.GRIOT_PACK_PRICE = "50000";
 env.FLW_SECRET_KEY = "FLWSECK_TEST-secret";
 env.FLW_SECRET_HASH = "flw-hash-secret";
 
-await test("topup: account advertises the pack once configured", async () => {
+await test("topup: account offers top-ups once configured; amounts are settable and sanitised", async () => {
   const s = await signUp("t-pack@example.com");
-  eq(JSON.stringify(s.account.pack), JSON.stringify({ messages: 20, amount: 50000, currency: "UGX" }));
+  eq(s.account.canTopUp, true);
+  eq(JSON.stringify(s.account.topUps), "[50000,100000,250000]", "defaults");
+  env.TOPUP_AMOUNTS = " 20000, 75000 ,lots, 999, 9000000";
+  const me = await call("GET", "/me", { token: s.token });
+  delete env.TOPUP_AMOUNTS;
+  eq(JSON.stringify(me.data.account.topUps), "[20000,75000]", "junk, too-small and too-large dropped");
 });
 
 await test("topup: signed-out checkout refused", async () => {
-  const r = await checkout(null);
-  eq(r.status, 401);
+  eq((await checkout(null)).status, 401);
 });
 
-await test("topup: checkout records the order first, then opens Flutterwave for the right amount", async () => {
+await test("topup: amounts outside the limits, or not whole shillings, are refused before anything is recorded", async () => {
+  const s = await signUp("t-amount@example.com");
+  const before = db.one("SELECT COUNT(*) AS n FROM payments").n;
+  flw.checkouts.length = 0;
+  for (const bad of [0, -50000, 999, 5000001, 1500.5, "lots", null, [50000], { amount: 50000 }]) {
+    const r = await checkout(s.token, bad);
+    eq(r.status, 400, "status for " + JSON.stringify(bad)); eq(r.data.error, "invalid_amount");
+  }
+  eq(db.one("SELECT COUNT(*) AS n FROM payments").n, before, "no payment rows");
+  eq(flw.checkouts.length, 0, "Flutterwave never asked");
+});
+
+await test("topup: checkout records the payment first, then opens Flutterwave for that amount", async () => {
   const s = await signUp("t-buy@example.com");
   flw.checkouts.length = 0;
-  const r = await checkout(s.token);
+  const r = await checkout(s.token, 75000);
   eq(r.status, 200, "status");
   ok(r.data.link.startsWith("https://checkout.flutterwave.com/"), "hosted link returned");
-  const o = order(r.data.txRef);
-  eq(o.user_id, userRow("t-buy@example.com").id, "order belongs to this account");
-  eq(o.status, "pending"); eq(o.messages, 20); eq(o.amount, 50000); eq(o.currency, "UGX");
+  eq(r.data.amount, 75000);
+  const p = payment(r.data.txRef);
+  eq(p.user_id, userId("t-buy@example.com"), "payment belongs to this account");
+  eq(p.status, "pending"); eq(p.amount, 75000); eq(p.currency, "UGX"); eq(p.provider, "flutterwave");
   const sent = flw.checkouts[0];
   eq(sent.auth, "Bearer FLWSECK_TEST-secret", "secret key used server-side");
-  eq(sent.body.tx_ref, r.data.txRef); eq(sent.body.amount, 50000); eq(sent.body.currency, "UGX");
+  eq(sent.body.tx_ref, r.data.txRef); eq(sent.body.amount, 75000); eq(sent.body.currency, "UGX");
   eq(sent.body.customer.email, "t-buy@example.com");
-  eq(sent.body.redirect_url, "https://speakpower-commits.github.io/SpeakPower/griot-app.html");
-  ok(/^griot-[0-9a-f-]{36}$/.test(r.data.txRef), "unguessable, prefixed tx_ref");
+  eq(sent.body.redirect_url, "https://speakpower-commits.github.io/SpeakPower/account.html", "default return page");
+  ok(/^sp-[0-9a-f-]{36}$/.test(r.data.txRef), "unguessable, prefixed tx_ref");
 });
 
-await test("topup: Flutterwave refusing to open checkout charges nothing and marks the order failed", async () => {
+await test("topup: the return page is always one of ours, whatever the browser asks for", async () => {
+  const s = await signUp("t-return-page@example.com");
+  const base = "https://speakpower-commits.github.io/SpeakPower/";
+  for (const [asked, expected] of [
+    ["griot-app.html", "griot-app.html"],
+    ["studio-product.html?product=market-plan", "studio-product.html?product=market-plan"],
+    ["https://evil.example/steal", "account.html"],
+    ["//evil.example/steal", "account.html"],
+    ["account.html#@evil.example", "account.html"],
+    ["../../evil.html", "account.html"],
+    ["studio-product.html?product=x&next=https://evil.example", "account.html"],
+    ["javascript:alert(1)", "account.html"]
+  ]) {
+    flw.checkouts.length = 0;
+    eq((await checkout(s.token, 50000, asked)).status, 200);
+    eq(flw.checkouts[0].body.redirect_url, base + expected, "returnTo " + JSON.stringify(asked));
+  }
+});
+
+await test("topup: Flutterwave refusing to open checkout charges nothing and marks the payment failed", async () => {
   const s = await signUp("t-flwdown@example.com");
   net.flwCheckout = "fail";
   const r = await checkout(s.token);
   net.flwCheckout = "ok";
   eq(r.status, 502); eq(r.data.error, "checkout_failed");
-  const row = db.db.prepare("SELECT status FROM griot_orders WHERE user_id = ?").get(userRow("t-flwdown@example.com").id);
+  const row = db.db.prepare("SELECT status FROM payments WHERE user_id = ?").get(userId("t-flwdown@example.com"));
   eq(row.status, "failed");
 });
 
@@ -814,23 +1158,38 @@ await test("topup: a forged webhook is refused — wrong hash or none at all", a
     const r = await webhook(charge(id, c.data.txRef), bad);
     eq(r.status, 401, "status for hash " + JSON.stringify(bad));
   }
-  eq(userRow("t-forge@example.com").credits, 0, "no credit");
-  eq(order(c.data.txRef).status, "pending");
+  eq(userRow("t-forge@example.com").balance, 0, "nothing credited");
+  eq(payment(c.data.txRef).status, "pending");
 });
 
-await test("topup: end to end — 3 free, pay wall, pay, webhook credits 20, GRIOT carries on", async () => {
+await test("topup: end to end — 3 free, pay wall, top up, webhook credits, GRIOT carries on paid", async () => {
   const s = await signUp("t-e2e@example.com");
   for (let i = 0; i < 3; i++) eq((await chat(s.token, "free " + i)).status, 200);
   eq((await chat(s.token, "fourth")).status, 402, "pay wall");
-  const c = await checkout(s.token);
+  const c = await checkout(s.token, 50000);
   const id = pay(c.data.txRef);
-  const w = await webhook(charge(id, c.data.txRef));
-  eq(w.status, 200);
+  eq((await webhook(charge(id, c.data.txRef))).status, 200);
   const u = userRow("t-e2e@example.com");
-  eq(u.credits, 20, "credited the pack"); eq(u.plan, "paid");
-  eq(order(c.data.txRef).status, "paid"); eq(order(c.data.txRef).flw_tx_id, id);
+  eq(u.balance, 50000, "credited what was paid"); eq(u.plan, "paid");
+  eq(payment(c.data.txRef).status, "paid"); eq(payment(c.data.txRef).provider_ref, id);
   const r = await chat(s.token, "now I'm paying");
-  eq(r.status, 200); eq(r.data.paidWith, "credit"); eq(r.data.account.credits, 19);
+  eq(r.status, 200); eq(r.data.paidWith, "balance"); eq(r.data.account.balance, 47500);
+});
+
+await test("topup: a GRIOT-sized top-up cannot buy a Market Plan", async () => {
+  // The defect this model exists to prevent: a counter of uses let a
+  // UGX 50,000 GRIOT pack unlock UGX 125,000 Market Plans.
+  const s = await signUp("t-mismatch@example.com");
+  db.db.prepare("UPDATE users SET trials_remaining = 0 WHERE email_canonical = ?").run("t-mismatch@example.com");
+  await topUp(s.token, 50000);
+  const plan = await use(s.token, "market-plan");
+  eq(plan.status, 402, "refused");
+  eq(plan.data.price, 125000); eq(plan.data.balance, 50000); eq(plan.data.shortfall, 75000);
+  eq((await use(s.token, "griot")).data.account.balance, 47500, "the same money still buys GRIOT");
+  await topUp(s.token, 100000);
+  const paid = await use(s.token, "market-plan");
+  eq(paid.status, 200, "affordable once the balance covers it");
+  eq(paid.data.account.balance, 22500, "147,500 − 125,000");
 });
 
 await test("topup: webhook replays and the return page credit exactly once", async () => {
@@ -840,26 +1199,63 @@ await test("topup: webhook replays and the return page credit exactly once", asy
   await webhook(charge(id, c.data.txRef));
   await webhook(charge(id, c.data.txRef));
   await webhook(charge(id, c.data.txRef));
-  const conf = await call("POST", "/griot/payment/confirm", { token: s.token, body: { txRef: c.data.txRef, transactionId: id } });
+  const conf = await confirm(s.token, c.data.txRef, id);
   eq(conf.status, 200); eq(conf.data.status, "already_credited");
-  eq(userRow("t-once@example.com").credits, 20, "20, not 80");
+  eq(userRow("t-once@example.com").balance, 50000, "50,000, not 200,000");
+});
+
+await test("topup: the webhook and the return page arriving together still credit once", async () => {
+  const s = await signUp("t-together@example.com");
+  const c = await checkout(s.token);
+  const id = pay(c.data.txRef);
+  const results = await Promise.all([
+    webhook(charge(id, c.data.txRef)), confirm(s.token, c.data.txRef, id),
+    webhook(charge(id, c.data.txRef)), confirm(s.token, c.data.txRef, id)
+  ]);
+  const credited = results.filter((r) => r.data && r.data.status === "credited").length;
+  ok(credited <= 1, "at most one response reports the credit");
+  eq(userRow("t-together@example.com").balance, 50000, "credited once");
+});
+
+await test("topup: a burst of simultaneous notifications for one payment credits once", async () => {
+  // All of these read the payment while it is still pending, so only the
+  // guarded UPDATE — not the early "already paid" check — can stop a double credit.
+  const s = await signUp("t-burst@example.com");
+  const c = await checkout(s.token);
+  const id = pay(c.data.txRef);
+  net.flwVerifyDelay = 40;
+  const results = await Promise.all(Array.from({ length: 8 }, () => webhook(charge(id, c.data.txRef))));
+  net.flwVerifyDelay = 0;
+  ok(flw.verifies >= 8, "all eight reached verification");
+  ok(results.every((r) => r.status === 200), "every notification acknowledged");
+  eq(userRow("t-burst@example.com").balance, 50000, "50,000 once, not 400,000");
+  eq(payment(c.data.txRef).status, "paid");
 });
 
 await test("topup: the return page alone credits — no webhook needed", async () => {
   const s = await signUp("t-return@example.com");
   const c = await checkout(s.token);
   const id = pay(c.data.txRef);
-  const conf = await call("POST", "/griot/payment/confirm", { token: s.token, body: { txRef: c.data.txRef, transactionId: id } });
-  eq(conf.data.status, "credited"); eq(conf.data.account.credits, 20, "balance in the response");
+  const conf = await confirm(s.token, c.data.txRef, id);
+  eq(conf.data.status, "credited"); eq(conf.data.amount, 50000);
+  eq(conf.data.account.balance, 50000, "balance in the response");
   await webhook(charge(id, c.data.txRef)); // arriving late changes nothing
-  eq(userRow("t-return@example.com").credits, 20);
+  eq(userRow("t-return@example.com").balance, 50000);
+});
+
+await test("topup: a top-up adds to the balance; it never replaces it", async () => {
+  const s = await signUp("t-adds@example.com");
+  setBalance("t-adds@example.com", 12500);
+  await topUp(s.token, 100000);
+  eq(userRow("t-adds@example.com").balance, 112500);
 });
 
 for (const [label, over] of [
   ["underpaid", { amount: 100 }],
   ["paid in the wrong currency", { currency: "USD" }],
   ["a failed charge", { status: "failed" }],
-  ["a pending charge", { status: "pending" }]
+  ["a pending charge", { status: "pending" }],
+  ["a verification that answers for a different transaction", { id: 1 }]
 ]) {
   await test("topup: " + label + " is never credited", async () => {
     const email = "t-" + label.replace(/\W+/g, "-") + "@example.com";
@@ -867,56 +1263,113 @@ for (const [label, over] of [
     const c = await checkout(s.token);
     const id = pay(c.data.txRef, over);
     await webhook(charge(id, c.data.txRef));
-    const conf = await call("POST", "/griot/payment/confirm", { token: s.token, body: { txRef: c.data.txRef, transactionId: id } });
+    const conf = await confirm(s.token, c.data.txRef, id);
     eq(conf.data.status, "not_paid");
-    eq(userRow(email).credits, 0, "no credit");
-    eq(order(c.data.txRef).status, "pending", "left pending, so a genuine retry can still settle it");
+    eq(userRow(email).balance, 0, "nothing credited");
+    eq(payment(c.data.txRef).status, "pending", "left pending, so a genuine retry can still settle it");
   });
 }
 
-await test("topup: one real cheap payment cannot be replayed against a different order", async () => {
+await test("topup: one real cheap payment cannot be replayed against a bigger top-up", async () => {
   const s = await signUp("t-reuse@example.com");
-  const first = await checkout(s.token);
-  const id = pay(first.data.txRef);
-  await webhook(charge(id, first.data.txRef));
-  eq(userRow("t-reuse@example.com").credits, 20);
-  // Claim the same Flutterwave transaction against a fresh order.
-  const second = await checkout(s.token);
-  await webhook(charge(id, second.data.txRef));
-  const conf = await call("POST", "/griot/payment/confirm", { token: s.token, body: { txRef: second.data.txRef, transactionId: id } });
-  eq(conf.data.status, "not_paid", "transaction belongs to the first order");
-  eq(userRow("t-reuse@example.com").credits, 20, "still 20");
+  const cheap = await checkout(s.token, 1000);
+  const id = pay(cheap.data.txRef, { amount: 1000 });
+  await webhook(charge(id, cheap.data.txRef));
+  eq(userRow("t-reuse@example.com").balance, 1000);
+  // Claim the same Flutterwave transaction against a fresh, larger top-up.
+  const big = await checkout(s.token, 250000);
+  await webhook(charge(id, big.data.txRef));
+  const conf = await confirm(s.token, big.data.txRef, id);
+  eq(conf.data.status, "not_paid", "the transaction belongs to the first top-up");
+  eq(userRow("t-reuse@example.com").balance, 1000, "still 1,000");
+  eq(payment(big.data.txRef).status, "pending");
 });
 
-await test("topup: nobody can settle another account's order", async () => {
+await test("topup: one real payment cannot be claimed twice, even against a top-up of the same amount", async () => {
+  const s = await signUp("t-twice@example.com");
+  const first = await topUp(s.token, 50000);
+  eq(userRow("t-twice@example.com").balance, 50000);
+  const second = await checkout(s.token, 50000);
+  eq((await webhook(charge(first.id, second.data.txRef))).status, 200);
+  const conf = await confirm(s.token, second.data.txRef, first.id);
+  eq(conf.status, 200); eq(conf.data.status, "not_paid", "the transaction belongs to the first top-up");
+  eq(userRow("t-twice@example.com").balance, 50000, "still 50,000");
+  eq(payment(second.data.txRef).status, "pending");
+});
+
+await test("topup: nobody can settle another account's payment", async () => {
   const owner = await signUp("t-owner@example.com");
   const thief = await signUp("t-thief@example.com");
   const c = await checkout(owner.token);
   const id = pay(c.data.txRef);
-  const r = await call("POST", "/griot/payment/confirm", { token: thief.token, body: { txRef: c.data.txRef, transactionId: id } });
-  eq(r.status, 404, "looks like a missing order");
-  eq(userRow("t-thief@example.com").credits, 0);
-  eq(order(c.data.txRef).status, "pending", "owner's order untouched");
+  const r = await confirm(thief.token, c.data.txRef, id);
+  eq(r.status, 404, "looks like a missing payment");
+  eq(userRow("t-thief@example.com").balance, 0);
+  eq(userRow("t-owner@example.com").balance, 0, "and the owner is not credited by the thief's call either");
+  eq(payment(c.data.txRef).status, "pending", "owner's payment untouched");
 });
 
-await test("topup: payments that are not GRIOT orders are acknowledged and ignored", async () => {
+await test("topup: payments that are not our top-ups are acknowledged and ignored", async () => {
   const before = flw.verifies;
-  eq((await webhook(charge(pay("static-link-123"), "static-link-123"))).status, 200);
-  eq((await webhook(charge(pay("griot-not-a-real-order"), "griot-not-a-real-order"))).status, 200);
+  for (const ref of ["static-link-123", "sp-not-a-real-payment", "griot-from-the-old-model"]) {
+    eq((await webhook(charge(pay(ref), ref))).status, 200, ref);
+  }
   eq(flw.verifies, before, "nothing verified, nothing credited");
 });
 
-await test("topup: Flutterwave's API being down leaves the order pending; a retry then credits", async () => {
+await test("topup: Flutterwave's API being down leaves the payment pending; a retry then credits", async () => {
   const s = await signUp("t-retry@example.com");
   const c = await checkout(s.token);
   const id = pay(c.data.txRef);
   net.flwVerify = "down";
   await webhook(charge(id, c.data.txRef));
   net.flwVerify = "ok";
-  eq(userRow("t-retry@example.com").credits, 0, "not credited on an unverifiable payment");
-  eq(order(c.data.txRef).status, "pending");
+  eq(userRow("t-retry@example.com").balance, 0, "not credited on an unverifiable payment");
+  eq(payment(c.data.txRef).status, "pending");
   await webhook(charge(id, c.data.txRef)); // Flutterwave retries
-  eq(userRow("t-retry@example.com").credits, 20, "credited on retry");
+  eq(userRow("t-retry@example.com").balance, 50000, "credited on retry");
+});
+
+/* ------------------------------------------------------- the account page */
+
+await test("account: signed-out callers get nothing", async () => {
+  eq((await call("GET", "/account")).status, 401);
+});
+
+await test("account: balance, prices, every use and every top-up — and nobody else's", async () => {
+  const s = await signUp("a-history@example.com");
+  await use(s.token, "griot");                   // free
+  await use(s.token, "brand-story");             // free
+  await use(s.token, "seo-audit", { url: "https://down.test" }); // free, failed, given back
+  await use(s.token, "seo-audit");               // free
+  net.flwCheckout = "fail";
+  await checkout(s.token, 100000);               // never opened
+  net.flwCheckout = "ok";
+  await topUp(s.token, 100000);
+  await use(s.token, "speaker-ready");           // 75,000 from the balance
+  await checkout(s.token, 50000);                // opened, not paid yet
+  const other = await signUp("a-someone-else@example.com");
+  await use(other.token, "market-plan");
+
+  const r = await call("GET", "/account", { token: s.token });
+  eq(r.status, 200);
+  eq(r.data.account.email, "a-history@example.com");
+  eq(r.data.account.trialsRemaining, 0); eq(r.data.account.balance, 25000);
+  eq(r.data.prices["market-plan"], 125000);
+  const uses = r.data.uses.map((u) => [u.service, u.paidWith, u.amount, u.status].join(" "));
+  eq(JSON.stringify(uses), JSON.stringify([
+    "speaker-ready balance 75000 ok",
+    "seo-audit trial 0 ok",
+    "seo-audit trial 0 refunded",
+    "brand-story trial 0 ok",
+    "griot trial 0 ok"
+  ]), "newest first, refunds shown");
+  ok(r.data.uses.every((u) => Number.isInteger(u.at)), "every use is dated");
+  const pays = r.data.payments.map((p) => [p.amount, p.currency, p.provider, p.status].join(" "));
+  eq(JSON.stringify(pays), JSON.stringify(["50000 UGX flutterwave pending", "100000 UGX flutterwave paid"]),
+    "failed checkouts hidden; pending and paid shown");
+  ok(!JSON.stringify(r.data).includes("market-plan trial"), "another account's use never appears");
+  ok(!JSON.stringify(r.data).includes("tx_ref") && !JSON.stringify(r.data).includes("sp-"), "no payment references exposed");
 });
 
 console.log("\n" + passed + " passed, " + failures.length + " failed\n");

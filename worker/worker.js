@@ -5,25 +5,31 @@
    with Workers Builds from this repo. Setup steps live in worker/README.md.
 
    What it does
-   - Email sign-up with a 6-digit code (Turnstile-protected).
-   - 3 free Studio runs per new account, then paid credits.
-   - Runs the Studio products server-side, so the trial limit is real: the
-     browser only renders what this Worker returns.
-   - Stores contact-form leads and emails a notification.
-   - Records first-party funnel events for measurement.
+   - One account per person: Sign in with Google (email codes optional).
+   - 3 free tries in total, usable on any service, granted once per account.
+   - After that, one prepaid balance in UGX, like airtime: each use deducts
+     that service's price (PRICES below). Top-ups through Flutterwave are
+     credited automatically; a failed use is refunded in full.
+   - Runs every service server-side, so the limits are real: the browser only
+     renders what this Worker returns. GRIOT is called server-to-server.
+   - Stores contact-form leads and records first-party funnel events.
 
    Bindings (Settings → Bindings / Variables and Secrets)
      DB               D1 database            (required)
-     SEND_EMAIL       Email Service binding  (required in production)
      SESSION_SECRET   secret, 32+ random chars (required)
-     TURNSTILE_SECRET secret                 (required in production)
-     PAGESPEED_KEY    secret                 (recommended)
+     GOOGLE_CLIENT_ID var, Google OAuth client ID (for Sign in with Google)
+     GRIOT_API_BASE   var, where GRIOT is deployed
+     GRIOT_API_KEY    secret, the same key GRIOT is configured with
+     FLW_SECRET_KEY   secret, Flutterwave secret key (turns on top-ups)
+     FLW_SECRET_HASH  secret, Flutterwave webhook secret hash
+     TOPUP_AMOUNTS    var, suggested top-ups, default "50000,100000,250000"
+     SITE_URL         var, where Flutterwave returns customers to
+     PAGESPEED_KEY    secret, optional: adds Google scores to the SEO audit
      ALLOWED_ORIGINS  var, comma-separated   e.g. https://speakpower-commits.github.io
-     MAIL_FROM        var, sender address on a domain onboarded to Cloudflare
-     LEAD_NOTIFY_TO   var, inbox that receives contact-form leads
-     CHECKOUT_URL     var, where exhausted-trial users go to pay (Flutterwave)
      FREE_TRIALS      var, default "3"
      ENVIRONMENT      var, "production" or "development"
+     Email-code sign-in only: SEND_EMAIL binding, MAIL_FROM, TURNSTILE_SECRET,
+     LEAD_NOTIFY_TO — needs your own domain and the Workers Paid plan.
    ========================================================================== */
 
 const SESSION_TTL = 60 * 60 * 24 * 30; // 30 days
@@ -77,6 +83,7 @@ async function route(request, env, ctx) {
   if (request.method === "GET") {
     if (path === "/health") return json(request, env, { ok: true });
     if (path === "/me") return me(request, env);
+    if (path === "/account") return accountSummary(request, env);
   }
 
   if (request.method === "POST") {
@@ -85,8 +92,8 @@ async function route(request, env, ctx) {
     if (path === "/auth/google") return authGoogle(request, env);
     if (path === "/studio/generate") return generate(request, env);
     if (path === "/griot/chat") return griotChat(request, env);
-    if (path === "/griot/checkout") return griotCheckout(request, env);
-    if (path === "/griot/payment/confirm") return griotPaymentConfirm(request, env);
+    if (path === "/wallet/checkout") return walletCheckout(request, env);
+    if (path === "/wallet/confirm") return walletConfirm(request, env);
     if (path === "/webhooks/flutterwave") return flutterwaveWebhook(request, env);
     if (path === "/lead") return lead(request, env, ctx);
     if (path === "/event") return trackEvent(request, env);
@@ -235,16 +242,111 @@ function publicAccount(user, env) {
     email: user.email,
     name: user.name || "",
     trialsRemaining: user.trials_remaining,
-    credits: user.credits,
+    balance: user.balance,
+    currency: CURRENCY,
     plan: user.plan,
     freeTrials: freeTrials(env),
-    // Carried on every account response, not only the 402: the last free
-    // message succeeds, so the page must already know where to send someone
-    // to pay at the moment they run out — and again after a reload.
-    checkoutUrl: env.CHECKOUT_URL || null,
-    // The GRIOT top-up on offer, when automatic checkout is configured.
-    pack: griotPack(env)
+    // What the page needs to show a pay wall without another round trip: the
+    // last free try succeeds, so the page must already know what top-ups are
+    // on offer at the moment the person runs out.
+    topUps: topUpAmounts(env),
+    canTopUp: paymentsEnabled(env)
   };
+}
+
+/* --------------------------------------------------------------------------
+   Prices and spending — one balance for every service
+
+   One price list, in Uganda shillings. studio.html shows the same numbers,
+   and a test fails if the two ever disagree. Change a price here and there,
+   together.
+   ------------------------------------------------------------------------ */
+
+const CURRENCY = "UGX";
+const PRICES = Object.freeze({
+  "brand-story": 100000,
+  "seo-audit": 75000,
+  "market-plan": 125000,
+  "content-seo": 75000,
+  "data-story": 100000,
+  "speaker-ready": 75000,
+  "griot": 2500 // per GRIOT message
+});
+
+function formatUgx(n) {
+  return CURRENCY + " " + Number(n).toLocaleString("en-US");
+}
+
+// Spends one free try if any are left; otherwise the service's price from the
+// balance. Each UPDATE is a single atomic statement that checks its own
+// condition, so parallel requests can never spend the same try or take the
+// balance below zero. Returns null when the account cannot cover it.
+async function reserveRun(env, user, service) {
+  const price = PRICES[service];
+  if (!Number.isInteger(price)) throw new Error("No price for " + service);
+  const now = nowSec();
+
+  let paidWith = "trial";
+  let amount = 0;
+  let row = await env.DB.prepare(
+    "UPDATE users SET trials_remaining = trials_remaining - 1, last_seen_at = ? " +
+    "WHERE id = ? AND trials_remaining > 0 RETURNING trials_remaining, balance"
+  ).bind(now, user.id).first();
+
+  if (!row) {
+    paidWith = "balance";
+    amount = price;
+    row = await env.DB.prepare(
+      "UPDATE users SET balance = balance - ?, last_seen_at = ? " +
+      "WHERE id = ? AND balance >= ? RETURNING trials_remaining, balance"
+    ).bind(price, now, user.id, price).first();
+  }
+  if (!row) return null;
+
+  const run = await env.DB.prepare(
+    "INSERT INTO runs (user_id, product, paid_with, amount, status, created_at) " +
+    "VALUES (?, ?, ?, ?, 'ok', ?) RETURNING id"
+  ).bind(user.id, service, paidWith, amount, now).first();
+
+  return { runId: run.id, paidWith, amount, trialsRemaining: row.trials_remaining, balance: row.balance };
+}
+
+// Gives back exactly what reserveRun took — the free try, or the shillings.
+// The run row and the refund change in one transaction.
+async function refundRun(env, user, reserved) {
+  const giveBack = reserved.paidWith === "trial"
+    ? env.DB.prepare("UPDATE users SET trials_remaining = trials_remaining + 1 WHERE id = ?").bind(user.id)
+    : env.DB.prepare("UPDATE users SET balance = balance + ? WHERE id = ?").bind(reserved.amount, user.id);
+  await env.DB.batch([
+    giveBack,
+    env.DB.prepare("UPDATE runs SET status = 'refunded' WHERE id = ?").bind(reserved.runId)
+  ]);
+}
+
+// The 402 every service returns when the free tries are used and the balance
+// will not cover the price: what it costs, what is there, and the gap.
+async function paymentRequired(request, env, user, service, title, body) {
+  const fresh = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(user.id).first();
+  const price = PRICES[service];
+  await logEvent(env, "payment_required", { userId: user.id, anonId: body.anonId, product: service, page: body.page });
+  return json(request, env, {
+    error: "payment_required",
+    message: "Your free tries are used. " + title + " costs " + formatUgx(price) +
+      " and your balance is " + formatUgx(fresh.balance) + ".",
+    service,
+    title,
+    price,
+    balance: fresh.balance,
+    shortfall: Math.max(0, price - fresh.balance),
+    account: publicAccount(fresh, env)
+  }, 402);
+}
+
+function withBalance(user, env, reserved) {
+  const account = publicAccount(user, env);
+  account.trialsRemaining = reserved.trialsRemaining;
+  account.balance = reserved.balance;
+  return account;
 }
 
 /* --------------------------------------------------------------------------
@@ -261,64 +363,29 @@ async function generate(request, env) {
 
   // Validate before spending anything.
   const inputs = product.validate(body.inputs && typeof body.inputs === "object" ? body.inputs : {});
-  const now = nowSec();
 
-  // Reserve one run: free trials first, then paid credits. Each UPDATE is a
-  // single atomic statement, so two parallel requests can never spend the
-  // same trial.
-  let paidWith = "trial";
-  let balance = await env.DB.prepare(
-    "UPDATE users SET trials_remaining = trials_remaining - 1, last_seen_at = ? " +
-    "WHERE id = ? AND trials_remaining > 0 RETURNING trials_remaining, credits"
-  ).bind(now, user.id).first();
-
-  if (!balance) {
-    paidWith = "credit";
-    balance = await env.DB.prepare(
-      "UPDATE users SET credits = credits - 1, last_seen_at = ? " +
-      "WHERE id = ? AND credits > 0 RETURNING trials_remaining, credits"
-    ).bind(now, user.id).first();
-  }
-
-  if (!balance) {
-    await logEvent(env, "trials_exhausted", { userId: user.id, anonId: body.anonId, product: key, page: body.page });
-    return json(request, env, {
-      error: "trials_exhausted",
-      message: "You have used your free runs. Continue with a paid run to generate this pack.",
-      product: key,
-      productTitle: product.title,
-      price: product.price,
-      checkoutUrl: env.CHECKOUT_URL || null,
-      account: publicAccount(user, env)
-    }, 402);
-  }
-
-  const run = await env.DB.prepare(
-    "INSERT INTO runs (user_id, product, paid_with, status, created_at) VALUES (?, ?, ?, 'ok', ?) RETURNING id"
-  ).bind(user.id, key, paidWith, now).first();
+  const reserved = await reserveRun(env, user, key);
+  if (!reserved) return paymentRequired(request, env, user, key, product.title, body);
 
   let sections;
   try {
     sections = await product.run(inputs, env);
   } catch (err) {
-    // A failed generation never costs the customer: give the run back.
-    const column = paidWith === "trial" ? "trials_remaining" : "credits";
-    await env.DB.batch([
-      env.DB.prepare("UPDATE users SET " + column + " = " + column + " + 1 WHERE id = ?").bind(user.id),
-      env.DB.prepare("UPDATE runs SET status = 'refunded' WHERE id = ?").bind(run.id)
-    ]);
+    // A failed generation never costs the customer: give back what was taken.
+    await refundRun(env, user, reserved);
     if (!(err instanceof HttpError)) console.error("Product run failed", key, err);
     const reason = err instanceof HttpError ? err.message : "The product could not generate a result.";
     throw new HttpError(err instanceof HttpError ? err.status : 502, "generation_failed",
-      reason + " Your run was not used.");
+      reason + " You were not charged.");
   }
 
   await logEvent(env, "studio_generate", { userId: user.id, anonId: body.anonId, product: key, page: body.page });
 
-  const account = publicAccount(user, env);
-  account.trialsRemaining = balance.trials_remaining;
-  account.credits = balance.credits;
-  return json(request, env, { product: key, title: product.title, sections, paidWith, account });
+  return json(request, env, {
+    product: key, title: product.title, sections,
+    paidWith: reserved.paidWith, amount: reserved.amount,
+    account: withBalance(user, env, reserved)
+  });
 }
 
 /* --------------------------------------------------------------------------
@@ -344,7 +411,7 @@ function textProduct(title, price, fields, build) {
 }
 
 const PRODUCTS = {
-  "brand-story": textProduct("Brand Story Builder", "UGX 100,000", [
+  "brand-story": textProduct("Brand Story Builder", formatUgx(PRICES["brand-story"]), [
     ["brand", "Brand / organisation name", 120],
     ["offer", "What you offer", 1500],
     ["audience", "Who is it for?", 300],
@@ -365,7 +432,7 @@ const PRODUCTS = {
     ["Call to action", "Ready to " + lower(v.result) + "? Start with " + v.brand + "."]
   ]),
 
-  "market-plan": textProduct("Market Development Planner", "UGX 125,000", [
+  "market-plan": textProduct("Market Development Planner", formatUgx(PRICES["market-plan"]), [
     ["business", "Business / organisation", 120],
     ["offer", "Main offer", 1500],
     ["audience", "Target market", 300],
@@ -387,7 +454,7 @@ const PRODUCTS = {
     ["Working KPI set", "Visibility: qualified visits. Engagement: enquiries / conversations. Conversion: offers accepted or next-step actions. Learning: recurring objections and customer questions."]
   ]),
 
-  "content-seo": textProduct("SEO Content Starter", "UGX 75,000", [
+  "content-seo": textProduct("SEO Content Starter", formatUgx(PRICES["content-seo"]), [
     ["business", "Business / brand", 120],
     ["offer", "What you sell", 1500],
     ["audience", "Audience", 300],
@@ -412,7 +479,7 @@ const PRODUCTS = {
     ["Publishing rhythm", "Week 1: question answer. Week 2: educational guide. Week 3: proof. Week 4: offer + CTA."]
   ]),
 
-  "speaker-ready": textProduct("Speaker Ready Pack", "UGX 75,000", [
+  "speaker-ready": textProduct("Speaker Ready Pack", formatUgx(PRICES["speaker-ready"]), [
     ["speaker", "Speaker name", 120],
     ["topic", "Topic", 300],
     ["audience", "Audience", 300],
@@ -436,61 +503,15 @@ const PRODUCTS = {
     ["Likely Q&A", "What is the biggest obstacle to applying this?\nWhat would you change first?\nCan you give a practical example?\nWhat happens when people disagree?"]
   ]),
 
+  // Two layers: SpeakPower's own checks of the live page, which need no key
+  // and no quota and ARE the product; and Google Lighthouse scores, added on
+  // top when PAGESPEED_KEY is set. Only an unreadable page fails the audit
+  // (and is refunded); Lighthouse being unavailable is reported, not fatal.
   "seo-audit": {
     title: "Website SEO & Visibility Audit",
-    price: "UGX 75,000",
-    validate(raw) {
-      const value = str(raw.url, 2048);
-      let parsed;
-      try { parsed = new URL(value); } catch (e) { parsed = null; }
-      if (!parsed || !/^https?:$/.test(parsed.protocol) || parsed.username || parsed.password ||
-          parsed.hostname.indexOf(".") === -1) {
-        throw new HttpError(400, "invalid_url", "Enter a full public website address, e.g. https://example.com.", { field: "url" });
-      }
-      return { url: parsed.toString() };
-    },
-    async run(v, env) {
-      let endpoint = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=" + encodeURIComponent(v.url) +
-        "&category=seo&category=performance&category=accessibility&category=best-practices";
-      if (env.PAGESPEED_KEY) endpoint += "&key=" + encodeURIComponent(env.PAGESPEED_KEY);
-
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 90000);
-      let data;
-      try {
-        const res = await fetch(endpoint, { signal: controller.signal });
-        if (!res.ok) throw new HttpError(502, "pagespeed_failed", "Google PageSpeed could not analyse that URL right now.");
-        data = await res.json();
-      } catch (err) {
-        if (err instanceof HttpError) throw err;
-        throw new HttpError(504, "pagespeed_timeout", "Google PageSpeed took too long to respond.");
-      } finally {
-        clearTimeout(timer);
-      }
-
-      const lh = data.lighthouseResult || {};
-      const scores = lh.categories || {};
-      const sections = [];
-      ["seo", "performance", "accessibility", "best-practices"].forEach((k) => {
-        if (scores[k] && typeof scores[k].score === "number") {
-          sections.push([titleCase(k.replace("-", " ")), Math.round(scores[k].score * 100) + " / 100"]);
-        }
-      });
-
-      const audits = lh.audits || {};
-      const failures = Object.keys(audits).map((id) => {
-        const a = audits[id];
-        if (!a || !a.title || a.scoreDisplayMode === "informative" || a.score === null) return null;
-        return { title: a.title, score: a.score, display: a.displayValue || "" };
-      }).filter(Boolean).filter((a) => a.score < 1).sort((a, b) => a.score - b.score).slice(0, 10);
-
-      sections.push(["Top findings", failures.length
-        ? failures.map((a) => a.title + (a.display ? " — " + a.display : "")).join("\n")
-        : "No failed Lighthouse audits were returned."]);
-      sections.push(["What to fix first", "1. Address the highest-impact failed SEO checks.\n2. Improve pages with weak search intent alignment and unclear headings.\n3. Improve performance and accessibility issues that affect user experience.\n4. Re-run the audit after changes."]);
-      sections.push(["Important note", "This is an automated technical audit based on the public URL. Search Console data, rankings, backlinks and conversion performance require access to the website's own data and are outside this automated check."]);
-      return sections;
-    }
+    price: formatUgx(PRICES["seo-audit"]),
+    validate(raw) { return { url: normaliseTarget(raw.url) }; },
+    async run(v, env) { return runSeoAudit(env, v.url); }
   },
 
   // The CSV itself never leaves the visitor's browser. The page computes
@@ -498,7 +519,7 @@ const PRODUCTS = {
   // Worker turns them into the report.
   "data-story": {
     title: "Data Story Builder",
-    price: "UGX 100,000",
+    price: formatUgx(PRICES["data-story"]),
     validate(raw) {
       const s = raw.summary && typeof raw.summary === "object" ? raw.summary : null;
       const rows = s ? num(s.rows) : null;
@@ -557,6 +578,462 @@ const PRODUCTS = {
     }
   }
 };
+
+/* --------------------------------------------------------------------------
+   Website SEO & Visibility Audit
+
+   Ported from PR #7's pagespeed.ts. The Worker fetches a customer-supplied
+   address, so normaliseTarget() is a security boundary, not a convenience:
+   only public http(s) sites by domain name, on the default ports, and every
+   redirect hop is checked again before it is followed. Cloudflare's edge
+   cannot reach private networks anyway; this refuses early and clearly.
+
+   No result cache, deliberately: a customer who pays, fixes their site and
+   runs the audit again must get today's page, not yesterday's report.
+   ------------------------------------------------------------------------ */
+
+const AUDIT_MAX_HTML_BYTES = 512 * 1024;
+const AUDIT_HTML_TIMEOUT_MS = 12000;
+const AUDIT_LIGHTHOUSE_TIMEOUT_MS = 55000;
+const AUDIT_MAX_REDIRECTS = 5;
+const AUDIT_BLOCKED_HOSTS = [/^localhost$/i, /\.localhost$/i, /\.local$/i, /\.internal$/i, /\.home\.arpa$/i, /^metadata\./i];
+const LIGHTHOUSE_CATEGORIES = ["seo", "performance", "accessibility", "best-practices"];
+
+function invalidUrl(message) {
+  return new HttpError(400, "invalid_url", message, { field: "url" });
+}
+
+// Returns the address to audit, or throws a 400 the customer can act on.
+function normaliseTarget(raw) {
+  let text = String(raw == null ? "" : raw).trim();
+  if (!text) throw invalidUrl("Enter the website address you want audited.");
+  if (text.length > 2048) throw invalidUrl("That address is too long to be a website address.");
+  // People type "example.com". Assume https rather than refusing them.
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(text)) text = "https://" + text;
+
+  let u;
+  try { u = new URL(text); } catch (e) { throw invalidUrl("That does not look like a website address. Try https://example.com."); }
+  if (u.protocol !== "https:" && u.protocol !== "http:") throw invalidUrl("Only http and https website addresses can be audited.");
+  if (u.username || u.password) throw invalidUrl("Remove the user name and password from the address.");
+  if (u.port) throw invalidUrl("Audit the site on its normal address, without a port number.");
+
+  const host = u.hostname.toLowerCase().replace(/\.$/, ""); // "localhost." is localhost
+  // The URL parser has already turned 2130706433, 0x7f.1 and friends into
+  // dotted IPv4, so one check catches every spelling. No business website is
+  // audited by bare IP, so all IP literals are refused, not just private ones.
+  if (host.startsWith("[") || /^\d{1,3}(\.\d{1,3}){3}$/.test(host)) {
+    throw invalidUrl("Enter the website's domain name, not an IP address.");
+  }
+  if (host.indexOf(".") === -1 || AUDIT_BLOCKED_HOSTS.some((re) => re.test(host))) {
+    throw invalidUrl("Enter a full public website address, for example https://example.com.");
+  }
+  u.hash = ""; // never changes what the server returns
+  return u.toString();
+}
+
+async function runSeoAudit(env, target) {
+  // Both layers at once. Only inspectPage may fail the run: without the page
+  // there is no deliverable.
+  const [facts, lighthouse] = await Promise.all([inspectPage(target), fetchLighthouse(env, target)]);
+  return buildAuditSections(target, facts, lighthouse);
+}
+
+/* ---- Layer 1: Google Lighthouse, only when a key is configured ---- */
+
+async function fetchLighthouse(env, target) {
+  const unavailable = (reason) => ({ ok: false, reason, scores: [], failures: [] });
+  // Without a key the call lands in Google's shared anonymous quota, which is
+  // permanently exhausted (HTTP 429) — so do not make a call that cannot work.
+  if (!env.PAGESPEED_KEY) {
+    return unavailable("Google Lighthouse scores are not switched on for this service yet, so this report contains the SpeakPower technical checks only.");
+  }
+
+  const endpoint = new URL("https://www.googleapis.com/pagespeedonline/v5/runPagespeed");
+  endpoint.searchParams.set("url", target);
+  endpoint.searchParams.set("strategy", "mobile");
+  endpoint.searchParams.set("key", env.PAGESPEED_KEY);
+  for (const c of LIGHTHOUSE_CATEGORIES) endpoint.searchParams.append("category", c);
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), AUDIT_LIGHTHOUSE_TIMEOUT_MS);
+  try {
+    const res = await fetch(endpoint.toString(), { signal: controller.signal });
+    if (!res.ok) {
+      const detail = await res.json().catch(() => null);
+      const err = (detail && detail.error) || {};
+      const reasons = [].concat(err.details || [], err.errors || []).map((d) => String((d && d.reason) || ""));
+      // A bad key or a disabled API is OUR fault. Reporting it as "your page
+      // could not be scored" would send the customer hunting a problem that
+      // is not on their site.
+      const configFault = res.status === 401 || res.status === 403 || /api key/i.test(String(err.message || "")) ||
+        reasons.some((r) => ["API_KEY_INVALID", "API_KEY_SERVICE_BLOCKED", "SERVICE_DISABLED", "forbidden"].indexOf(r) !== -1);
+      if (configFault) {
+        console.error("PageSpeed configuration fault", res.status, err.message, reasons.join(","));
+        return unavailable("Lighthouse scoring is temporarily unavailable on our side, so the scores are not in this report. The SpeakPower technical checks below ran normally and are complete.");
+      }
+      if (res.status === 429) {
+        return unavailable("Google's Lighthouse quota is used up for today, so the scores are not in this report. The SpeakPower technical checks below ran normally.");
+      }
+      if (res.status === 400 || res.status === 422 || res.status === 500) {
+        return unavailable("Google could not load the page to score it — it may block automated visits or be too slow to finish. The SpeakPower technical checks below ran normally.");
+      }
+      console.error("PageSpeed unexpected response", res.status, err.message);
+      return unavailable("Google Lighthouse did not return scores for this page. The SpeakPower technical checks below ran normally.");
+    }
+
+    const lh = ((await res.json()) || {}).lighthouseResult || {};
+    const categories = lh.categories || {};
+    const audits = lh.audits || {};
+    const scores = LIGHTHOUSE_CATEGORIES
+      .filter((k) => categories[k] && typeof categories[k].score === "number")
+      .map((k) => [titleCase(k.replace(/-/g, " ")), Math.round(categories[k].score * 100)]);
+    const failures = Object.keys(audits).map((id) => audits[id])
+      .filter((a) => a && a.title && typeof a.score === "number" && a.score < 1 &&
+        ["informative", "notApplicable", "manual"].indexOf(a.scoreDisplayMode) === -1)
+      .sort((a, b) => a.score - b.score)
+      .slice(0, 12)
+      .map((a) => ({ title: String(a.title), display: String(a.displayValue || "") }));
+    return { ok: scores.length > 0, reason: scores.length ? "" : "Google Lighthouse returned no scores for this page.", scores, failures };
+  } catch (e) {
+    return unavailable(e && e.name === "AbortError"
+      ? "Google Lighthouse took too long on this page and was stopped. The SpeakPower technical checks below ran normally."
+      : "Google Lighthouse could not be reached. The SpeakPower technical checks below ran normally.");
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/* ---- Layer 2: SpeakPower's own checks of the live page ---- */
+
+// Fetches the page, following redirects by hand so every hop is re-checked.
+async function fetchAuditPage(target) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), AUDIT_HTML_TIMEOUT_MS);
+  try {
+    let url = target;
+    for (let hop = 0; ; hop++) {
+      let res;
+      try {
+        res = await fetch(url, {
+          redirect: "manual",
+          signal: controller.signal,
+          headers: {
+            // Identify honestly: if a host blocks unknown agents, the customer
+            // deserves to know that is what happened.
+            "User-Agent": "SpeakPowerStudioAudit/1.0 (+https://speakpower-commits.github.io/SpeakPower/studio.html)",
+            "Accept": "text/html,application/xhtml+xml"
+          }
+        });
+      } catch (e) {
+        throw new HttpError(502, "page_unreachable", e && e.name === "AbortError"
+          ? "That page did not respond within " + AUDIT_HTML_TIMEOUT_MS / 1000 + " seconds, so it could not be inspected."
+          : "That page could not be reached. Check the address and that the site is public.");
+      }
+      if (res.status >= 300 && res.status < 400 && res.headers.get("Location")) {
+        if (hop >= AUDIT_MAX_REDIRECTS) {
+          throw new HttpError(502, "page_unreachable", "That address redirects too many times to be audited.");
+        }
+        let next;
+        try { next = normaliseTarget(new URL(res.headers.get("Location"), url).toString()); }
+        catch (e) { throw new HttpError(502, "page_unreachable", "That address redirects somewhere that cannot be audited (a private or non-web address)."); }
+        if (res.body) await res.body.cancel().catch(() => {});
+        url = next;
+        continue;
+      }
+      return { res, url, startedTimer: timer };
+    }
+  } catch (e) {
+    clearTimeout(timer);
+    throw e;
+  }
+}
+
+async function inspectPage(target) {
+  const startedAt = Date.now();
+  const { res, url: finalUrl, startedTimer } = await fetchAuditPage(target);
+  try {
+    if (res.status >= 400) {
+      throw new HttpError(502, "page_unreachable", "That address answered with HTTP " + res.status + ", so there is no page to audit.");
+    }
+    const type = res.headers.get("Content-Type") || "";
+    if (type && !/html|xml/i.test(type)) {
+      throw new HttpError(502, "page_unreachable", "That address is not a web page (" + type.split(";")[0].trim() + ").");
+    }
+
+    const facts = {
+      finalUrl, status: res.status, https: finalUrl.startsWith("https://"), redirected: finalUrl !== target,
+      bytes: 0, truncated: false, elapsedMs: 0,
+      lang: "", title: "", titles: 0, metaDescription: "", descriptions: 0,
+      robots: "", robotsHeader: res.headers.get("X-Robots-Tag") || "", canonical: "", viewport: "",
+      headings: { h1: 0, h2: 0, h3: 0, h4: 0, h5: 0, h6: 0 }, headingOrder: [],
+      og: {}, twitterCard: "", jsonLd: [], images: 0, imagesWithAlt: 0,
+      linksInternal: 0, linksExternal: 0, hasFavicon: false, proseWords: 0
+    };
+    const host = new URL(finalUrl).hostname;
+    let inSvg = 0;
+    let title = null;
+    let jsonLd = "";
+    let prose = "";
+
+    const rewriter = new HTMLRewriter()
+      .on("html", { element(el) { if (!facts.lang) facts.lang = el.getAttribute("lang") || ""; } })
+      // An inline <svg> may carry its own <title>; only the document's counts.
+      .on("svg", {
+        element(el) {
+          inSvg++;
+          try { el.onEndTag(() => { inSvg--; }); } catch (e) { inSvg--; } // <svg/> has no end tag
+        }
+      })
+      .on("title", {
+        element() { if (!inSvg) { facts.titles++; if (facts.titles === 1) title = ""; } },
+        text(chunk) {
+          if (inSvg || facts.titles !== 1 || title === null) return;
+          title += chunk.text;
+          if (chunk.lastInTextNode) { facts.title = decodeEntities(title).replace(/\s+/g, " ").trim(); title = null; }
+        }
+      })
+      .on("meta", {
+        element(el) {
+          const name = (el.getAttribute("name") || "").toLowerCase();
+          const prop = (el.getAttribute("property") || "").toLowerCase();
+          const content = decodeEntities(el.getAttribute("content") || "").trim();
+          if (name === "description") { facts.descriptions++; if (!facts.metaDescription) facts.metaDescription = content; }
+          else if (name === "robots" || name === "googlebot") facts.robots += " " + content;
+          else if (name === "viewport") facts.viewport = content;
+          else if (name === "twitter:card") facts.twitterCard = content;
+          if (prop.startsWith("og:") && !facts.og[prop]) facts.og[prop] = content;
+          else if (name.startsWith("og:") && !facts.og[name]) facts.og[name] = content;
+        }
+      })
+      .on("link", {
+        element(el) {
+          const rel = (el.getAttribute("rel") || "").toLowerCase().split(/\s+/);
+          if (rel.indexOf("canonical") !== -1 && !facts.canonical) facts.canonical = decodeEntities(el.getAttribute("href") || "").trim();
+          if (rel.some((r) => r === "icon" || r === "apple-touch-icon")) facts.hasFavicon = true;
+        }
+      })
+      .on("h1, h2, h3, h4, h5, h6", {
+        element(el) {
+          const tag = el.tagName.toLowerCase();
+          facts.headings[tag]++;
+          if (facts.headingOrder.length < 60) facts.headingOrder.push(tag);
+        }
+      })
+      .on("img", {
+        element(el) {
+          facts.images++;
+          // alt="" is the correct marker for a decorative image, so present-
+          // but-empty counts as handled.
+          if (el.getAttribute("alt") !== null) facts.imagesWithAlt++;
+        }
+      })
+      .on("a[href]", {
+        element(el) {
+          const href = decodeEntities(el.getAttribute("href") || "").trim();
+          if (!href || /^(#|mailto:|tel:|javascript:)/i.test(href)) return;
+          try {
+            if (new URL(href, finalUrl).hostname === host) facts.linksInternal++;
+            else facts.linksExternal++;
+          } catch (e) { /* an unparseable href is not worth a finding of its own */ }
+        }
+      })
+      .on('script[type="application/ld+json"]', {
+        text(chunk) {
+          jsonLd += chunk.text;
+          if (chunk.lastInTextNode) {
+            if (jsonLd.trim() && facts.jsonLd.length < 25) facts.jsonLd.push(jsonLd.trim());
+            jsonLd = "";
+          }
+        }
+      })
+      .on("p, li, h1, h2, h3, h4, h5, h6, td, th, figcaption, blockquote", {
+        text(chunk) { if (prose.length < 200000) prose += chunk.text + " "; }
+      });
+
+    // Read under a hard byte cap, so one enormous page cannot exhaust the Worker.
+    const reader = rewriter.transform(res).body.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      facts.bytes += value ? value.byteLength : 0;
+      if (facts.bytes > AUDIT_MAX_HTML_BYTES) {
+        facts.truncated = true;
+        await reader.cancel().catch(() => {});
+        break;
+      }
+    }
+    facts.elapsedMs = Date.now() - startedAt;
+    const words = decodeEntities(prose).trim();
+    facts.proseWords = words ? words.split(/\s+/).length : 0;
+    return facts;
+  } finally {
+    clearTimeout(startedTimer);
+  }
+}
+
+// HTMLRewriter hands over text and attribute values as written in the
+// source, entities and all. Enough of HTML's entities for a readable report.
+function decodeEntities(s) {
+  const named = { amp: "&", lt: "<", gt: ">", quot: "\"", apos: "'", nbsp: " ", ndash: "–", mdash: "—", hellip: "…", rsquo: "’", lsquo: "‘", rdquo: "”", ldquo: "“", middot: "·", copy: "©" };
+  return String(s).replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e) => {
+    if (e[0] === "#") {
+      const code = e[1] === "x" || e[1] === "X" ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
+      return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : m;
+    }
+    const v = named[e.toLowerCase()];
+    return v === undefined ? m : v;
+  });
+}
+
+/* ---- Findings, ranked: fix, then review, then what is already right ---- */
+
+function buildAuditFindings(f) {
+  const out = [];
+  const add = (level, label, detail) => out.push({ level, label, detail });
+  const plural = (n, one, many) => n + " " + (n === 1 ? one : (many || one + "s"));
+
+  // Indexability first: nothing else matters if the page is hidden.
+  if (/noindex/i.test(f.robots + " " + f.robotsHeader)) {
+    add("fail", "Indexability", "The page tells search engines not to index it (\"noindex\"" +
+      (/noindex/i.test(f.robotsHeader) ? ", sent in the X-Robots-Tag header" : "") + "). It is being left out of search results entirely.");
+  } else {
+    add("pass", "Indexability", "No noindex instruction. The page is open to search engines.");
+  }
+
+  if (!f.https) add("fail", "HTTPS", "The page is served over plain http. Browsers mark it \"not secure\" and search engines prefer https.");
+  else add("pass", "HTTPS", "Served over https.");
+
+  const t = f.title.length;
+  if (!t) add("fail", "Page title", "There is no <title>. It is the strongest on-page signal and the headline of every search result.");
+  else if (t < 25) add("warn", "Page title", "Only " + t + " characters (\"" + f.title + "\"). Around 50–60 uses the full width of a search result.");
+  else if (t > 65) add("warn", "Page title", t + " characters, so Google will cut it short. Put what matters in the first 60.");
+  else add("pass", "Page title", t + " characters — shown in full in search results.");
+  if (f.titles > 1) add("warn", "Duplicate title tags", "The page has " + f.titles + " <title> tags. Search engines use one, and not necessarily the one you meant.");
+
+  const d = f.metaDescription.length;
+  if (!d) add("fail", "Meta description", "No meta description, so Google writes its own snippet from page text. You lose control of the sentence that decides the click.");
+  else if (d < 70) add("warn", "Meta description", "Only " + d + " characters. 120–160 gives you room to make the case.");
+  else if (d > 170) add("warn", "Meta description", d + " characters — it will be cut off around 160.");
+  else add("pass", "Meta description", d + " characters — a good working length.");
+  if (f.descriptions > 1) add("warn", "Duplicate meta descriptions", "The page has " + f.descriptions + " meta descriptions. Keep one.");
+
+  if (!f.headings.h1) add("fail", "Main heading (H1)", "There is no H1. The page never states its subject in the one place readers and crawlers look first.");
+  else if (f.headings.h1 > 1) add("warn", "Main heading (H1)", f.headings.h1 + " H1 headings. One per page keeps the subject unambiguous.");
+  else add("pass", "Main heading (H1)", "Exactly one H1.");
+
+  const skips = [];
+  let prev = 0;
+  for (const tag of f.headingOrder) {
+    const level = Number(tag.slice(1));
+    if (prev && level > prev + 1) skips.push("h" + prev + " → h" + level);
+    prev = level;
+  }
+  if (skips.length) add("warn", "Heading order", "Heading levels are skipped (" + skips.slice(0, 3).join(", ") + "). Screen readers navigate by this outline, so gaps make the page harder to move through.");
+
+  if (!f.canonical) {
+    add("warn", "Canonical tag", "No canonical link. If the page is reachable at more than one address, search engines have to guess which one to rank.");
+  } else {
+    let same = false;
+    try {
+      const c = new URL(f.canonical, f.finalUrl);
+      const a = new URL(f.finalUrl);
+      same = c.origin === a.origin && c.pathname.replace(/\/index\.html?$/, "/") === a.pathname.replace(/\/index\.html?$/, "/");
+    } catch (e) { same = false; }
+    if (same) add("pass", "Canonical tag", "Present and pointing at this page.");
+    else add("warn", "Canonical tag", "Points to a different address (" + f.canonical + "). That tells search engines to rank the other page instead — right if deliberate, damaging if not.");
+  }
+
+  if (!f.jsonLd.length) {
+    add("warn", "Structured data", "No JSON-LD found. Structured data is how search engines and AI answer engines learn what your business is, rather than guessing from prose.");
+  } else {
+    const broken = [];
+    const types = [];
+    const collect = (node) => {
+      if (!node || typeof node !== "object") return;
+      if (Array.isArray(node)) { node.forEach(collect); return; }
+      const t = node["@type"];
+      if (typeof t === "string") types.push(t);
+      else if (Array.isArray(t)) t.forEach((x) => typeof x === "string" && types.push(x));
+      Object.keys(node).forEach((k) => collect(node[k]));
+    };
+    f.jsonLd.forEach((block, i) => {
+      try { collect(JSON.parse(block)); }
+      catch (e) { broken.push("block " + (i + 1) + ": " + (e && e.message ? e.message : "invalid JSON")); }
+    });
+    const unique = Array.from(new Set(types)).slice(0, 12);
+    if (broken.length) {
+      add("fail", "Structured data is invalid", broken.length + " of " + plural(f.jsonLd.length, "JSON-LD block") +
+        " will not parse (" + broken.slice(0, 2).join("; ") + "). An invalid block is discarded whole: everything inside it is invisible to search engines.");
+    } else {
+      add("pass", "Structured data", plural(f.jsonLd.length, "valid JSON-LD block") + (unique.length ? " declaring " + unique.join(", ") : "") + ".");
+    }
+  }
+
+  // The WhatsApp and LinkedIn preview — most of why a shared link gets opened.
+  const missingOg = ["og:title", "og:description", "og:image"].filter((k) => !f.og[k]);
+  if (missingOg.length === 3) add("fail", "Social sharing preview", "No Open Graph tags. Shared on WhatsApp or LinkedIn, the page shows as a bare link with no picture, headline or description.");
+  else if (missingOg.length) add("warn", "Social sharing preview", "Missing " + missingOg.join(", ") + "." + (missingOg.indexOf("og:image") !== -1 ? " Without og:image a shared link has no picture." : ""));
+  else add("pass", "Social sharing preview", "og:title, og:description and og:image are all present.");
+  if (!f.twitterCard && missingOg.length < 3) add("warn", "X (Twitter) card", "No twitter:card tag. Most platforms fall back to Open Graph, so this is a small gap, not a broken preview.");
+
+  if (f.images) {
+    const missing = f.images - f.imagesWithAlt;
+    if (missing) add(missing > f.images / 2 ? "fail" : "warn", "Image alt text", missing + " of " + plural(f.images, "image") + " have no alt attribute. Alt text is what screen readers announce and what image search reads.");
+    else add("pass", "Image alt text", "All " + plural(f.images, "image") + " carry an alt attribute.");
+  }
+
+  if (!f.viewport) add("fail", "Mobile readiness", "No viewport meta tag. Phones render the page at desktop width and shrink it, which fails Google's mobile checks.");
+  else add("pass", "Mobile readiness", "A viewport meta tag is set.");
+
+  if (!f.lang) add("warn", "Page language", "The <html> tag has no lang attribute. Screen readers use it to choose a pronunciation; search engines use it to match the page to a language.");
+
+  if (f.proseWords < 150) add("warn", "Content depth", "About " + f.proseWords + " words of readable text. Thin pages rarely rank for anything competitive.");
+  else add("pass", "Content depth", "About " + f.proseWords + " words of readable text.");
+
+  if (!f.linksInternal) add("warn", "Internal linking", "No links to other pages on the same site. Internal links are how ranking strength moves between your pages.");
+  else add("pass", "Internal linking", plural(f.linksInternal, "internal link") + " and " + f.linksExternal + " external.");
+
+  if (!f.hasFavicon) add("warn", "Favicon", "No site icon is declared. Browser tabs, bookmarks and some search results show a blank placeholder.");
+
+  const rank = { fail: 0, warn: 1, pass: 2 };
+  return out.sort((a, b) => rank[a.level] - rank[b.level]);
+}
+
+function buildAuditSections(target, f, lighthouse) {
+  const findings = buildAuditFindings(f);
+  const of = (level) => findings.filter((x) => x.level === level);
+  const fails = of("fail");
+  const warns = of("warn");
+  const passes = of("pass");
+  const sections = [];
+
+  sections.push(["Audited page", [
+    f.finalUrl,
+    f.redirected ? "Redirected from " + target : null,
+    "HTTP " + f.status + " · " + Math.max(1, Math.round(f.bytes / 1024)) + " KB of HTML" +
+      (f.truncated ? " (first " + AUDIT_MAX_HTML_BYTES / 1024 + " KB inspected)" : "") + " · answered in " + f.elapsedMs + " ms"
+  ].filter(Boolean).join("\n")]);
+
+  sections.push(["Summary", fails.length + " to fix, " + warns.length + " to review, " + passes.length + " already correct."]);
+
+  if (lighthouse.ok) {
+    sections.push(["Google Lighthouse scores (mobile)", lighthouse.scores.map((s) => s[0] + ": " + s[1] + " / 100").join("\n")]);
+    if (lighthouse.failures.length) {
+      sections.push(["Lighthouse findings", lighthouse.failures.map((x) => x.title + (x.display ? " — " + x.display : "")).join("\n")]);
+    }
+  } else {
+    sections.push(["Google Lighthouse scores", lighthouse.reason]);
+  }
+
+  const lines = (list) => list.map((x) => x.label + ": " + x.detail).join("\n\n");
+  if (fails.length) sections.push(["Fix these first", lines(fails)]);
+  if (warns.length) sections.push(["Worth reviewing", lines(warns)]);
+  if (passes.length) sections.push(["Already correct", passes.map((x) => x.label + ": " + x.detail).join("\n")]);
+
+  sections.push(["What this audit does not cover",
+    "Rankings, search traffic, backlinks and conversions need the site's own Search Console and analytics data. This report checks what any visitor or crawler can see on the public page: the technical floor, not the whole picture."]);
+  return sections;
+}
 
 /* --------------------------------------------------------------------------
    Leads (contact form)
@@ -909,65 +1386,27 @@ async function griotChat(request, env) {
   // scopes threads by tenant — so a guessed id belonging to another account
   // resolves to nothing there.
   const threadId = str(body.threadId, 64) || null;
-  const now = nowSec();
 
-  // Reserve one message: free trials first, then paid credits. Each UPDATE is
-  // a single atomic statement with RETURNING, so two parallel sends can never
-  // spend the same trial.
-  let paidWith = "trial";
-  let balance = await env.DB.prepare(
-    "UPDATE users SET trials_remaining = trials_remaining - 1, last_seen_at = ? " +
-    "WHERE id = ? AND trials_remaining > 0 RETURNING trials_remaining, credits"
-  ).bind(now, user.id).first();
-
-  if (!balance) {
-    paidWith = "credit";
-    balance = await env.DB.prepare(
-      "UPDATE users SET credits = credits - 1, last_seen_at = ? " +
-      "WHERE id = ? AND credits > 0 RETURNING trials_remaining, credits"
-    ).bind(now, user.id).first();
-  }
-
-  if (!balance) {
-    await logEvent(env, "griot_exhausted", {
-      userId: user.id, anonId: body.anonId, product: "griot", page: body.page
-    });
-    return json(request, env, {
-      error: "trials_exhausted",
-      message: "You have used your free GRIOT messages. Top up to carry on.",
-      checkoutUrl: env.CHECKOUT_URL || null,
-      account: publicAccount(user, env)
-    }, 402);
-  }
-
-  const run = await env.DB.prepare(
-    "INSERT INTO runs (user_id, product, paid_with, status, created_at) " +
-    "VALUES (?, 'griot', ?, 'ok', ?) RETURNING id"
-  ).bind(user.id, paidWith, now).first();
+  // One message: a free try if any are left, otherwise GRIOT's per-message
+  // price from the balance — the same rule as every Studio service.
+  const reserved = await reserveRun(env, user, "griot");
+  if (!reserved) return paymentRequired(request, env, user, "griot", "A GRIOT message", body);
 
   let reply;
   try {
     reply = await callGriot(env, user.id, message, threadId);
   } catch (err) {
-    // A failed message never costs the customer: give the run back.
-    const column = paidWith === "trial" ? "trials_remaining" : "credits";
-    await env.DB.batch([
-      env.DB.prepare("UPDATE users SET " + column + " = " + column + " + 1 WHERE id = ?").bind(user.id),
-      env.DB.prepare("UPDATE runs SET status = 'refunded' WHERE id = ?").bind(run.id)
-    ]);
+    // A failed message never costs the customer: give back what was taken.
+    await refundRun(env, user, reserved);
     if (!(err instanceof HttpError)) console.error("GRIOT call failed", err);
     const reason = err instanceof HttpError ? err.message : "GRIOT could not answer that.";
     throw new HttpError(err instanceof HttpError ? err.status : 502, "griot_failed",
-      reason + " Your message was not used.");
+      reason + " You were not charged for this message.");
   }
 
   await logEvent(env, "griot_message", {
     userId: user.id, anonId: body.anonId, product: "griot", page: body.page
   });
-
-  const account = publicAccount(user, env);
-  account.trialsRemaining = balance.trials_remaining;
-  account.credits = balance.credits;
 
   return json(request, env, {
     answer: reply.answer,
@@ -975,8 +1414,9 @@ async function griotChat(request, env) {
     agents: Array.isArray(reply.agents) ? reply.agents : [],
     memoryUsed: num(reply.memory_used) || 0,
     memoryWritten: reply.memory_written || null,
-    paidWith,
-    account
+    paidWith: reserved.paidWith,
+    amount: reserved.amount,
+    account: withBalance(user, env, reserved)
   });
 }
 
@@ -1184,50 +1624,68 @@ async function googleKey(kid) {
 }
 
 /* --------------------------------------------------------------------------
-   GRIOT top-ups — Flutterwave, credited automatically
+   Balance top-ups — Flutterwave now, a bank later, credited automatically
 
-   Checkout writes an order row first, then asks Flutterwave for a hosted
+   Checkout writes a payment row first, then asks Flutterwave for a hosted
    payment page (cards and Ugandan mobile money). Credit happens in exactly one
-   place, settleGriotOrder(), reached from the webhook and from the page the
+   place, settlePayment(), reached from the webhook and from the page the
    customer returns to — in either order, any number of times, crediting once.
 
    Nothing in a payment notification is believed on its own. Every credit is
-   re-verified with Flutterwave's API, and the messages granted come from our
-   own order row, never from the payload.
+   re-verified with Flutterwave's API, and the shillings credited come from our
+   own payment row, never from the payload.
    ------------------------------------------------------------------------ */
 
 const FLW_API = "https://api.flutterwave.com/v3";
+const TX_PREFIX = "sp-";
+const MIN_TOPUP = 1000;
+const MAX_TOPUP = 5000000;
 
-// The pack on sale, or null when automatic top-up is not fully configured —
-// in which case the page falls back to CHECKOUT_URL or a contact link rather
-// than taking money it cannot credit.
-function griotPack(env) {
-  const messages = parseInt(env.GRIOT_PACK_MESSAGES || "", 10);
-  const amount = parseInt(env.GRIOT_PACK_PRICE || "", 10);
-  if (!Number.isFinite(messages) || messages <= 0) return null;
-  if (!Number.isFinite(amount) || amount <= 0) return null;
-  if (!env.FLW_SECRET_KEY || !env.FLW_SECRET_HASH) return null;
-  return { messages, amount, currency: String(env.GRIOT_PACK_CURRENCY || "UGX").toUpperCase() };
+function paymentsEnabled(env) {
+  return Boolean(env.FLW_SECRET_KEY && env.FLW_SECRET_HASH);
+}
+
+// The suggested top-ups shown on the pay wall and the account page.
+function topUpAmounts(env) {
+  const raw = String(env.TOPUP_AMOUNTS || "50000,100000,250000");
+  const list = raw.split(",").map((s) => parseInt(s.trim(), 10))
+    .filter((n) => Number.isInteger(n) && n >= MIN_TOPUP && n <= MAX_TOPUP);
+  return list.length ? list : [50000, 100000, 250000];
 }
 
 function siteUrl(env) {
   return String(env.SITE_URL || "https://speakpower-commits.github.io/SpeakPower").replace(/\/+$/, "");
 }
 
-async function griotCheckout(request, env) {
-  const pack = griotPack(env);
-  if (!pack) throw new HttpError(503, "checkout_unconfigured", "Online top-up is not switched on yet.");
+// Where Flutterwave sends the customer back to. Only a page on our own site,
+// named from a fixed shape, so the return URL can never be pointed elsewhere.
+function safeReturnPath(value) {
+  const v = str(value, 80);
+  return /^(account|griot-app|studio-product)\.html(\?product=[a-z-]{2,40})?$/.test(v) ? v : "account.html";
+}
+
+async function walletCheckout(request, env) {
+  if (!paymentsEnabled(env)) {
+    throw new HttpError(503, "checkout_unconfigured", "Online top-up is not switched on yet.");
+  }
   const user = await authenticate(request, env);
+  const body = await readJson(request, 4096);
+  // A JSON number only: Number() would also accept "50000", [50000] or true.
+  const amount = typeof body.amount === "number" ? body.amount : NaN;
+  if (!Number.isInteger(amount) || amount < MIN_TOPUP || amount > MAX_TOPUP) {
+    throw new HttpError(400, "invalid_amount",
+      "Choose an amount between " + formatUgx(MIN_TOPUP) + " and " + formatUgx(MAX_TOPUP) + ".");
+  }
   if (!(await rateLimit(env, "checkout:" + user.id, 10, 3600))) {
     throw new HttpError(429, "rate_limited", "Too many payment attempts. Please wait a little and try again.");
   }
 
-  // Unpredictable, and prefixed so the webhook can tell our orders from any
+  // Unpredictable, and prefixed so the webhook can tell our payments from any
   // other payment arriving on the same Flutterwave account.
-  const txRef = "griot-" + crypto.randomUUID();
+  const txRef = TX_PREFIX + crypto.randomUUID();
   await env.DB.prepare(
-    "INSERT INTO griot_orders (tx_ref, user_id, messages, amount, currency, created_at) VALUES (?, ?, ?, ?, ?, ?)"
-  ).bind(txRef, user.id, pack.messages, pack.amount, pack.currency, nowSec()).run();
+    "INSERT INTO payments (tx_ref, user_id, amount, currency, provider, created_at) VALUES (?, ?, ?, ?, 'flutterwave', ?)"
+  ).bind(txRef, user.id, amount, CURRENCY, nowSec()).run();
 
   let res = null;
   let data = null;
@@ -1237,11 +1695,11 @@ async function griotCheckout(request, env) {
       headers: { Authorization: "Bearer " + env.FLW_SECRET_KEY, "Content-Type": "application/json" },
       body: JSON.stringify({
         tx_ref: txRef,
-        amount: pack.amount,
-        currency: pack.currency,
-        redirect_url: siteUrl(env) + "/griot-app.html",
+        amount,
+        currency: CURRENCY,
+        redirect_url: siteUrl(env) + "/" + safeReturnPath(body.returnTo),
         customer: { email: user.email, name: user.name || user.email },
-        customizations: { title: "GRIOT by SpeakPower", description: pack.messages + " GRIOT messages" }
+        customizations: { title: "SpeakPower", description: "SpeakPower balance top-up: " + formatUgx(amount) }
       })
     });
     data = await res.json();
@@ -1249,42 +1707,42 @@ async function griotCheckout(request, env) {
 
   const link = data && data.status === "success" && data.data && data.data.link;
   if (!res || !res.ok || typeof link !== "string" || !/^https:\/\//.test(link)) {
-    await env.DB.prepare("UPDATE griot_orders SET status = 'failed' WHERE tx_ref = ?").bind(txRef).run();
+    await env.DB.prepare("UPDATE payments SET status = 'failed' WHERE tx_ref = ?").bind(txRef).run();
     console.error("Flutterwave checkout failed", res && res.status, data && data.message);
     throw new HttpError(502, "checkout_failed",
       "The payment page could not be opened. Nothing was charged — please try again.");
   }
 
-  await logEvent(env, "griot_checkout", { userId: user.id, anonId: null, product: "griot", page: null });
-  return json(request, env, { link, txRef, pack });
+  await logEvent(env, "topup_checkout", { userId: user.id, anonId: body.anonId, product: null, page: body.page });
+  return json(request, env, { link, txRef, amount });
 }
 
-// The customer lands back on griot-app.html with ?tx_ref=…&transaction_id=….
-// Settling here means their messages appear at once, even if the webhook is
+// The customer lands back on our page with ?tx_ref=…&transaction_id=….
+// Settling here means the balance updates at once, even if the webhook is
 // slow or was never configured.
-async function griotPaymentConfirm(request, env) {
-  if (!griotPack(env)) throw new HttpError(503, "checkout_unconfigured", "Online top-up is not switched on yet.");
+async function walletConfirm(request, env) {
+  if (!paymentsEnabled(env)) {
+    throw new HttpError(503, "checkout_unconfigured", "Online top-up is not switched on yet.");
+  }
   const user = await authenticate(request, env);
   const body = await readJson(request, 4096);
   const txRef = str(body.txRef, 80);
   const txId = str(body.transactionId, 40).replace(/\D/g, ""); // Flutterwave ids are numeric
   if (!txRef || !txId) throw new HttpError(400, "bad_request", "That payment reference is incomplete.");
 
-  const order = await env.DB.prepare("SELECT * FROM griot_orders WHERE tx_ref = ?").bind(txRef).first();
-  // Another account's order is indistinguishable from a missing one.
-  if (!order || order.user_id !== user.id) {
-    throw new HttpError(404, "order_not_found", "That payment could not be found on your account.");
+  const payment = await env.DB.prepare("SELECT * FROM payments WHERE tx_ref = ?").bind(txRef).first();
+  // Another account's payment is indistinguishable from a missing one.
+  if (!payment || payment.user_id !== user.id) {
+    throw new HttpError(404, "payment_not_found", "That payment could not be found on your account.");
   }
 
-  const status = await settleGriotOrder(env, order, txId);
+  const status = await settlePayment(env, payment, txId);
   const fresh = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(user.id).first();
-  return json(request, env, { status, messages: order.messages, account: publicAccount(fresh, env) });
+  return json(request, env, { status, amount: payment.amount, account: publicAccount(fresh, env) });
 }
 
 async function flutterwaveWebhook(request, env) {
-  if (!env.FLW_SECRET_KEY || !env.FLW_SECRET_HASH) {
-    return new Response("not configured", { status: 503 });
-  }
+  if (!paymentsEnabled(env)) return new Response("not configured", { status: 503 });
   if (!(await sameSecret(request.headers.get("verif-hash") || "", env.FLW_SECRET_HASH))) {
     return new Response("invalid signature", { status: 401 });
   }
@@ -1297,17 +1755,18 @@ async function flutterwaveWebhook(request, env) {
 
   // Not one of ours — a static payment link, another product. Acknowledge it,
   // or Flutterwave keeps retrying a notification we will never act on.
-  if (!txRef.startsWith("griot-") || !txId) return new Response("ok");
-  const order = await env.DB.prepare("SELECT * FROM griot_orders WHERE tx_ref = ?").bind(txRef).first();
-  if (!order) return new Response("ok");
+  if (!txRef.startsWith(TX_PREFIX) || !txId) return new Response("ok");
+  const payment = await env.DB.prepare("SELECT * FROM payments WHERE tx_ref = ?").bind(txRef).first();
+  if (!payment) return new Response("ok");
 
-  await settleGriotOrder(env, order, txId);
+  await settlePayment(env, payment, txId);
   return new Response("ok");
 }
 
 // Returns "credited", "already_credited" or "not_paid".
-async function settleGriotOrder(env, order, txId) {
-  if (order.status === "paid") return "already_credited";
+async function settlePayment(env, payment, txId) {
+  if (payment.status === "paid") return "already_credited";
+  if (payment.provider !== "flutterwave") return "not_paid";
 
   let res = null;
   let body = null;
@@ -1322,28 +1781,56 @@ async function settleGriotOrder(env, order, txId) {
   const verified = Boolean(res && res.ok && body.status === "success" && p &&
     p.status === "successful" &&
     String(p.id) === txId &&
-    String(p.tx_ref) === order.tx_ref &&                 // this payment is for THIS order
-    String(p.currency || "").toUpperCase() === order.currency &&
-    Number(p.amount) >= order.amount);                   // and paid at least what we asked
+    String(p.tx_ref) === payment.tx_ref &&               // this payment is for THIS top-up
+    String(p.currency || "").toUpperCase() === payment.currency &&
+    Number(p.amount) >= payment.amount);                 // and paid at least what we asked
   if (!verified) return "not_paid";
 
-  // One transaction. The credit only applies while the order is still pending,
-  // and the same transaction marks it paid — so a replay, a retry, or the
-  // webhook and the return page arriving together all credit exactly once.
+  // One transaction. The credit applies only while the payment is still
+  // pending, and the same transaction marks it paid — so a replay, a retry, or
+  // the webhook and the return page arriving together all credit exactly once.
   const results = await env.DB.batch([
     env.DB.prepare(
-      "UPDATE users SET credits = credits + ?, plan = 'paid' WHERE id = ? " +
-      "AND EXISTS (SELECT 1 FROM griot_orders WHERE tx_ref = ? AND status = 'pending')"
-    ).bind(order.messages, order.user_id, order.tx_ref),
+      "UPDATE users SET balance = balance + ?, plan = 'paid' WHERE id = ? " +
+      "AND EXISTS (SELECT 1 FROM payments WHERE tx_ref = ? AND status = 'pending')"
+    ).bind(payment.amount, payment.user_id, payment.tx_ref),
     env.DB.prepare(
-      "UPDATE griot_orders SET status = 'paid', flw_tx_id = ?, paid_at = ? WHERE tx_ref = ? AND status = 'pending'"
-    ).bind(txId, nowSec(), order.tx_ref)
+      "UPDATE payments SET status = 'paid', provider_ref = ?, paid_at = ? WHERE tx_ref = ? AND status = 'pending'"
+    ).bind(txId, nowSec(), payment.tx_ref)
   ]);
   const changed = results && results[1] && results[1].meta && results[1].meta.changes;
   if (!changed) return "already_credited";
 
-  await logEvent(env, "griot_paid", { userId: order.user_id, anonId: null, product: "griot", page: null });
+  await logEvent(env, "topup_paid", { userId: payment.user_id, anonId: null, product: null, page: null });
   return "credited";
+}
+
+/* --------------------------------------------------------------------------
+   The account page: balance, free tries, and what the money went on
+   ------------------------------------------------------------------------ */
+
+async function accountSummary(request, env) {
+  const user = await authenticate(request, env);
+  const [runs, payments] = await Promise.all([
+    env.DB.prepare(
+      "SELECT product, paid_with, amount, status, created_at FROM runs WHERE user_id = ? " +
+      "ORDER BY created_at DESC, id DESC LIMIT 20"
+    ).bind(user.id).all(),
+    env.DB.prepare(
+      "SELECT amount, currency, provider, status, created_at, paid_at FROM payments WHERE user_id = ? " +
+      "AND status <> 'failed' ORDER BY created_at DESC LIMIT 20"
+    ).bind(user.id).all()
+  ]);
+  return json(request, env, {
+    account: publicAccount(user, env),
+    prices: PRICES,
+    uses: (runs.results || []).map((r) => ({
+      service: r.product, paidWith: r.paid_with, amount: r.amount, status: r.status, at: r.created_at
+    })),
+    payments: (payments.results || []).map((p) => ({
+      amount: p.amount, currency: p.currency, provider: p.provider, status: p.status, at: p.created_at, paidAt: p.paid_at
+    }))
+  });
 }
 
 // Compare a presented secret with the configured one without leaking, through

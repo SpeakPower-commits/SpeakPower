@@ -1,40 +1,61 @@
-# SpeakPower API — GRIOT seats on Cloudflare
+# SpeakPower API — accounts, the Studio and GRIOT on Cloudflare
 
-This Worker sells GRIOT seats with nobody in the loop:
+One Worker runs every paid service on the site, with nobody in the loop:
 
-**sign in with Google → 3 free messages → top up by card or mobile money → credited automatically → carry on.**
+**sign in with Google → 3 free tries, on any service → top up one balance by card or mobile money → each use takes its price → balance credited automatically.**
 
-It also carries the Studio endpoints from the commercial upgrade (email sign-in, server-side builders, leads, funnel events). Those are dormant until the site is wired to them; nothing below depends on them.
+Visitors can browse everything without an account. An account is needed to *use* a service: the six Studio builders and GRIOT.
 
 Everything here is set up in a browser. No local tools needed.
 
 ```
 Browser (GitHub Pages)  ──session token──▶  this Worker  ──X-API-Key + X-Tenant-Id──▶  GRIOT (Vercel)
-                                              │  D1: accounts, free messages,
-                                              │      credits, orders
-                                              └──▶ Flutterwave (checkout + verification)
+                                              │  D1: accounts, free tries, balance,
+                                              │      every use, every payment
+                                              ├──▶ Flutterwave (checkout + verification)
+                                              └──▶ the site being audited (SEO audit)
 ```
 
-The browser never sees GRIOT's address or key, and never chooses its own tenant. The Worker sets `X-Tenant-Id` to the account's own row id, every time.
+The browser never sees GRIOT's address or key, never chooses its own tenant, and never decides a price. The Worker sets `X-Tenant-Id` to the account's own row id, every time.
+
+---
+
+## Prices
+
+One balance in Uganda shillings, like airtime. One price list, in `worker.js`:
+
+| Service | Price per use |
+|---|---|
+| Brand Story Builder | UGX 100,000 |
+| Website SEO & Visibility Audit | UGX 75,000 |
+| Market Development Planner | UGX 125,000 |
+| SEO Content Starter | UGX 75,000 |
+| Data Story Builder | UGX 100,000 |
+| Speaker Ready Pack | UGX 75,000 |
+| GRIOT | UGX 2,500 per message |
+
+**To change a price**, change it in all four places together: `PRICES` in `worker.js`, the card in `studio.html`, `studio-product.js` (or `PRICE` in `griot-app.js` and the wording on `griot-app.html` / `studio-griot.html` for GRIOT). The test suite fails if any of them disagree, so a price can never be shown at one number and charged at another.
+
+Suggested top-ups (`TOPUP_AMOUNTS`, default `50000,100000,250000`) are only suggestions: the pay wall always leads with *exactly what this use needs*. Any whole amount from UGX 1,000 to UGX 5,000,000 is accepted.
 
 ---
 
 ## Launch checklist — in this order
 
-The order matters in exactly one place: **GRIOT must have tenancy before the Worker talks to it.** Without it, GRIOT ignores `X-Tenant-Id` and every client's memories land in one shared pool with yours. The Worker checks for this (`/health` must report `"tenancy": true`) and refuses client traffic, charging nothing, until it does — but deploy in order anyway.
+The order matters in exactly one place: **GRIOT must have tenancy before the Worker talks to it.** The Worker checks (`/health` must report `"tenancy": true`) and refuses GRIOT traffic, charging nothing, until it does.
 
-### 1. GRIOT — tenancy first
+### 1. GRIOT — tenancy
 
-1. In Neon, **create a branch or backup** of the production database. The tenancy migration runs on the first authenticated request and adds a column to four tables.
-2. Merge **claude-central-agent PR #22** ("Scope every row to a tenant…"). Vercel redeploys.
-3. Open `https://<your-griot>.vercel.app/health`. It must show `"tenancy": true`. Do not continue until it does.
-4. Note your `GRIOT_API_KEY` from Vercel's environment variables — the Worker needs the same value.
+1. **claude-central-agent PR #22 is merged.** Open `https://<your-griot>.vercel.app/health`: it must show `"tenancy": true`. If it does not, the production deployment has not picked up the merge yet.
+2. Note your `GRIOT_API_KEY` from Vercel's environment variables — the Worker needs the same value.
 
-**Cost control (recommended):** on Vercel, set `GRIOT_MAX_OUTPUT_TOKENS`. It defaults to 16,000, which puts the worst-case cost of one message at about $0.46 on `claude-opus-5`. At 4,000 the worst case drops to about $0.16. Answers get shorter; check quality on a few real questions before deciding.
+**Cost control (recommended):** on Vercel, set `GRIOT_MAX_OUTPUT_TOKENS`. At the default 16,000 the worst-case cost of one message is about $0.46 on `claude-opus-5` — about two-thirds of the UGX 2,500 (roughly $0.68) it is sold for, before Flutterwave's fee. A typical message costs about $0.11. At 4,000 the worst case drops to about $0.16. Check answer quality on a few real questions before deciding.
 
 ### 2. Database (Cloudflare D1)
 
-Dashboard → **Storage & Databases → D1 → Create** → name it `speakpower`. Open its **Console**, paste the whole of `schema.sql`, run it. Every statement is idempotent, so re-running after an update is safe.
+Dashboard → **Storage & Databases → D1 → Create** → name it `speakpower`. Open its **Console**, paste the whole of `schema.sql`, run it. Every statement is idempotent.
+
+> If you created the database from an earlier version of this file (with `credits` and `griot_orders`), delete it and create it fresh. Nothing has been deployed with real customers, so there is nothing to migrate.
 
 ### 3. The Worker
 
@@ -66,9 +87,15 @@ Copy the **Client ID** (it ends in `.apps.googleusercontent.com`). It is public,
    - **Secret hash**: make up a long random string. Flutterwave sends it back on every notification; the Worker rejects anything without it.
    - Enable the charge/payment events.
 
-### 6. Worker variables and secrets
+### 6. Google Lighthouse scores for the SEO audit (optional)
 
-Worker → **Settings → Variables and Secrets**:
+The audit works without this: SpeakPower's own checks of the live page are the product. A key adds Google's Lighthouse scores on top.
+
+Google Cloud Console (same project as step 4) → **APIs & Services → Library → PageSpeed Insights API → Enable** → **Credentials → Create credentials → API key** → edit it: **API restrictions → PageSpeed Insights API only**; **Application restrictions → None** (the call comes from a Cloudflare datacentre, so a website or IP restriction would block it).
+
+### 7. Worker variables and secrets
+
+Worker → **Settings → Variables and Secrets**. Paste each secret straight from where it was issued — never into a chat, a file or a screenshot.
 
 | Name | Type | Value |
 |---|---|---|
@@ -76,33 +103,33 @@ Worker → **Settings → Variables and Secrets**:
 | `GRIOT_API_KEY` | **Secret** | Same value as on Vercel. |
 | `FLW_SECRET_KEY` | **Secret** | From step 5. |
 | `FLW_SECRET_HASH` | **Secret** | The secret hash you chose in step 5. |
+| `PAGESPEED_KEY` | **Secret** | Optional, from step 6. |
 | `GRIOT_API_BASE` | Text | `https://<your-griot>.vercel.app` |
 | `GOOGLE_CLIENT_ID` | Text | From step 4. |
-| `GRIOT_PACK_MESSAGES` | Text | Messages per top-up, e.g. `20` |
-| `GRIOT_PACK_PRICE` | Text | Price in whole shillings, e.g. `50000` |
-| `GRIOT_PACK_CURRENCY` | Text | `UGX` |
+| `TOPUP_AMOUNTS` | Text | `50000,100000,250000` |
 | `SITE_URL` | Text | `https://speakpower-commits.github.io/SpeakPower` |
 | `ALLOWED_ORIGINS` | Text | `https://speakpower-commits.github.io` |
 | `FREE_TRIALS` | Text | `3` |
 | `ENVIRONMENT` | Text | `production` |
 
-Automatic top-up switches on only when `GRIOT_PACK_MESSAGES`, `GRIOT_PACK_PRICE`, `FLW_SECRET_KEY` and `FLW_SECRET_HASH` are all set. Until then the pay wall offers a "talk to me" link instead — it never shows a button that takes money it cannot credit.
+Top-up switches on only when `FLW_SECRET_KEY` and `FLW_SECRET_HASH` are both set. Until then the pay wall offers a "talk to me" link instead — it never shows a button that takes money it cannot credit.
 
 Check: `https://<your-worker>/health` returns `{"ok":true}`.
 
-### 7. Connect the site
+### 8. Connect the site
 
-Send the Worker URL and the Google Client ID; they go into `site-config.js` as `apiBase` and `googleClientId`, on the preview branch first. Neither is secret.
+Send the Worker URL and the Google Client ID; they go into `site-config.js` as `apiBase` and `googleClientId`, on the preview branch first. Neither is secret. Until both are set, the site behaves as a brochure: no "Sign in" in the header, and the Studio, GRIOT and account pages say they are being connected.
 
-### 8. Test on the preview, then go live
+### 9. Test on the preview, then go live
 
-On `…/SpeakPower/griot-app.html`, with your own Google account:
+With your own Google account:
 
-1. Sign in → **3 free messages left**.
-2. Send three messages. Each answer should mark its claims FACT / INFERENCE / HYPOTHESIS.
-3. The pay wall appears, with the pack and price on the button.
-4. Pay with a Flutterwave **test** card. You return to the app with "Payment received — 20 messages added".
-5. Send one more — the balance drops by one.
+1. Header → **Sign in** → you land on your account: **3 of 3 free tries, UGX 0**.
+2. Use one free try each on the Brand Story Builder, the SEO audit and GRIOT. The header counts down.
+3. Open the Market Development Planner and press Generate: the pay wall says it costs UGX 125,000, your balance is UGX 0, and offers **Top up UGX 125,000 — exactly what this needs**.
+4. Pay with a Flutterwave **test** card or test mobile money. You come back to the same page, answers still filled in, with "Payment received — UGX 125,000 added".
+5. Generate: the plan arrives and the balance drops to UGX 0. Your account page lists every use and the top-up.
+6. Sign out and back in: same balance, no fresh free tries.
 
 Then switch `FLW_SECRET_KEY` to the live key, and merge the preview into `main`.
 
@@ -110,12 +137,23 @@ Then switch `FLW_SECRET_KEY` to the live key, and merge the preview into `main`.
 
 ## How the money is kept honest
 
-- **Free messages are granted once, on account creation.** Signing in again, by Google or by email, through any Gmail alias (`a.b+x@gmail.com` is `ab@gmail.com`), never resets them.
-- **Every message reserves one run atomically** — free first, then paid — before GRIOT is called. Two tabs sending at once can never spend the same message twice.
-- **A failed message is refunded**: GRIOT down, slow (120 s ceiling), rate-limited or returning garbage, the run goes back and the customer is told nothing was used.
-- **Credit happens in one place**, reached from the webhook and from the customer's return to the page, in either order, any number of times — and credits exactly once.
-- **No payment notification is believed on its own.** Each is re-verified with Flutterwave's API: status `successful`, the right order reference, the right currency, at least the right amount. The messages granted come from our own order row, never from the payload.
+- **Free tries are granted once, on account creation**, and shared by every service. Signing in again, by Google or by email, through any Gmail alias (`a.b+x@gmail.com` is `ab@gmail.com`), never resets them.
+- **Every use reserves before it runs**, in one atomic statement: a free try if any are left, otherwise the service's exact price, and only if the balance covers it. Two tabs at once can never spend the same try or take the balance below zero (the database refuses a negative balance outright).
+- **A failed use is refunded exactly**: the free try, or the shillings taken. A page that cannot be reached, GRIOT down, slow (120 s ceiling), rate-limited or returning garbage — the customer is told they were not charged.
+- **Top-ups are credited in one place**, reached from the webhook and from the customer's return to the page, in either order, any number of times — and credit exactly once.
+- **No payment notification is believed on its own.** Each is re-verified with Flutterwave's API: status `successful`, this payment's reference, the right currency, at least the right amount. The shillings credited come from our own payment row, never from the notification.
 - **The webhook's secret hash is compared in constant time.**
+- **A bank later** slots in without a schema change: `payments.provider` is `flutterwave` today.
+
+## The SEO audit
+
+Two layers. **SpeakPower's own checks** fetch the customer's page and read it with Cloudflare's HTML parser: indexability (including an `X-Robots-Tag` header), HTTPS, title and description length, H1 and heading order, canonical, JSON-LD validity, Open Graph and X cards, image alt text, viewport, language, content depth, internal links, favicon. These need no key and no quota. **Google Lighthouse scores** are added when `PAGESPEED_KEY` is set; a broken key, a spent quota or a slow page is reported plainly and never fails the audit.
+
+The Worker fetches an address the customer types, so it only fetches public websites by domain name, on the normal ports, and re-checks every redirect before following it. Only an unreadable page fails an audit — and that is refunded.
+
+There is deliberately no result cache: a customer who fixes their site and pays to run the audit again must get today's page.
+
+**Plan note:** the free Workers plan allows 10 ms of CPU per request. Reading a large page plus Google's Lighthouse response can come close. If the Worker's logs show "exceeded CPU" on audits, the Workers Paid plan ($5 a month) lifts the limit to 30 seconds.
 
 ## Email-code sign-in (optional, off by default)
 
@@ -128,15 +166,19 @@ If someone closes the tab while GRIOT is still answering, Cloudflare cancels the
 ## Measuring the funnel (D1 console)
 
 ```sql
--- Sign-ups, first messages, pay walls and payments, last 30 days
+-- Sign-ins, uses, pay walls, checkouts and payments, last 30 days
 SELECT name, COUNT(*) AS n FROM events
 WHERE created_at > unixepoch() - 30*86400
-  AND name IN ('signup_verified', 'griot_message', 'griot_exhausted', 'griot_checkout', 'griot_paid')
+  AND name IN ('signup_verified', 'studio_generate', 'griot_message', 'payment_required', 'topup_checkout', 'topup_paid')
 GROUP BY name;
 
--- Revenue by day
-SELECT date(paid_at, 'unixepoch') AS day, COUNT(*) AS orders, SUM(amount) AS ugx
-FROM griot_orders WHERE status = 'paid' GROUP BY day ORDER BY day DESC;
+-- Which services people use, free and paid
+SELECT product, paid_with, COUNT(*) AS uses, SUM(amount) AS ugx
+FROM runs WHERE status = 'ok' GROUP BY product, paid_with ORDER BY uses DESC;
+
+-- Top-ups by day
+SELECT date(paid_at, 'unixepoch') AS day, COUNT(*) AS payments, SUM(amount) AS ugx
+FROM payments WHERE status = 'paid' GROUP BY day ORDER BY day DESC;
 ```
 
 ## Testing
@@ -145,4 +187,10 @@ FROM griot_orders WHERE status = 'paid' GROUP BY day ORDER BY day DESC;
 node --experimental-sqlite worker/test/run-tests.mjs
 ```
 
-Runs the real `worker.js` against an in-memory D1, with Google, GRIOT and Flutterwave faked at the network edge only. Google sign-in is tested with real RS256 signatures, so forged keys, `alg: none` and edited tokens are refused by actual cryptography rather than a stub.
+The business rules, fast, in plain Node: the real `worker.js` against an in-memory D1, with Google, GRIOT, Flutterwave and audited sites faked at the network edge only. Google sign-in is tested with real RS256 signatures, so forged keys, `alg: none` and edited tokens are refused by actual cryptography rather than a stub. It also fails if any page quotes a different price from the Worker.
+
+```
+cd worker && npm install --no-save miniflare@4 && node test/run-workerd-tests.mjs
+```
+
+The same `worker.js` on **workerd**, the engine Cloudflare runs Workers on: real D1, the real HTML parser for the SEO audit, WebCrypto sign-in, and the exactly-once top-up under truly concurrent notifications. It also audits this site's own pages.
