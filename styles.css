@@ -558,6 +558,9 @@ textarea { resize: vertical; min-height: 120px; }
 .slide {
   scroll-snap-align: center;
   min-width: 0;
+  /* Slides are <figure> elements, which browsers indent 40px each side by
+     default. Without this the picture sat 80px narrower than its slot. */
+  margin: 0;
 }
 .slide img {
   width: 100%;

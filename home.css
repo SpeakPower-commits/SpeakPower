@@ -47,9 +47,15 @@
 
 .hero-slider .slider-track { grid-auto-columns: 100%; }
 
+/* The frame's width comes from its slot, and its height from the ratio.
+   Never give it a min-height as well: with aspect-ratio, the browser then
+   derives the WIDTH from that height, and the frame comes out wider than the
+   window that shows it (876px in a 590px window at desktop width). That cut
+   the right third off every photo and let each one spill into the next
+   slide, so two pictures showed in one frame. */
 .hero-slider .slide-frame {
-  aspect-ratio: 16 / 11;
-  min-height: clamp(420px, 43vw, 680px);
+  width: 100%;
+  aspect-ratio: 4 / 3;
   overflow: hidden;
   background: var(--paper-2);
   border-radius: var(--radius-lg);
@@ -67,20 +73,13 @@
   box-shadow: none;
 }
 
-/* Portraits need headroom above the head. A 4/3 frame showing a 4/5 source
-   crops two thirds of the height away, so the old 22% — tuned when this frame
-   was square — pushed the crown against the top edge. Landscape shots need
-   none of this, which is why it is opt-in per slide. */
-.hero-slider .slide-frame img.crop-face { object-position: center; }
-
-/* For a slide that must not lose any of itself: a poster, a chart, a screen
-   with text on it. Cover would crop two thirds off a portrait-shaped image in
-   this landscape frame. The pillarbox is painted navy rather than paper so it
-   reads as a frame around the artwork instead of a gap behind it. */
-.hero-slider .slide-frame img.fit-whole {
-  object-fit: contain;
-  background: var(--paper-2);
-}
+/* Every slide is shown whole (object-fit: contain above): a photo is never
+   cropped to fit the frame. A portrait in this landscape frame gets even
+   margins at the sides instead of losing its top and bottom. crop-face and
+   fit-whole are kept so existing markup keeps working, and both now mean the
+   same thing: show the whole picture. */
+.hero-slider .slide-frame img.crop-face,
+.hero-slider .slide-frame img.fit-whole { object-fit: contain; object-position: center; }
 
 .hero-slider .slide figcaption {
   margin-top: .85rem;
