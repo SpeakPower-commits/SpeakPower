@@ -37,8 +37,9 @@ GRIOT_API_BASE = "https://claude-central-agent.vercel.app"
 # page. Top-up itself switches on when FLW_SECRET_KEY and FLW_SECRET_HASH are
 # set. Prices per service are in worker.js (PRICES), not here.
 TOPUP_AMOUNTS = "50000,100000,250000"
-# GOOGLE_CLIENT_ID (public) is added here once the OAuth client exists — the
-# same value as googleClientId in site-config.js.
+# Sign in with Google: the OAuth client's ID. Public — the same value goes in
+# site-config.js as googleClientId. The client SECRET is never used anywhere.
+GOOGLE_CLIENT_ID = "182240978118-lgaemhoen0o04o649rqtin1fd8j18dgm.apps.googleusercontent.com"
 
 [[d1_databases]]
 binding = "DB"

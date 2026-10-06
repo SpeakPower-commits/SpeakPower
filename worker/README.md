@@ -75,9 +75,14 @@ Dashboard → **Workers & Pages → speakpower-studio-api → Settings → Build
 
 Check: `…workers.dev/health` returns `{"ok":true}`. The old `/studio` address answers `not_found` from now on; that is expected.
 
-### 4. Google sign-in
+### 4. Google sign-in — client created
 
-Google Cloud Console → **APIs & Services → Credentials → Create credentials → OAuth client ID**:
+**Done, 6 October 2026:** OAuth client `182240978118-lgaemhoen0o04o649rqtin1fd8j18dgm.apps.googleusercontent.com`. It is in `wrangler.toml` as `GOOGLE_CLIENT_ID` and goes into `site-config.js` as `googleClientId` once the Worker runs the new code.
+
+- The **client secret is not used** anywhere in this system — sign-in in the browser needs only the ID, and the Worker checks Google's signature with Google's public keys. Delete or disable the secret (Google Auth Platform → Clients → this client), and never put it in this repository or a Worker variable.
+- The client's **Authorised JavaScript origins** must include exactly `https://speakpower-commits.github.io` (no path, no trailing slash). Add your own domain there too when the site moves to it.
+
+To create a client from scratch: Google Cloud Console → **APIs & Services → Credentials → Create credentials → OAuth client ID**:
 
 - Application type: **Web application**
 - Authorised JavaScript origins: `https://speakpower-commits.github.io`

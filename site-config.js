@@ -19,6 +19,10 @@ window.SP_CONFIG = {
   // https://speakpower-commits.github.io as an authorised JavaScript origin.
   // Set the same value as GOOGLE_CLIENT_ID on the Worker. This is the
   // recommended sign-in: it needs no email sending and no domain.
+  // The client exists (6 Oct 2026):
+  //   182240978118-lgaemhoen0o04o649rqtin1fd8j18dgm.apps.googleusercontent.com
+  // It goes in below once the Worker is running the new code; set before
+  // that, the Google button would show but sign-in would fail.
   googleClientId: "",
 
   // Email-code sign-in. Leave false until the Worker can send email, which on
