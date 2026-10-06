@@ -12,7 +12,7 @@ window.SP_CONFIG = {
   // While empty, the site works as a brochure: the header shows no "Sign in",
   // and the Studio, GRIOT and account pages say they are being connected
   // instead of failing. Set it together with googleClientId.
-  apiBase: "",
+  apiBase: "https://speakpower-studio-api.thomasotieno583.workers.dev",
 
   // Google OAuth client ID (public). Google Cloud → APIs & Services →
   // Credentials → OAuth client ID → Web application, with

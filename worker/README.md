@@ -57,15 +57,17 @@ The order matters in exactly one place: **GRIOT must have tenancy before the Wor
 
 To rebuild it from scratch: Dashboard → **Storage & Databases → D1 → Create** → `speakpower` → **Console** → paste the whole of `schema.sql` → run. Every statement is idempotent.
 
-> **Not this system:** the `speakpower-studio` database and the `speakpower-studio-api` Worker (29 September) belong to an earlier, Clerk-based attempt. They hold no customers (0 users, 0 orders) and nothing on the site uses them. Leave them or delete them; don't bind them to this Worker.
+> The older `speakpower-studio` database (29 September) belongs to an earlier, Clerk-based attempt: no customers (0 users, 0 orders). Once the Worker below is bound to `speakpower`, nothing uses it; it can be deleted.
 
-### 3. The Worker
+### 3. The Worker — reuse `speakpower-studio-api`
 
-Dashboard → **Workers & Pages → Create → Worker** → name it `speakpower-api` (a new one — not `speakpower-studio-api`) → **Edit code** → replace everything with `worker.js` → **Deploy**.
+Your existing Worker, `https://speakpower-studio-api.thomasotieno583.workers.dev`, becomes this API. The site already points at it (`apiBase` in `site-config.js`).
 
-Then **Settings → Bindings → Add → D1 database**: variable name `DB`, database `speakpower`.
+1. Dashboard → **Workers & Pages → speakpower-studio-api → Edit code**. Select everything, delete it, paste the whole of `worker.js` (on GitHub: open the file → **Copy raw file**), **Deploy**. This replaces the earlier attempt's code.
+2. **Settings → Bindings**: there must be a **D1 database** binding named exactly `DB`, set to the database **`speakpower`**. If one exists pointing at `speakpower-studio`, edit it to `speakpower`; otherwise add it.
+3. Variables left over from the earlier attempt can stay — this code ignores names it does not use.
 
-Note the Worker's URL, e.g. `https://speakpower-api.<you>.workers.dev`.
+Check: `…workers.dev/health` returns `{"ok":true}`. The old `/studio` address will answer `not_found` from now on; that is expected.
 
 ### 4. Google sign-in
 
@@ -120,7 +122,7 @@ Check: `https://<your-worker>/health` returns `{"ok":true}`.
 
 ### 8. Connect the site
 
-Send the Worker URL and the Google Client ID; they go into `site-config.js` as `apiBase` and `googleClientId`, on the preview branch first. Neither is secret. Until both are set, the site behaves as a brochure: no "Sign in" in the header, and the Studio, GRIOT and account pages say they are being connected.
+`apiBase` is already set to your Worker. Send the Google Client ID; it goes into `site-config.js` as `googleClientId`, on the preview branch first. It is not secret. Until both are set, the site behaves as a brochure: no "Sign in" in the header, and the Studio, GRIOT and account pages say they are being connected.
 
 ### 9. Test on the preview, then go live
 

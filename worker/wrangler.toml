@@ -15,7 +15,7 @@
 #   TURNSTILE_SECRET  only if email-code sign-in is switched on
 #   PAGESPEED_KEY     optional: adds Google Lighthouse scores to the SEO audit
 
-name = "speakpower-api"
+name = "speakpower-studio-api"
 main = "worker.js"
 compatibility_date = "2026-09-01"
 
@@ -47,8 +47,8 @@ TOPUP_AMOUNTS = "50000,100000,250000"
 [[d1_databases]]
 binding = "DB"
 database_name = "speakpower"
-# Paste the database ID from the D1 dashboard.
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+# Created 6 Oct 2026 with schema.sql loaded. An ID is not a secret.
+database_id = "431826e5-d366-4fb0-8aa2-fd73651ac700"
 
 # Cloudflare Email Service binding used for sign-in codes and lead alerts.
 [[send_email]]
