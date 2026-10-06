@@ -51,15 +51,17 @@ The order matters in exactly one place: **GRIOT must have tenancy before the Wor
 
 **Cost control (recommended):** on Vercel, set `GRIOT_MAX_OUTPUT_TOKENS`. At the default 16,000 the worst-case cost of one message is about $0.46 on `claude-opus-5` — about two-thirds of the UGX 2,500 (roughly $0.68) it is sold for, before Flutterwave's fee. A typical message costs about $0.11. At 4,000 the worst case drops to about $0.16. Check answer quality on a few real questions before deciding.
 
-### 2. Database (Cloudflare D1)
+### 2. Database (Cloudflare D1) — done
 
-Dashboard → **Storage & Databases → D1 → Create** → name it `speakpower`. Open its **Console**, paste the whole of `schema.sql`, run it. Every statement is idempotent.
+**Already created, 6 October 2026:** D1 database `speakpower` (id `431826e5-d366-4fb0-8aa2-fd73651ac700`, Eastern Europe), with `schema.sql` loaded — seven tables: `users`, `runs`, `payments`, `events`, `leads`, `rate_log`, `otp_codes`.
 
-> If you created the database from an earlier version of this file (with `credits` and `griot_orders`), delete it and create it fresh. Nothing has been deployed with real customers, so there is nothing to migrate.
+To rebuild it from scratch: Dashboard → **Storage & Databases → D1 → Create** → `speakpower` → **Console** → paste the whole of `schema.sql` → run. Every statement is idempotent.
+
+> **Not this system:** the `speakpower-studio` database and the `speakpower-studio-api` Worker (29 September) belong to an earlier, Clerk-based attempt. They hold no customers (0 users, 0 orders) and nothing on the site uses them. Leave them or delete them; don't bind them to this Worker.
 
 ### 3. The Worker
 
-Dashboard → **Workers & Pages → Create → Worker** → name it `speakpower-api` → **Edit code** → replace everything with `worker.js` → **Deploy**.
+Dashboard → **Workers & Pages → Create → Worker** → name it `speakpower-api` (a new one — not `speakpower-studio-api`) → **Edit code** → replace everything with `worker.js` → **Deploy**.
 
 Then **Settings → Bindings → Add → D1 database**: variable name `DB`, database `speakpower`.
 

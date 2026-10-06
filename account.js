@@ -441,6 +441,32 @@
     });
   }
 
+  /* ------------------------------------- Try → sign up → straight back in */
+
+  // The pages a visitor may be sent on to after signing up: our own service
+  // pages only, so ?next= can never send anyone off-site.
+  function safeNext(value) {
+    var v = String(value || "");
+    if (v === "griot-app.html") return v;
+    var m = v.match(/^studio-product\.html\?product=([a-z-]{2,40})$/);
+    return m && m[1] !== "griot" && SERVICE_NAMES[m[1]] ? v : null;
+  }
+
+  function nextServiceName(next) {
+    if (next === "griot-app.html") return "GRIOT";
+    var m = String(next || "").match(/product=([a-z-]+)$/);
+    return m ? SERVICE_NAMES[m[1]] : "";
+  }
+
+  // Every service page calls this first. A visitor without an account goes to
+  // the one sign-up page and comes straight back here once signed in, so
+  // every "Try" button means the same thing: sign up, then start.
+  function requireAccount(next) {
+    if (session()) return false;
+    window.location.replace("account.html?next=" + encodeURIComponent(next));
+    return true;
+  }
+
   /* --------------------------------------------------------- status line */
 
   // "2 free tries left · balance UGX 45,000" — the one-line summary pages show.
@@ -469,6 +495,9 @@
     startTopUp: startTopUp,
     settleReturn: settleReturn,
     hasReturn: function () { return !!returned; },
+    safeNext: safeNext,
+    nextServiceName: nextServiceName,
+    requireAccount: requireAccount,
     statusText: statusText,
     formatUgx: formatUgx,
     triesText: triesText

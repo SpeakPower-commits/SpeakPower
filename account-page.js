@@ -14,6 +14,11 @@
   if (!SP || !A || !$("acHome")) return;
 
   var panels = { offline: $("acOffline"), signIn: $("acSignIn"), home: $("acHome") };
+
+  // Arriving from a "Try" button: ?next= names the service to start once
+  // signed in. Only our own service pages are accepted (account.js).
+  var next = A.safeNext(new URLSearchParams(window.location.search).get("next"));
+  var nextName = next ? A.nextServiceName(next) : "";
   function show(name) {
     Object.keys(panels).forEach(function (k) { panels[k].hidden = k !== name; });
   }
@@ -99,11 +104,24 @@
     });
   }
 
-  function signedOut() {
+  function heading(signedIn) {
+    if (signedIn) return; // the page's own "Your account." stands
+    $("acTitle").textContent = "Create your free account.";
+    $("acLead").textContent = (nextName ? "Sign up to start " + nextName + ". " : "") +
+      "One account for every Studio service and GRIOT, and your first 3 tries are free on any of them. No password, no card.";
+  }
+
+  function signedOut(keepNext) {
+    if (!keepNext) next = null;
+    heading(false);
     show("signIn");
     A.mountSignIn(panels.signIn, {
-      title: "Sign in or create your account",
-      onSignedIn: function () { start(); }
+      title: next ? "Start " + nextName + " free" : "Sign up or sign in",
+      lead: "Continue with Google. Your first 3 tries are free, on any service.",
+      onSignedIn: function () {
+        if (next) { window.location.replace(next); return; }
+        start();
+      }
     });
   }
 
@@ -115,7 +133,7 @@
       if (result) notice(result);
       return load();
     }).then(null, function (e) {
-      if (e.status === 401) { signedOut(); return; }
+      if (e.status === 401) { signedOut(true); return; }
       notice({ text: e.message });
     });
   }
@@ -123,14 +141,24 @@
   $("acSignout").addEventListener("click", function () {
     A.signOut();
     notice(null);
-    signedOut();
+    signedOut(false);
   });
 
-  if (!SP.connected || !A.signInAvailable()) { show("offline"); return; }
+  if (!SP.connected || !A.signInAvailable()) {
+    heading(false);
+    if (nextName) {
+      $("acOfflineNext").textContent = "You will start " + nextName + " right here, with 3 free tries, as soon as it opens.";
+      $("acOfflineNext").hidden = false;
+    }
+    show("offline");
+    return;
+  }
   if (!A.session()) {
-    signedOut();
+    signedOut(true);
     if (A.hasReturn()) A.settleReturn().then(notice);
     return;
   }
+  // Already signed in and on the way to a service: go straight there.
+  if (next) { window.location.replace(next); return; }
   start();
 })();

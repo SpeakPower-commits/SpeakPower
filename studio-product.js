@@ -116,6 +116,11 @@
   };
 
   if (!PRODUCTS[key]) key = "brand-story";
+
+  // Try → sign up → this builder. Without an account, a visitor goes to the
+  // one sign-up page and comes straight back here once signed in.
+  if (A && A.requireAccount("studio-product.html?product=" + key)) return;
+
   var product = PRODUCTS[key];
   var DRAFT_KEY = "sp_draft:" + key;
 

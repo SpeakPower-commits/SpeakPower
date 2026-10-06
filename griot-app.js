@@ -245,14 +245,14 @@
 
   /* ---------------------------------------------------------------- start */
 
-  if (!SP || !A || !SP.connected || !A.signInAvailable()) {
-    show("offline");
-    return;
-  }
+  if (!SP || !A) { show("offline"); return; }
 
-  if (!A.session()) {
-    signedOut("");
-    if (A.hasReturn()) A.settleReturn().then(notice);
+  // Try → sign up → GRIOT. Without an account, a visitor goes to the one
+  // sign-up page and comes straight back here once signed in.
+  if (A.requireAccount("griot-app.html")) return;
+
+  if (!SP.connected || !A.signInAvailable()) {
+    show("offline");
     return;
   }
 

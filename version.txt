@@ -6,12 +6,15 @@ Open this file on the live site to see which build GitHub Pages is serving:
     https://speakpower-commits.github.io/SpeakPower/version.txt
 
 branch:   claude/studio-griot-live
-build:    accounts-and-balance (2026-10-06)
+build:    try-then-sign-up (2026-10-06)
 expects:  index.html — hero shows one whole photo per slide, nothing cut off
           studio.html — GRIOT card says "UGX 2,500 per message";
                         "Your first 3 tries are free — on any service"
-          account.html — page exists ("Accounts open here shortly" until the
-                         Worker URL and Google Client ID are in site-config.js)
+          studio.html — "Try GRIOT free" and every builder button go to the
+                        sign-up page (account.html?next=…), never to an
+                        info page; it says "Sign-up opens here shortly"
+                        until the Worker URL and Google Client ID are in
+                        site-config.js
 
 If this file still shows an older build, Pages has not rebuilt yet: wait a
 minute and reload. If it 404s, Pages is serving a different branch.
