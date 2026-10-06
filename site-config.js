@@ -1,14 +1,17 @@
 /* ==========================================================================
    SpeakPower — site configuration
    The only file to edit once the Cloudflare side is set up. Nothing here is
-   secret: every value is safe to publish. The GRIOT key and the session
-   secret live in the Worker, never in this file (see worker/README.md).
+   secret: every value is safe to publish. The GRIOT key, the Flutterwave
+   keys and the session secret live in the Worker, never in this file (see
+   worker/README.md). Prices live in the Worker too.
    ========================================================================== */
 
 window.SP_CONFIG = {
   // URL of the deployed Worker, no trailing slash, e.g.
   // "https://speakpower-api.<your-subdomain>.workers.dev"
-  // While empty, the GRIOT app says it is being connected instead of failing.
+  // While empty, the site works as a brochure: the header shows no "Sign in",
+  // and the Studio, GRIOT and account pages say they are being connected
+  // instead of failing. Set it together with googleClientId.
   apiBase: "",
 
   // Google OAuth client ID (public). Google Cloud → APIs & Services →
@@ -25,9 +28,5 @@ window.SP_CONFIG = {
 
   // Turnstile site key (public), used by email-code sign-in only.
   // Cloudflare dashboard → Turnstile → your widget.
-  turnstileSiteKey: "",
-
-  // Optional: where "Top up" sends people once their free messages are used.
-  // The Worker's CHECKOUT_URL wins if both are set.
-  checkoutUrl: ""
+  turnstileSiteKey: ""
 };

@@ -40,10 +40,14 @@
 <button class="btn btn-primary" id="generateBtn" type="button">Generate my pack</button>
 <a class="btn btn-ghost" href="studio.html">Back to Studio</a>
 </div>
-<p class="builder-note"><strong>Privacy:</strong> this prototype generates the pack in your browser. Your answers are not uploaded by this page.</p>
+<p class="griot-notice builder-notice" id="builderNotice" role="status" hidden></p>
+<!-- Sign-in or top-up, shown in place when Generate needs one. -->
+<div class="builder-gate" id="builderGate" hidden></div>
+<p class="builder-note"><strong>Privacy:</strong> <span id="builderPrivacy">Your answers are sent securely to SpeakPower to build the pack. They are not stored: your account keeps only which service you used and what it cost.</span></p>
+<p class="builder-note">Your first 3 tries are free, on any service. <a href="account.html">Your account</a></p>
 </div>
 <div class="studio-output-panel" aria-live="polite">
-<div class="output-head"><div><span class="eyebrow">Your output</span><h2 id="outputTitle">Complete the brief to generate.</h2></div><button class="btn btn-ghost" id="downloadBtn" type="button" disabled>Download pack</button></div>
+<div class="output-head"><div><span class="eyebrow">Your output</span><h2 id="outputTitle">Complete the brief to generate.</h2><p class="output-paid" id="outputPaid" hidden></p></div><button class="btn btn-ghost" id="downloadBtn" type="button" disabled>Download pack</button></div>
 <div id="outputHost" class="studio-output"><p class="output-empty">Your generated pack will appear here.</p></div>
 </div>
 </div></section>
@@ -54,7 +58,9 @@
 <div><h4>Contact</h4><div class="footer-links"><a href="tel:+256743482588">+256 743 482 588</a><a href="mailto:thomasotieno583@gmail.com">thomasotieno583@gmail.com</a></div></div>
 <div><h4>Follow</h4><div class="footer-links"><a href="https://www.linkedin.com/in/otieno-thomas-a39b1b21b/" target="_blank" rel="noopener">LinkedIn</a><a href="https://www.instagram.com/otienothomas8/" target="_blank" rel="noopener">Instagram</a></div></div>
 </div><div class="footer-bottom">&copy; 2026 SpeakPower. All rights reserved.</div></div></footer>
+<script src="site-config.js"></script>
 <script src="script.js"></script>
+<script src="account.js"></script>
 <script src="studio-product.js"></script>
 </body>
 </html>

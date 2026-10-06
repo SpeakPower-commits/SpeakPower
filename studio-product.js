@@ -1,6 +1,18 @@
+/* ==========================================================================
+   SpeakPower Studio — the guided builders
+   Anyone can open a builder and read what it asks. Generating needs an
+   account: the first 3 tries are free on any service, then each use takes
+   its price from the balance. The Worker generates the pack and decides
+   every number; this page collects answers and renders what comes back.
+
+   Security: generated text is escaped before it is rendered.
+   ========================================================================== */
+
 (function () {
   "use strict";
 
+  var SP = window.SP;
+  var A = window.SPAccount;
   var params = new URLSearchParams(window.location.search);
   var key = params.get("product") || "brand-story";
   var $ = function (id) { return document.getElementById(id); };
@@ -9,11 +21,14 @@
   var downloadBtn = $("downloadBtn");
   var generateBtn = $("generateBtn");
   var errorHost = $("builderError");
+  var gate = $("builderGate");
 
+  // Prices are in UGX and must match the Worker's price list and studio.html
+  // (the Worker's test suite fails if any of the three disagree).
   var PRODUCTS = {
     "brand-story": {
       title: "Brand Story Builder",
-      price: "UGX 100,000",
+      price: 100000,
       lead: "Turn what you do into a story people can understand, remember and repeat.",
       fields: [
         ["brand", "Brand / organisation name", "", "text"],
@@ -24,35 +39,23 @@
         ["proof", "Proof", "Experience, results, partners, location, credentials, products, etc.", "textarea"],
         ["difference", "What makes you different?", "Your method, perspective, story, access or advantage.", "textarea"],
         ["ambition", "Where are you going?", "The future you are trying to create.", "textarea"]
-      ],
-      generate: function (v) {
-        return [
-          ["Core story", v.brand + " exists to help " + v.audience + " move from " + lower(v.problem) + " to " + lower(v.result) + " through " + lower(v.offer) + "."],
-          ["Positioning statement", v.brand + " helps " + v.audience + " achieve " + lower(v.result) + " by combining " + lower(v.offer) + " with " + lower(v.difference) + "."],
-          ["30-second pitch", "We help " + v.audience + " who are dealing with " + lower(v.problem) + ". Through " + lower(v.offer) + ", we help them " + lower(v.result) + ". What makes us different is " + lower(v.difference) + ". Our experience includes " + lower(v.proof) + "."],
-          ["2-minute story", v.brand + " was built around a simple observation: " + v.problem + ". We therefore focus on " + v.offer + " for " + v.audience + ". The goal is practical: " + v.result + ". We bring " + v.proof + ", and our distinctive approach is " + v.difference + ". We are building toward " + v.ambition + "."],
-          ["Messaging pillar 1", "The problem: " + v.problem],
-          ["Messaging pillar 2", "The value: " + v.result],
-          ["Messaging pillar 3", "The difference: " + v.difference],
-          ["Tagline directions", "Built for " + v.audience + ". | From " + v.problem + " to " + v.result + ". | " + titleCase(v.difference) + "."],
-          ["Call to action", "Ready to " + lower(v.result) + "? Start with " + v.brand + "."]
-        ];
-      }
+      ]
     },
 
     "seo-audit": {
       title: "Website SEO & Visibility Audit",
-      price: "UGX 75,000",
-      lead: "Enter a public website URL and let Google Lighthouse check search fundamentals, performance, accessibility and best practices.",
+      price: 75000,
+      lead: "Enter a public website address. SpeakPower checks what search engines and sharing apps see on the page — title, description, headings, structured data, social preview, mobile readiness and more — and adds Google Lighthouse scores where available.",
       fields: [
-        ["url", "Website URL", "https://example.com", "url"]
+        ["url", "Website address", "example.com", "url"]
       ],
-      mode: "seo"
+      busy: "Auditing…",
+      privacy: "SpeakPower fetches the public page you name, the way a search engine would. Nothing about the page is stored; your account keeps only that you ran an audit."
     },
 
     "market-plan": {
       title: "Market Development Planner",
-      price: "UGX 125,000",
+      price: 125000,
       lead: "Build a practical 30/60/90-day market-development starting point from your own business knowledge.",
       fields: [
         ["business", "Business / organisation", "", "text"],
@@ -64,25 +67,12 @@
         ["competitors", "Alternatives / competitors", "Who else solves the problem or gets the customer's attention?", "textarea"],
         ["channels", "Current channels", "Website, SEO, LinkedIn, Facebook, referrals, events, partners, etc.", "textarea"],
         ["goal", "90-day goal", "What measurable result do you want?", "textarea"]
-      ],
-      generate: function (v) {
-        return [
-          ["Market opportunity", v.business + " is positioned around " + v.offer + " for " + v.audience + " in " + v.geography + "."],
-          ["Core market problem", v.problem],
-          ["Positioning angle", "Lead with the specific outcome: " + v.goal + ". Support it with the advantage of " + v.advantage + "."],
-          ["Competitive lens", "Map " + v.competitors + " against four questions: who they serve, what they promise, how they prove it and where their visibility is strongest."],
-          ["Visibility priorities", "1. Strengthen the website story.\n2. Build search-focused content around real customer questions.\n3. Make the offer easy to understand on social and professional channels.\n4. Use partnerships and speaking opportunities to reach trusted audiences."],
-          ["30 days", "Clarify the offer, audience and proof. Clean up core website and profile messaging. Establish 3 content themes tied to " + v.problem + "."],
-          ["60 days", "Publish consistently, test calls to action, document customer questions and identify the channels producing qualified attention."],
-          ["90 days", "Double down on the strongest channel, refine the offer using evidence and build a repeatable acquisition routine around the goal: " + v.goal + "."],
-          ["Working KPI set", "Visibility: qualified visits. Engagement: enquiries / conversations. Conversion: offers accepted or next-step actions. Learning: recurring objections and customer questions."]
-        ];
-      }
+      ]
     },
 
     "content-seo": {
       title: "SEO Content Starter",
-      price: "UGX 75,000",
+      price: 75000,
       lead: "Turn your expertise and customer questions into an SEO-informed content starter plan.",
       fields: [
         ["business", "Business / brand", "", "text"],
@@ -93,39 +83,23 @@
         ["topic2", "Customer topic 2", "A second question or pain point.", "text"],
         ["topic3", "Customer topic 3", "A third question or pain point.", "text"],
         ["proof", "Proof", "One credible thing you can demonstrate regularly.", "textarea"]
-      ],
-      generate: function (v) {
-        return [
-          ["Search themes", v.offer + " " + v.location + "\n" + v.topic1 + "\n" + v.topic2 + "\n" + v.topic3],
-          ["Content opportunity 1", "Answer: " + v.topic1],
-          ["Content opportunity 2", "Explain: " + v.topic2],
-          ["Content opportunity 3", "Compare: " + v.topic3],
-          ["Content opportunity 4", "How-to guide for " + v.audience + " interested in " + v.offer],
-          ["Content opportunity 5", "Local / practical guide for " + v.location + " around " + v.offer],
-          ["Content opportunity 6", "Common mistakes " + v.audience + " make before choosing " + v.offer],
-          ["Content opportunity 7", "What good " + v.offer + " looks like, using proof: " + v.proof],
-          ["Content opportunity 8", "FAQ: " + v.topic1],
-          ["Content opportunity 9", "FAQ: " + v.topic2],
-          ["Content opportunity 10", "FAQ: " + v.topic3],
-          ["CTA bank", "Learn more. | Compare your options. | Request a quote. | Book a consultation. | Start with a quick assessment."],
-          ["Publishing rhythm", "Week 1: question answer. Week 2: educational guide. Week 3: proof. Week 4: offer + CTA."]
-        ];
-      }
+      ]
     },
 
     "data-story": {
       title: "Data Story Builder",
-      price: "UGX 100,000",
-      lead: "Upload a non-sensitive CSV and get a first-pass profile, patterns, gaps and plain-language story in your browser.",
+      price: 100000,
+      lead: "Choose a CSV and get a first-pass profile, patterns, gaps and a plain-language story.",
       fields: [
         ["csv", "CSV dataset", "Choose a non-sensitive .csv file", "file"]
       ],
-      mode: "data"
+      busy: "Analysing…",
+      privacy: "Your CSV never leaves this browser. Only column summaries — counts, averages and the most common repeated values — are sent to build the story."
     },
 
     "speaker-ready": {
       title: "Speaker Ready Pack",
-      price: "UGX 75,000",
+      price: 75000,
       lead: "Go from topic to a rehearsable talk structure without starting from a blank page.",
       fields: [
         ["speaker", "Speaker name", "", "text"],
@@ -137,32 +111,25 @@
         ["idea2", "Key idea 2", "", "textarea"],
         ["idea3", "Key idea 3", "", "textarea"],
         ["story", "Story / proof", "A case, experience or example.", "textarea"]
-      ],
-      generate: function (v) {
-        return [
-          ["Talk title", titleCase(v.topic) + ": What Your Audience Needs to Know"],
-          ["Opening hook", "Most people think " + lower(v.topic) + " is mainly about information. The bigger question is what changes for " + v.audience + " when the idea becomes practical."],
-          ["Audience promise", "By the end of this " + v.time + " session, the audience should " + lower(v.goal) + "."],
-          ["Part 1 — The problem", v.idea1],
-          ["Part 2 — The shift", v.idea2],
-          ["Part 3 — The action", v.idea3],
-          ["Story / proof", v.story],
-          ["Transition 1", "Now that we have seen the problem, let's look at what needs to change."],
-          ["Transition 2", "The important point is not only understanding this; it is deciding what to do with it."],
-          ["Closing", "The challenge is simple: " + lower(v.goal) + ". Start with one action and make it visible."],
-          ["Likely Q&A", "What is the biggest obstacle to applying this?\nWhat would you change first?\nCan you give a practical example?\nWhat happens when people disagree?"]
-        ];
-      }
+      ]
     }
   };
 
-  var product = PRODUCTS[key] || PRODUCTS["brand-story"];
+  if (!PRODUCTS[key]) key = "brand-story";
+  var product = PRODUCTS[key];
+  var DRAFT_KEY = "sp_draft:" + key;
+
+  function ugx(n) { return "UGX " + Number(n).toLocaleString("en-US"); }
+
   $("builderTitle").textContent = product.title;
   $("builderLead").textContent = product.lead;
-  $("builderPrice").textContent = product.price;
+  $("builderPrice").textContent = ugx(product.price);
+  if (product.privacy) $("builderPrivacy").textContent = product.privacy;
+
+  /* ----------------------------------------------------------------- form */
 
   function renderForm() {
-    form.innerHTML = "";
+    form.textContent = "";
     product.fields.forEach(function (f) {
       var wrap = document.createElement("div");
       wrap.className = "builder-field";
@@ -171,65 +138,59 @@
       label.textContent = f[1];
       wrap.appendChild(label);
 
+      var input;
       if (f[3] === "textarea") {
-        var ta = document.createElement("textarea");
-        ta.id = "field-" + f[0]; ta.name = f[0]; ta.rows = 4;
-        ta.placeholder = f[2] || ""; ta.required = true;
-        wrap.appendChild(ta);
-      } else if (f[3] === "file") {
-        var fi = document.createElement("input");
-        fi.type = "file"; fi.accept = ".csv,text/csv";
-        fi.id = "field-" + f[0]; fi.name = f[0]; fi.required = true;
-        wrap.appendChild(fi);
-      } else if (f[3] === "url") {
-        var url = document.createElement("input");
-        url.type = "url"; url.id = "field-" + f[0]; url.name = f[0];
-        url.placeholder = f[2] || ""; url.required = true;
-        wrap.appendChild(url);
+        input = document.createElement("textarea");
+        input.rows = 4;
       } else {
-        var input = document.createElement("input");
-        input.type = "text"; input.id = "field-" + f[0]; input.name = f[0];
-        input.placeholder = f[2] || ""; input.required = true;
-        wrap.appendChild(input);
+        input = document.createElement("input");
+        if (f[3] === "file") {
+          input.type = "file";
+          input.accept = ".csv,text/csv";
+        } else {
+          // A plain text box, not type="url": people type "example.com", and
+          // the Worker accepts that. The browser's url check would refuse it.
+          input.type = "text";
+          if (f[3] === "url") { input.inputMode = "url"; input.autocomplete = "url"; input.spellcheck = false; }
+        }
       }
+      input.id = "field-" + f[0];
+      input.name = f[0];
+      input.required = true;
+      if (f[3] !== "file") input.placeholder = f[2] || "";
+      wrap.appendChild(input);
       form.appendChild(wrap);
     });
   }
 
-  function values() {
+  function textValues() {
     var v = {};
     product.fields.forEach(function (f) {
       var el = form.elements[f[0]];
-      v[f[0]] = el && el.type === "file" ? el.files[0] : String((el && el.value) || "").trim();
+      if (el && el.type !== "file") v[f[0]] = String(el.value || "").trim();
     });
     return v;
   }
 
-  function lower(s) {
-    s = String(s || "").trim();
-    return s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+  // Answers survive the trip to Flutterwave and back (sessionStorage: this
+  // tab only, gone when it closes). A chosen file cannot be kept, by design.
+  function saveDraft() {
+    try { window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify(textValues())); } catch (e) { /* optional */ }
+  }
+  function restoreDraft() {
+    var raw = null;
+    try { raw = window.sessionStorage.getItem(DRAFT_KEY); window.sessionStorage.removeItem(DRAFT_KEY); } catch (e) { raw = null; }
+    if (!raw) return;
+    try {
+      var v = JSON.parse(raw);
+      Object.keys(v || {}).forEach(function (name) {
+        var el = form.elements[name];
+        if (el && el.type !== "file" && typeof v[name] === "string") el.value = v[name];
+      });
+    } catch (e) { /* a broken draft is just no draft */ }
   }
 
-  function titleCase(s) {
-    return String(s || "").replace(/\w\S*/g, function (w) {
-      return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
-    });
-  }
-
-  function esc(s) {
-    return String(s == null ? "" : s).replace(/[&<>"']/g, function (m) {
-      return { "&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;", "'":"&#39;" }[m];
-    }).replace(/\n/g, "<br>");
-  }
-
-  function render(sections) {
-    outputHost.innerHTML = sections.map(function (item) {
-      return "<article class=\"output-block\"><h3>" + esc(item[0]) + "</h3><div>" + esc(item.slice(1).join("\n\n")) + "</div></article>";
-    }).join("");
-    $("outputTitle").textContent = product.title + " — generated";
-    downloadBtn.disabled = false;
-    window.__studioSections = sections;
-  }
+  /* ----------------------------------------------- data story: in-browser */
 
   function parseCSV(text) {
     var rows = [], row = [], cell = "", quoted = false;
@@ -258,190 +219,276 @@
     return Number.isFinite(n) ? n : null;
   }
 
-  function dataStory(file) {
+  var MAX_CSV_BYTES = 20 * 1024 * 1024;
+  var MAX_COLUMNS = 100;
+
+  // Column statistics only. A value is sent as a "most common value" only if
+  // it repeats and the column is not mostly unique — so names, emails, phone
+  // numbers and free text never leave the browser, only their counts.
+  function summarise(file) {
+    if (!file) return Promise.reject(new Error("Choose a CSV file first."));
+    if (file.size > MAX_CSV_BYTES) return Promise.reject(new Error("That file is larger than 20 MB. Use a smaller extract."));
     return file.text().then(function (text) {
-      var rows = parseCSV(text);
+      var rows = parseCSV(text.replace(/^﻿/, ""));
       if (rows.length < 2) throw new Error("The CSV needs a header row and at least one data row.");
-      var headers = rows[0].map(function (x, i) { return String(x || "").trim() || ("Column " + (i + 1)); });
+      var headers = rows[0].slice(0, MAX_COLUMNS).map(function (x, i) {
+        return (String(x || "").trim() || "Column " + (i + 1)).slice(0, 80);
+      });
       var data = rows.slice(1);
-      var sections = [];
-      sections.push(["Dataset profile", data.length + " data rows across " + headers.length + " columns."]);
+      var summary = { rows: data.length, columns: rows[0].length, numeric: [], categorical: [], missing: [] };
 
-      var numeric = [];
-      var categorical = [];
-      var missing = [];
+      headers.forEach(function (name, idx) {
+        var vals = data.map(function (r) { return r[idx] == null ? "" : String(r[idx]).trim(); });
+        var present = vals.filter(function (v) { return v !== ""; });
+        var miss = vals.length - present.length;
+        if (miss) summary.missing.push({ name: name, ratio: miss / vals.length });
+        var nums = present.map(numValue).filter(function (v) { return v !== null; });
 
-      headers.forEach(function (h, idx) {
-        var vals = data.map(function (r) { return r[idx] == null ? "" : r[idx]; });
-        var nonempty = vals.filter(function (v) { return String(v).trim() !== ""; });
-        var nums = nonempty.map(numValue).filter(function (v) { return v !== null; });
-        var miss = vals.length - nonempty.length;
-        missing.push([h, miss, vals.length ? miss / vals.length : 0]);
-        if (nonempty.length && nums.length >= Math.max(3, nonempty.length * .7)) {
-          var sum = nums.reduce(function (a,b){ return a+b; },0);
-          var mean = sum / nums.length;
-          var min = Math.min.apply(Math, nums), max = Math.max.apply(Math, nums);
-          numeric.push([h, nums.length, mean, min, max]);
-        } else {
-          var counts = {};
-          nonempty.forEach(function (v){ var k=String(v).trim(); counts[k]=(counts[k]||0)+1; });
-          var top = Object.keys(counts).sort(function(a,b){return counts[b]-counts[a];}).slice(0,5);
-          categorical.push([h, nonempty.length, top.map(function(k){return k+" ("+counts[k]+")";}).join(", ")]);
+        if (present.length && nums.length >= Math.max(3, present.length * 0.7)) {
+          var min = Infinity, max = -Infinity, sum = 0;
+          nums.forEach(function (n) { sum += n; if (n < min) min = n; if (n > max) max = n; });
+          summary.numeric.push({ name: name, mean: sum / nums.length, min: min, max: max });
+          return;
         }
+        var counts = {};
+        var distinct = 0;
+        present.forEach(function (v) {
+          if (!counts[v]) { counts[v] = 0; distinct++; }
+          counts[v]++;
+        });
+        var mostlyUnique = distinct > Math.max(20, present.length * 0.5);
+        var top = mostlyUnique ? [] : Object.keys(counts)
+          .filter(function (v) { return counts[v] >= 2; })
+          .sort(function (a, b) { return counts[b] - counts[a]; })
+          .slice(0, 5)
+          .map(function (v) { return [v.slice(0, 60), counts[v]]; });
+        summary.categorical.push({ name: name, distinct: distinct, top: top });
       });
-
-      var missTop = missing.filter(function(x){return x[1]>0;}).sort(function(a,b){return b[2]-a[2];}).slice(0,5);
-      sections.push(["Missing values", missTop.length ? missTop.map(function(x){return x[0]+": "+Math.round(x[2]*100)+"% missing";}).join("\n") : "No missing values found in the inspected columns."]);
-
-      if (numeric.length) {
-        sections.push(["Numeric summary", numeric.map(function(x){return x[0]+": mean "+x[2].toFixed(2)+" | min "+x[3].toFixed(2)+" | max "+x[4].toFixed(2);}).join("\n")]);
-        var biggest = numeric.slice().sort(function(a,b){return (b[4]-b[3])-(a[4]-a[3]);})[0];
-        if (biggest) sections.push(["Largest numeric range", biggest[0]+" spans from "+biggest[3].toFixed(2)+" to "+biggest[4].toFixed(2)+"."]);
-      }
-
-      if (categorical.length) {
-        sections.push(["Category patterns", categorical.map(function(x){return x[0]+": "+x[2];}).join("\n")]);
-      }
-
-      var story = [];
-      story.push("The dataset contains "+data.length+" observations and "+headers.length+" variables.");
-      if (numeric.length) story.push("The strongest first-pass quantitative story is around "+numeric.map(function(x){return x[0];}).slice(0,4).join(", ")+".");
-      if (categorical.length) story.push("The most useful segmentation fields appear to include "+categorical.map(function(x){return x[0];}).slice(0,4).join(", ")+".");
-      if (missTop.length) story.push("Data quality needs attention in "+missTop[0][0]+" first because "+Math.round(missTop[0][2]*100)+"% of values are missing.");
-      story.push("This is a descriptive first pass, not a causal conclusion. The next analysis should test the questions that matter to the decision behind the dataset.");
-      sections.push(["Plain-language data story", story.join(" ")]);
-      sections.push(["Next questions", "What changed most?\nWhich groups differ?\nWhich variables move together?\nWhat decision is this dataset supposed to support?"]);
-      return sections;
+      return summary;
     });
   }
 
-  function seoAudit(url) {
-    var endpoint = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=" +
-      encodeURIComponent(url) + "&category=seo&category=performance&category=accessibility&category=best-practices";
-    return fetch(endpoint).then(function (res) {
-      if (!res.ok) throw new Error("Google PageSpeed could not analyse that URL right now.");
-      return res.json();
-    }).then(function (data) {
-      var lh = data.lighthouseResult || {};
-      var scores = lh.categories || {};
-      var sections = [];
-      ["seo","performance","accessibility","best-practices"].forEach(function (key) {
-        if (scores[key] && typeof scores[key].score === "number") {
-          sections.push([titleCase(key.replace("-", " ")), Math.round(scores[key].score * 100) + " / 100"]);
-        }
-      });
-
-      var audits = lh.audits || {};
-      var failures = Object.keys(audits).map(function (id) {
-        var a = audits[id];
-        if (!a || !a.title || a.scoreDisplayMode === "informative" || a.score === null) return null;
-        return {id:id,title:a.title,score:a.score,display:a.displayValue||""};
-      }).filter(Boolean).filter(function(a){return a.score < 1;}).sort(function(a,b){return a.score-b.score;}).slice(0,10);
-
-      sections.push(["Top findings", failures.length ? failures.map(function(a){return a.title + (a.display ? " — "+a.display : "");}).join("\n") : "No failed Lighthouse audits were returned."]);
-      sections.push(["What to fix first", "1. Address the highest-impact failed SEO checks.\n2. Improve pages with weak search intent alignment and unclear headings.\n3. Improve performance and accessibility issues that affect user experience.\n4. Re-run the audit after changes."]);
-      sections.push(["Important note", "This is an automated technical audit based on the public URL. Search Console data, rankings, backlinks and conversion performance require access to the website's own data and are outside this automated check."]);
-      return sections;
-    });
+  function inputs() {
+    if (key === "data-story") {
+      var el = form.elements.csv;
+      return summarise(el && el.files ? el.files[0] : null).then(function (summary) { return { summary: summary }; });
+    }
+    return Promise.resolve(textValues());
   }
 
-  function runProduct(v) {
-    if (product.mode === "seo") return seoAudit(v.url);
-    if (product.mode === "data") return dataStory(v.csv);
-    return Promise.resolve(product.generate(v));
+  /* --------------------------------------------------------------- output */
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (m) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[m];
+    }).replace(/\n/g, "<br>");
+  }
+
+  var lastSections = [];
+
+  function render(sections) {
+    outputHost.innerHTML = sections.map(function (item) {
+      return "<article class=\"output-block\"><h3>" + esc(item[0]) + "</h3><div>" + esc(item.slice(1).join("\n\n")) + "</div></article>";
+    }).join("");
+    $("outputTitle").textContent = product.title + " — generated";
+    downloadBtn.disabled = false;
+    lastSections = sections;
+  }
+
+  function showOutputMessage(text) {
+    var p = document.createElement("p");
+    p.className = "output-empty";
+    p.textContent = text;
+    outputHost.textContent = "";
+    outputHost.appendChild(p);
+  }
+
+  function paidLine(data) {
+    var acct = data.account || {};
+    var text = data.paidWith === "trial"
+      ? "Free try — " + A.triesText(acct.trialsRemaining) + " left."
+      : ugx(data.amount) + " from your balance — " + ugx(acct.balance) + " left.";
+    $("outputPaid").textContent = text;
+    $("outputPaid").hidden = false;
   }
 
   function download() {
-    var sections = window.__studioSections || [];
-    if (!sections.length) return;
-    var body = sections.map(function (item) {
+    if (!lastSections.length) return;
+    var body = lastSections.map(function (item) {
       return "<section><h2>" + esc(item[0]) + "</h2><p>" + esc(item.slice(1).join("\n\n")) + "</p></section>";
     }).join("");
     var html = "<!doctype html><html><head><meta charset='utf-8'><title>" + esc(product.title) + " — SpeakPower</title><style>body{font-family:Arial,sans-serif;max-width:800px;margin:40px auto;line-height:1.6;color:#182236}h1{font-size:28px}h2{margin-top:32px;border-bottom:1px solid #ddd;padding-bottom:6px}section{page-break-inside:avoid}footer{margin-top:48px;font-size:13px;color:#777}</style></head><body><h1>" + esc(product.title) + "</h1>" + body + "<footer>Generated by SpeakPower Studio.</footer></body></html>";
-    var blob = new Blob([html], {type:"text/html;charset=utf-8"});
+    var blob = new Blob([html], { type: "text/html;charset=utf-8" });
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
-    a.href = url; a.download = product.title.toLowerCase().replace(/[^a-z0-9]+/g,"-") + "-speakpower.html";
+    a.href = url;
+    a.download = product.title.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-speakpower.html";
     document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(function(){URL.revokeObjectURL(url);},1000);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
   }
+
+  /* ----------------------------------------------------------- validation */
 
   /**
-   * Validation used to be a bare `if (!form.reportValidity()) return;`.
-   *
-   * Leave one of nine required fields blank and the page did nothing at all:
-   * no message, no highlight, no error. The only feedback was the browser's
-   * native tooltip, which mobile browsers routinely suppress -- so the product
-   * looked broken when it was simply waiting for an answer. Name the field, in
-   * the page, and take the customer to it.
+   * Leave one of nine required fields blank and the page used to do nothing
+   * at all: the only feedback was the browser's native tooltip, which mobile
+   * browsers routinely suppress. Name the field, in the page, and take the
+   * customer to it.
    */
-  function clearFormError() {
-    errorHost.hidden = true;
-    errorHost.textContent = "";
-    var flagged = form.querySelectorAll(".builder-field--invalid");
-    for (var i = 0; i < flagged.length; i++) {
-      flagged[i].classList.remove("builder-field--invalid");
-    }
+  function showFormError(text) {
+    errorHost.textContent = text || "";
+    errorHost.hidden = !text;
   }
 
-  function firstInvalidField() {
-    for (var i = 0; i < product.fields.length; i++) {
-      var name = product.fields[i][0];
-      var el = form.elements[name];
-      if (el && typeof el.checkValidity === "function" && !el.checkValidity()) {
-        return { el: el, label: product.fields[i][1] };
-      }
+  function clearFormError() {
+    showFormError("");
+    var flagged = form.querySelectorAll(".builder-field--invalid");
+    for (var i = 0; i < flagged.length; i++) flagged[i].classList.remove("builder-field--invalid");
+  }
+
+  function flagField(name, label, message) {
+    var el = form.elements[name];
+    var wrap = el && el.closest ? el.closest(".builder-field") : null;
+    if (wrap) wrap.classList.add("builder-field--invalid");
+    showFormError(message || "“" + label + "” still needs an answer before the pack can be generated.");
+    if (el) {
+      el.focus({ preventScroll: true });
+      (wrap || el).scrollIntoView({ behavior: "smooth", block: "center" });
     }
-    return null;
   }
 
   function validate() {
     clearFormError();
-    var bad = firstInvalidField();
-    if (!bad) return true;
-
-    var wrap = bad.el.closest(".builder-field");
-    if (wrap) wrap.classList.add("builder-field--invalid");
-
-    // textContent, not innerHTML: an escaping-free path by construction
-    // rather than by review.
-    errorHost.textContent = bad.el.value
-      ? "Check \u201c" + bad.label + "\u201d \u2014 " +
-        (bad.el.validationMessage || "that answer is not valid yet.")
-      : "\u201c" + bad.label + "\u201d still needs an answer before the pack can be generated.";
-    errorHost.hidden = false;
-
-    bad.el.focus({ preventScroll: true });
-    (wrap || bad.el).scrollIntoView({ behavior: "smooth", block: "center" });
-    return false;
+    for (var i = 0; i < product.fields.length; i++) {
+      var f = product.fields[i];
+      var el = form.elements[f[0]];
+      if (el && typeof el.checkValidity === "function" && !el.checkValidity()) {
+        flagField(f[0], f[1], el.value
+          ? "Check “" + f[1] + "” — " + (el.validationMessage || "that answer is not valid yet.")
+          : null);
+        return false;
+      }
+    }
+    return true;
   }
 
-  // "input" covers text and textarea; a file picker only fires "change".
   ["input", "change"].forEach(function (evt) {
     form.addEventListener(evt, function (e) {
       var wrap = e.target && e.target.closest ? e.target.closest(".builder-field") : null;
-      if (wrap && wrap.classList.contains("builder-field--invalid") && e.target.checkValidity()) {
-        clearFormError();
-      }
+      if (wrap && wrap.classList.contains("builder-field--invalid") && e.target.checkValidity()) clearFormError();
     });
   });
 
-  generateBtn.addEventListener("click", function () {
-    if (!validate()) return;
-    generateBtn.disabled = true;
-    generateBtn.textContent = product.mode === "seo" ? "Auditing…" : "Generating…";
-    runProduct(values()).then(function (sections) {
-      render(sections);
-      generateBtn.disabled = false;
-      generateBtn.textContent = "Generate my pack";
-      outputHost.scrollIntoView({behavior:"smooth",block:"start"});
-    }).catch(function (err) {
-      outputHost.innerHTML = "<p class='output-empty'>" + esc(err && err.message ? err.message : "The product could not generate a result.") + "</p>";
-      generateBtn.disabled = false;
-      generateBtn.textContent = "Generate my pack";
+  /* --------------------------------------------------- account and status */
+
+  function notice(result) {
+    var n = $("builderNotice");
+    n.textContent = result ? result.text : "";
+    n.hidden = !result;
+  }
+
+  function drawStatus() {
+    var acct = A && A.account();
+    $("builderMode").textContent = acct ? A.statusText(acct)
+      : (SP && SP.connected ? "3 free tries with an account" : "Automated output");
+  }
+
+  function hideGate() { gate.hidden = true; gate.textContent = ""; }
+
+  function showSignIn(message) {
+    gate.hidden = false;
+    A.mountSignIn(gate, {
+      title: "Sign in to generate",
+      lead: (message ? message + " " : "") +
+        "Your answers stay on this page. Your first 3 tries are free, on any service — no card needed.",
+      onSignedIn: function () { hideGate(); drawStatus(); run(); }
     });
+    gate.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  function showPayWall(data) {
+    gate.hidden = false;
+    A.renderPayWall(gate, {
+      title: product.title,
+      price: data.price,
+      shortfall: data.shortfall,
+      account: data.account,
+      returnTo: "studio-product.html?product=" + key,
+      onSignedOut: function () { showSignIn("Your session ended."); }
+    });
+    // Keep the answers through the payment page and back.
+    var buttons = gate.querySelectorAll(".topup-options .btn");
+    for (var i = 0; i < buttons.length; i++) buttons[i].addEventListener("click", saveDraft);
+    gate.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  /* ------------------------------------------------------------- generate */
+
+  var running = false;
+
+  function setBusy(on) {
+    running = on;
+    generateBtn.disabled = on;
+    generateBtn.textContent = on ? (product.busy || "Generating…") : "Generate my pack";
+  }
+
+  function run() {
+    if (running) return;
+    clearFormError();
+    notice(null);
+    setBusy(true);
+    inputs().then(function (body) {
+      return A.call("/studio/generate", { product: key, inputs: body, anonId: SP.anonId, page: location.pathname });
+    }).then(function (data) {
+      hideGate();
+      A.setAccount(data.account);
+      render(data.sections);
+      paidLine(data);
+      drawStatus();
+      outputHost.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, function (e) {
+      if (e.status === 401) { showSignIn("Your session ended."); return; }
+      if (e.status === 402) {
+        if (e.data && e.data.account) A.setAccount(e.data.account);
+        drawStatus();
+        showPayWall(e.data || {});
+        return;
+      }
+      // The Worker names the field when an answer is the problem.
+      if (e.data && e.data.field) {
+        var f = product.fields.filter(function (x) { return x[0] === e.data.field; })[0];
+        flagField(e.data.field, f ? f[1] : e.data.field, e.message);
+        return;
+      }
+      if (!e.status) { showFormError(e.message); return; } // a problem with the file, before anything was sent
+      showOutputMessage(e.message);
+    }).then(function () { setBusy(false); });
+  }
+
+  generateBtn.addEventListener("click", function () {
+    if (running || !validate()) return;
+    if (!SP || !SP.connected || !A || !A.signInAvailable()) {
+      showFormError("Online generation opens here shortly — accounts are being connected. Your answers are not sent anywhere until then.");
+      return;
+    }
+    if (!A.session()) { showSignIn(); return; }
+    run();
   });
 
   downloadBtn.addEventListener("click", download);
+
+  /* ---------------------------------------------------------------- start */
+
   renderForm();
+  restoreDraft();
+  drawStatus();
+  if (A) {
+    A.onChange(drawStatus);
+    // Settle a returning payment first, then refresh: run together, a /me
+    // answered before the credit could overwrite the new balance.
+    A.settleReturn().then(function (result) {
+      if (result) notice(result.ok ? { text: result.text + " Press “Generate my pack” to continue." } : result);
+      if (A.session()) return A.refresh();
+    }).then(drawStatus, drawStatus);
+  }
 })();
