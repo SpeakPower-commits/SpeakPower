@@ -58,3 +58,10 @@ database_id = "431826e5-d366-4fb0-8aa2-fd73651ac700"
 [triggers]
 # Daily housekeeping: prunes old rate-limit rows and expired codes.
 crons = ["17 3 * * *"]
+
+# Workers Logs: keeps what the Worker writes with console.error (failed
+# GRIOT calls, payment errors, unhandled exceptions) for a few days, under
+# the Worker → Observability in the dashboard. Free-plan allowance is ample
+# here; nothing logged carries a secret, a token or a customer's message.
+[observability]
+enabled = true
