@@ -61,19 +61,23 @@ To rebuild it from scratch: Dashboard → **Storage & Databases → D1 → Creat
 
 ### 3. The Worker — `speakpower-studio-api`, deployed from GitHub
 
-Your existing Worker, `https://speakpower-studio-api.thomasotieno583.workers.dev`, becomes this API, and the site already points at it (`apiBase` in `site-config.js`). It deploys **from this repository**, so there is nothing to paste — and no "Edit code" button, which Cloudflare hides on Git-connected Workers.
+The Worker is built from this repository on every push, so there is nothing to paste. The site already points at `https://speakpower-studio-api.thomasotieno583.workers.dev` (`apiBase` in `site-config.js`).
 
-Dashboard → **Workers & Pages → speakpower-studio-api → Settings → Builds**:
+**Create it** (the earlier, unused Worker of that name was deleted on 7 October): Dashboard → **Workers & Pages → Create application → Import a repository** → `SpeakPower-commits/SpeakPower`:
 
-- A repository already connected → edit it. **Connect** showing instead → connect `SpeakPower-commits/SpeakPower` (authorise Cloudflare on GitHub if asked).
-- **Branch:** `claude/studio-griot-live` while testing on the preview; `main` once merged.
-- **Root directory / Path:** `worker`
-- **Build command:** leave empty. **Deploy command:** `npx wrangler deploy`
-- Save. The next push deploys; **Retry build** deploys the current commit at once.
+| Setting | Value |
+|---|---|
+| Project / Worker name | `speakpower-studio-api` — must equal `name` in `wrangler.toml`, and keeps the web address above |
+| Production branch | `claude/studio-griot-live` while testing on the preview; `main` once PR #9 is merged (`main` has no `worker` folder until then) |
+| Root directory / Path (Advanced) | `worker` |
+| Build command | leave empty |
+| Deploy command | `npx wrangler deploy` |
 
-`wrangler.toml` in this folder does the rest on every deploy: the D1 binding `DB` → `speakpower`, the public variables, and the daily clean-up schedule. It keeps any plain-text variable you add in the dashboard (`keep_vars = true`) and never touches secrets.
+**Save and Deploy.** To change any of this later: the Worker → **Settings → Builds**. Cloudflare hides the browser "Edit code" button on Git-connected Workers — that is expected.
 
-Check: `…workers.dev/health` returns `{"ok":true}`. The old `/studio` address answers `not_found` from now on; that is expected.
+`wrangler.toml` in this folder does the rest on every deploy: the D1 binding `DB` → `speakpower`, the public variables (including `GOOGLE_CLIENT_ID`) and the daily clean-up schedule. It keeps any plain-text variable you add in the dashboard (`keep_vars = true`) and never touches secrets.
+
+Check: `…workers.dev/health` returns `{"ok":true}`.
 
 ### 4. Google sign-in — client created
 
