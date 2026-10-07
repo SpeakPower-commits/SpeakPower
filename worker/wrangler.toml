@@ -1,7 +1,7 @@
 # SpeakPower Studio API — Worker configuration.
 #
-# Deployed by Cloudflare Workers Builds: the Worker `speakpower-studio-api`
-# is connected to this repository (Settings → Builds, root directory
+# Deployed by Cloudflare Workers Builds: the Worker `speakpower` is
+# connected to this repository (Settings → Builds, root directory
 # `worker`, deploy command `npx wrangler deploy`), so every push to the
 # connected branch deploys it. Nothing is pasted into the dashboard.
 #
@@ -14,7 +14,8 @@
 #   PAGESPEED_KEY     optional: adds Google Lighthouse scores to the SEO audit
 #   TURNSTILE_SECRET  only if email-code sign-in is switched on
 
-name = "speakpower-studio-api"
+# Must equal the Worker's name in the dashboard, or the build fails.
+name = "speakpower"
 main = "worker.js"
 compatibility_date = "2026-09-01"
 

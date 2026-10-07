@@ -59,15 +59,15 @@ To rebuild it from scratch: Dashboard → **Storage & Databases → D1 → Creat
 
 > The older `speakpower-studio` database (29 September) belongs to an earlier, Clerk-based attempt: no customers (0 users, 0 orders). Once the Worker below is bound to `speakpower`, nothing uses it; it can be deleted.
 
-### 3. The Worker — `speakpower-studio-api`, deployed from GitHub
+### 3. The Worker — `speakpower`, deployed from GitHub
 
-The Worker is built from this repository on every push, so there is nothing to paste. The site already points at `https://speakpower-studio-api.thomasotieno583.workers.dev` (`apiBase` in `site-config.js`).
+The Worker is built from this repository on every push, so there is nothing to paste. The site already points at `https://speakpower.thomasotieno583.workers.dev` (`apiBase` in `site-config.js`).
 
-**Create it** (the earlier, unused Worker of that name was deleted on 7 October): Dashboard → **Workers & Pages → Create application → Import a repository** → `SpeakPower-commits/SpeakPower`:
+**Created 7 October 2026** with **Import a repository**, which named it `speakpower` after the repository. The two earlier, unused Workers (`speakpower-studio-api` and the first `speakpower`, both from 29 September) are deleted. To create it again: Dashboard → **Workers & Pages → Create application → Import a repository** → `SpeakPower-commits/SpeakPower`:
 
 | Setting | Value |
 |---|---|
-| Project / Worker name | `speakpower-studio-api` — must equal `name` in `wrangler.toml`, and keeps the web address above |
+| Project / Worker name | `speakpower` — must equal `name` in `wrangler.toml`, or the build fails; it also sets the web address above |
 | Production branch | `claude/studio-griot-live` while testing on the preview; `main` once PR #9 is merged (`main` has no `worker` folder until then) |
 | Root directory / Path (Advanced) | `worker` |
 | Build command | leave empty |
