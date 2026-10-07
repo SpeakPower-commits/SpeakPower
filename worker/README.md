@@ -83,7 +83,7 @@ Check: `…workers.dev/health` returns `{"ok":true}`.
 
 ### 4. Google sign-in — client created
 
-**Done, 6 October 2026:** OAuth client `182240978118-lgaemhoen0o04o649rqtin1fd8j18dgm.apps.googleusercontent.com`. It is in `wrangler.toml` as `GOOGLE_CLIENT_ID` and goes into `site-config.js` as `googleClientId` once the Worker runs the new code.
+**Done, 6 October 2026:** OAuth client `182240978118-lgaemhoen0o04o649rqtin1fd8j18dgm.apps.googleusercontent.com`. It is in `wrangler.toml` as `GOOGLE_CLIENT_ID` and in `site-config.js` as `googleClientId` (switched on 7 October 2026, after the first successful Worker build).
 
 - The **client secret is not used** anywhere in this system — sign-in in the browser needs only the ID, and the Worker checks Google's signature with Google's public keys. Delete or disable the secret (Google Auth Platform → Clients → this client), and never put it in this repository or a Worker variable.
 - The client's **Authorised JavaScript origins** must include exactly `https://speakpower-commits.github.io` (no path, no trailing slash). Add your own domain there too when the site moves to it.
@@ -136,7 +136,7 @@ Check: `https://<your-worker>/health` returns `{"ok":true}`.
 
 ### 8. Connect the site
 
-`apiBase` is already set to your Worker. Send the Google Client ID; it goes into `site-config.js` as `googleClientId`, on the preview branch first. It is not secret. Until both are set, the site behaves as a brochure: no "Sign in" in the header, and the Studio, GRIOT and account pages say they are being connected.
+**Done, 7 October 2026:** `apiBase` points at the `speakpower` Worker and `googleClientId` is set, on the preview branch first. Neither is secret. If either is ever emptied, the site behaves as a brochure: no "Sign in" in the header, and the Studio, GRIOT and account pages say they are being connected.
 
 ### 9. Test on the preview, then go live
 
