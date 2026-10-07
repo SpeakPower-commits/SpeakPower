@@ -79,6 +79,8 @@ The Worker is built from this repository on every push, so there is nothing to p
 
 Check: `…workers.dev/health` returns `{"ok":true}`.
 
+**If pushes never start a build** — no "Workers Builds" check on the commit in GitHub, and the Worker's "last modified" time does not move — the Build settings are not the problem. Cloudflare only hears about a push through its GitHub App, **Cloudflare Workers and Pages**, and that app must have access to this repository. Every app with access leaves a check record on each commit, so its absence on a commit is the tell (`GET /repos/SpeakPower-commits/SpeakPower/commits/<sha>/check-suites` lists them). As of 7 October 2026 the records on every commit came only from GitHub Pages, GitHub Actions, Cursor and Claude, never from Cloudflare. To fix it: open [github.com/settings/installations](https://github.com/settings/installations) as `SpeakPower-commits` → **Cloudflare Workers and Pages** → **Configure** → **Repository access** → add `SpeakPower` → **Save**. If the app is not listed, install it from [github.com/apps/cloudflare-workers-and-pages](https://github.com/apps/cloudflare-workers-and-pages) on the `SpeakPower-commits` account. Then push any commit; a check from "Cloudflare Workers and Pages" should appear on it within a minute.
+
 ### 4. Google sign-in — client created
 
 **Done, 6 October 2026:** OAuth client `182240978118-lgaemhoen0o04o649rqtin1fd8j18dgm.apps.googleusercontent.com`. It is in `wrangler.toml` as `GOOGLE_CLIENT_ID` and goes into `site-config.js` as `googleClientId` once the Worker runs the new code.
