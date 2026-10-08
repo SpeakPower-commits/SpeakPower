@@ -13,6 +13,131 @@
 (function () {
   "use strict";
 
+  /* ------------------------------------------------------------------------
+     0. Platform: config and API client
+     Talks to the Cloudflare Worker named in site-config.js. With no Worker
+     configured, features that need it say so plainly instead of breaking.
+     Exposed as window.SP for griot-app.js.
+     ---------------------------------------------------------------------- */
+
+  var CONFIG = window.SP_CONFIG || {};
+  var API_BASE = String(CONFIG.apiBase || "").replace(/\/+$/, "");
+
+  // Storage can throw (private mode, blocked site data); never let it matter.
+  function storageGet(key) {
+    try { return window.localStorage.getItem(key); } catch (e) { return null; }
+  }
+  function storageSet(key, value) {
+    try {
+      if (value == null) window.localStorage.removeItem(key);
+      else window.localStorage.setItem(key, value);
+    } catch (e) { /* non-essential */ }
+  }
+
+  // A random id per browser, so the funnel can be read end to end without
+  // storing who anyone is.
+  var anonId = storageGet("sp_anon");
+  if (!anonId) {
+    anonId = (window.crypto && window.crypto.randomUUID)
+      ? window.crypto.randomUUID()
+      : Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
+    storageSet("sp_anon", anonId);
+  }
+
+  function api(path, options) {
+    options = options || {};
+    if (!API_BASE) {
+      var off = new Error("The SpeakPower service is not connected yet.");
+      off.code = "not_configured";
+      return Promise.reject(off);
+    }
+    var headers = {};
+    if (options.body) headers["Content-Type"] = "application/json";
+    if (options.token) headers.Authorization = "Bearer " + options.token;
+
+    return fetch(API_BASE + path, {
+      method: options.body ? "POST" : "GET",
+      headers: headers,
+      body: options.body ? JSON.stringify(options.body) : undefined
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (data) {
+        if (res.ok) return data;
+        var err = new Error(data.message || "The request could not be completed.");
+        err.status = res.status;
+        err.code = data.error;
+        err.data = data;
+        throw err;
+      });
+    }, function () {
+      var err = new Error("Could not reach SpeakPower. Check your connection and try again.");
+      err.code = "network";
+      throw err;
+    });
+  }
+
+  window.SP = {
+    api: api,
+    anonId: anonId,
+    connected: !!API_BASE,
+    config: CONFIG,
+    storageGet: storageGet,
+    storageSet: storageSet
+  };
+
+  // "Sign in", or "Account · UGX 45,000", in the header of every page — shown
+  // only when signing in can actually work. Drawn from the stored copy of the
+  // account, so a page view costs no request; account.js redraws it whenever
+  // the account changes, and other tabs follow through the storage event.
+  var SESSION_KEY = "sp_studio_session";
+
+  function renderAccountLink() {
+    var nav = document.getElementById("navLinks");
+    if (!nav) return;
+    var link = nav.querySelector(".nav-account");
+    if (!API_BASE || !(CONFIG.googleClientId || CONFIG.emailCodes)) {
+      if (link) link.parentNode.removeChild(link);
+      return;
+    }
+    if (!link) {
+      link = document.createElement("a");
+      link.className = "nav-account";
+      link.href = "account.html";
+      nav.insertBefore(link, nav.querySelector(".nav-cta"));
+    }
+    var acct = null;
+    try {
+      var s = JSON.parse(storageGet(SESSION_KEY) || "null");
+      if (s && s.token && !(s.expiresAt && s.expiresAt * 1000 < Date.now())) acct = s.account || null;
+    } catch (e) { acct = null; }
+    link.textContent = "";
+    if (!acct) {
+      link.textContent = "Sign in";
+      link.removeAttribute("title");
+    } else {
+      var free = Number(acct.trialsRemaining) || 0;
+      var balance = Number(acct.balance) || 0;
+      var label = document.createElement("span");
+      label.textContent = "Account";
+      // The balance part hides on mid-width screens, where the header has
+      // no room for it; it always shows on wide screens and in the phone menu.
+      var extra = document.createElement("span");
+      extra.className = "nav-account-extra";
+      extra.textContent = " · " + (balance > 0 || !free
+        ? "UGX " + balance.toLocaleString("en-US")
+        : free + " free " + (free === 1 ? "try" : "tries"));
+      link.appendChild(label);
+      link.appendChild(extra);
+      link.title = (acct.email || "") + extra.textContent;
+    }
+    if (/\/account\.html$/.test(window.location.pathname)) link.setAttribute("aria-current", "page");
+  }
+
+  window.SP.renderAccountLink = renderAccountLink;
+  renderAccountLink();
+  window.addEventListener("storage", function (event) {
+    if (event.key === SESSION_KEY || event.key === null) renderAccountLink();
+  });
+
   var CONTACT_EMAIL = "thomasotieno583@gmail.com";
 
   // Read once and share: both the slider and the scroll reveal branch on it.

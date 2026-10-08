@@ -1,0 +1,67 @@
+# SpeakPower Studio API — Worker configuration.
+#
+# Deployed by Cloudflare Workers Builds: the Worker `speakpower` is
+# connected to this repository (Settings → Builds, root directory
+# `worker`, deploy command `npx wrangler deploy`), so every push to the
+# connected branch deploys it. Nothing is pasted into the dashboard.
+#
+# Secrets are never written here. Add them in the dashboard: Settings →
+# Variables and Secrets, type "Secret". A deploy never touches secrets.
+#   SESSION_SECRET    32+ random characters; changing it signs everyone out
+#   GRIOT_API_KEY     the same value as GRIOT_API_KEY on the GRIOT deployment
+#   FLW_SECRET_KEY    Flutterwave → Settings → API keys → Secret key
+#   FLW_SECRET_HASH   Flutterwave → Settings → Webhooks → Secret hash
+#   PAGESPEED_KEY     optional: adds Google Lighthouse scores to the SEO audit
+#   TURNSTILE_SECRET  only if email-code sign-in is switched on
+
+# Must equal the Worker's name in the dashboard, or the build fails.
+name = "speakpower"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+
+# Keep plain-text variables added in the dashboard when a push deploys.
+# Without this, every deploy would delete any variable not listed below.
+keep_vars = true
+
+[vars]
+# Only public, non-empty values belong here: on deploy a value in this file
+# replaces the dashboard's, so an empty one would wipe what was typed there.
+ENVIRONMENT = "production"
+ALLOWED_ORIGINS = "https://speakpower-commits.github.io"
+FREE_TRIALS = "3"
+# Where the site lives; Flutterwave returns customers to a page on it.
+SITE_URL = "https://speakpower-commits.github.io/SpeakPower"
+# Where GRIOT OS is deployed. The Worker refuses to send it any client
+# message until its /health reports "tenancy": true.
+GRIOT_API_BASE = "https://claude-central-agent.vercel.app"
+# Suggested top-ups in whole shillings, shown on the pay wall and the account
+# page. Top-up itself switches on when FLW_SECRET_KEY and FLW_SECRET_HASH are
+# set. Prices per service are in worker.js (PRICES), not here.
+TOPUP_AMOUNTS = "50000,100000,250000"
+# Sign in with Google: the OAuth client's ID. Public — the same value goes in
+# site-config.js as googleClientId. The client SECRET is never used anywhere.
+GOOGLE_CLIENT_ID = "182240978118-lgaemhoen0o04o649rqtin1fd8j18dgm.apps.googleusercontent.com"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "speakpower"
+# Created 6 Oct 2026 with schema.sql loaded. An ID is not a secret.
+database_id = "431826e5-d366-4fb0-8aa2-fd73651ac700"
+
+# Email-code sign-in and lead alerts need Cloudflare Email Service, which
+# needs a domain onboarded to it; a send_email binding fails to deploy until
+# then. When that exists, add:
+#   [[send_email]]
+#   name = "SEND_EMAIL"
+# and set MAIL_FROM / LEAD_NOTIFY_TO above.
+
+[triggers]
+# Daily housekeeping: prunes old rate-limit rows and expired codes.
+crons = ["17 3 * * *"]
+
+# Workers Logs: keeps what the Worker writes with console.error (failed
+# GRIOT calls, payment errors, unhandled exceptions) for a few days, under
+# the Worker → Observability in the dashboard. Free-plan allowance is ample
+# here; nothing logged carries a secret, a token or a customer's message.
+[observability]
+enabled = true

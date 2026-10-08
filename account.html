@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Your account — SpeakPower</title>
+<meta name="description" content="Your SpeakPower account: free tries, balance, top-ups and everything you have used, across every Studio service and GRIOT.">
+<meta name="robots" content="noindex, follow">
+<meta name="theme-color" content="#16233f">
+<link rel="icon" type="image/png" href="assets/logo-mark.png?v=4" sizes="160x160">
+<link rel="shortcut icon" type="image/png" href="assets/logo-mark.png?v=4">
+<link rel="apple-touch-icon" href="assets/logo-mark.png?v=4">
+<link rel="manifest" href="site.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="commercial.css">
+<script>document.documentElement.classList.add("js");</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><div class="wrap">
+<a href="index.html" class="logo" aria-label="SpeakPower — home"><img class="logo-mark" src="assets/logo-mark.png" alt="" width="160" height="160"><span class="logo-text">Speak<span>Power</span></span></a>
+<nav class="nav-links" id="navLinks" aria-label="Primary">
+<a href="index.html">Home</a><a href="services.html">Services</a><a href="audit.html">Audit</a><a href="studio.html">Studio</a><a href="work.html">Work</a><a href="about.html">About</a><a href="https://speakpower1.blogspot.com" target="_blank" rel="noopener">Insights</a><a href="contact.html" class="nav-cta">Book a discovery call</a>
+</nav>
+<button class="nav-toggle" id="navToggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">&#9776;</button>
+</div></header>
+
+<main id="main">
+<div class="page-hero"><div class="wrap">
+<span class="eyebrow">SpeakPower account</span>
+<h1 id="acTitle">Your account.</h1>
+<p id="acLead">One account for every Studio service and GRIOT. Your first 3 tries are free, on any service. After that, top up one balance and each use takes its price.</p>
+</div></div>
+
+<section style="padding-top:0"><div class="wrap account-app">
+
+<!-- Shown only while the site has no Worker configured. -->
+<div class="studio-builder-panel" id="acOffline" hidden>
+<h2>Sign-up opens here shortly.</h2>
+<p id="acOfflineNext" hidden></p>
+<p>The account system is being switched on. Until then you can browse everything, and the free Audit works as it always has.</p>
+<div class="builder-actions"><a class="btn btn-primary" href="studio.html">See the Studio</a><a class="btn btn-ghost" href="audit.html">Run the free Audit</a></div>
+</div>
+
+<p class="griot-notice" id="acNotice" role="status" hidden></p>
+
+<div class="studio-builder-panel" id="acSignIn" hidden></div>
+
+<div id="acHome" hidden>
+<div class="account-summary">
+<div class="account-card">
+<span class="eyebrow">Balance</span>
+<p class="account-figure" id="acBalance">&mdash;</p>
+<p class="builder-note">Works on every service. It never expires.</p>
+</div>
+<div class="account-card">
+<span class="eyebrow">Free tries</span>
+<p class="account-figure" id="acTries">&mdash;</p>
+<p class="builder-note">Use them on any service, in any mix.</p>
+</div>
+<div class="account-card">
+<span class="eyebrow">Signed in as</span>
+<p class="account-who" id="acName"></p>
+<p class="builder-note account-email" id="acEmail"></p>
+<button class="btn btn-ghost account-signout" type="button" id="acSignout">Sign out</button>
+</div>
+</div>
+
+<div class="studio-builder-panel" id="acTopup"></div>
+
+<div class="studio-builder-panel">
+<h2>What each service costs</h2>
+<table class="account-table" id="acPrices">
+<thead><tr><th scope="col">Service</th><th scope="col">Price per use</th></tr></thead>
+<tbody></tbody>
+</table>
+<div class="builder-actions"><a class="btn btn-primary" href="studio.html">Go to the Studio</a><a class="btn btn-ghost" href="griot-app.html">Ask GRIOT</a></div>
+</div>
+
+<div class="studio-builder-panel">
+<h2>What you have used</h2>
+<p class="output-empty" id="acUsesEmpty">Nothing yet. Your first 3 tries are free.</p>
+<table class="account-table" id="acUses" hidden>
+<thead><tr><th scope="col">Service</th><th scope="col">Paid with</th><th scope="col">When</th></tr></thead>
+<tbody></tbody>
+</table>
+</div>
+
+<div class="studio-builder-panel">
+<h2>Top-ups</h2>
+<p class="output-empty" id="acPaymentsEmpty">No top-ups yet.</p>
+<table class="account-table" id="acPayments" hidden>
+<thead><tr><th scope="col">Amount</th><th scope="col">Status</th><th scope="col">When</th></tr></thead>
+<tbody></tbody>
+</table>
+</div>
+</div>
+
+</div></section>
+</main>
+
+<footer class="site-footer"><div class="wrap"><div class="footer-grid">
+<div><h4>SpeakPower</h4><p class="footer-tagline">Articulate is key.</p><p>Brand storytelling and market development, backed by SEO, writing, design, data, programming and public speaking. Kampala, Uganda.</p></div>
+<div><h4>Explore</h4><div class="footer-links"><a href="services.html">Services</a><a href="audit.html">Audit</a><a href="studio.html">Studio</a><a href="work.html">Work</a><a href="about.html">About</a></div></div>
+<div><h4>Contact</h4><div class="footer-links"><a href="tel:+256743482588">+256 743 482 588</a><a href="mailto:thomasotieno583@gmail.com">thomasotieno583@gmail.com</a><a href="https://wa.me/256743482588" target="_blank" rel="noopener">WhatsApp</a></div></div>
+<div><h4>Follow</h4><div class="footer-links"><a href="https://www.linkedin.com/in/otieno-thomas-a39b1b21b/" target="_blank" rel="noopener">LinkedIn</a><a href="https://www.instagram.com/otienothomas8/" target="_blank" rel="noopener">Instagram</a><a href="https://www.tiktok.com/@otom323" target="_blank" rel="noopener">TikTok</a></div></div>
+</div><div class="footer-bottom">&copy; 2026 SpeakPower. All rights reserved.</div></div></footer>
+<script src="site-config.js"></script>
+<script src="script.js"></script>
+<script src="account.js"></script>
+<script src="account-page.js"></script>
+</body>
+</html>

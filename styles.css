@@ -407,6 +407,27 @@ p:last-child { margin-bottom: 0; }
 .nav-links > a.nav-cta:hover { background: var(--navy-deep); color: #fff; }
 .nav-links > a.nav-cta::after { display: none; }
 
+/* The account link (added by script.js once sign-in is connected): quieter
+   than the CTA, but findable — it is where a balance and free tries live. */
+.nav-links > a.nav-account {
+  padding: .45rem .85rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: .86rem;
+}
+.nav-links > a.nav-account:hover { border-color: var(--navy); }
+.nav-links > a.nav-account::after { display: none; }
+/* Between the phone menu and a wide screen, nine links only fit tighter, and
+   the account link drops its balance (still on account.html and in its title). */
+@media (min-width: 881px) and (max-width: 1180px) {
+  .nav-links { gap: 1.2rem; }
+  .nav-account-extra { display: none; }
+}
+@media (min-width: 881px) and (max-width: 980px) {
+  .nav-links { gap: .95rem; }
+}
+
 .nav-toggle {
   display: none;
   width: 44px; height: 44px;
@@ -558,6 +579,9 @@ textarea { resize: vertical; min-height: 120px; }
 .slide {
   scroll-snap-align: center;
   min-width: 0;
+  /* Slides are <figure> elements, which browsers indent 40px each side by
+     default. Without this the picture sat 80px narrower than its slot. */
+  margin: 0;
 }
 .slide img {
   width: 100%;
@@ -746,6 +770,13 @@ textarea { resize: vertical; min-height: 120px; }
     border-bottom: 1px solid var(--line);
   }
   .nav-links > a::after { display: none; }
+  .nav-links > a.nav-account {
+    padding: .95rem 0;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    font-size: 1.04rem;
+  }
   .nav-links > a.nav-cta {
     margin-top: 1.1rem;
     padding: .9rem 1.2rem;

@@ -217,6 +217,7 @@
   font-family:var(--font-display);font-size:clamp(1.65rem,1.35rem + 1vw,2.15rem);
   font-weight:600;color:var(--navy-deep);margin:.6rem 0 1rem;
 }
+.studio-price-unit{font-family:var(--font-sans);font-size:.9rem;font-weight:500;color:var(--text-muted)}
 .studio-includes{
   margin:0 0 1rem;padding-left:1.1rem;color:var(--text-muted);
   display:grid;gap:.35rem;font-size:.9rem;
@@ -228,6 +229,7 @@
 }
 .studio-order{margin-top:auto}
 .studio-price-note{margin:1rem 0 0;color:var(--text-faint);font-size:.78rem}
+.studio-free-note{margin-top:1.5rem;padding:.85rem 1rem;border-left:3px solid var(--gold);border-radius:var(--radius);background:var(--paper-2);color:var(--text);font-size:.92rem;line-height:1.55}
 .studio-how{
   display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.75rem;margin-top:1.4rem;
 }
@@ -303,3 +305,87 @@
 .output-block div{white-space:normal;color:var(--text-muted);line-height:1.65}
 @media(max-width:860px){.studio-builder-grid{grid-template-columns:1fr}}
 @media(max-width:560px){.output-head{align-items:flex-start;flex-direction:column}.builder-actions .btn{width:100%}}
+
+/* --------------------------------------------------------------------------
+   GRIOT app — sign-up, conversation, top-up
+   Built from the same tokens as the Studio builder, so it inherits both
+   themes. The log flows with the page rather than scrolling inside a box:
+   on a phone, a nested scroll area is the thing people get stuck in.
+   ------------------------------------------------------------------------ */
+.griot-app{display:grid;gap:1.25rem;max-width:860px}
+.griot-app h2{margin-top:0}
+.griot-chat-head{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;
+  padding-bottom:1rem;border-bottom:1px solid var(--line)}
+.griot-chat-head .studio-builder-meta{margin:0}
+.griot-signout{padding:.45rem .9rem;font-size:.82rem}
+.griot-log{display:grid;gap:1rem;padding:1.25rem 0}
+.griot-msg{display:grid;gap:.35rem;padding:.9rem 1rem;border-radius:var(--radius);
+  border:1px solid var(--line);background:var(--paper)}
+.griot-msg--user{background:var(--bg-sunken);border-color:transparent;margin-left:clamp(0rem,6vw,4rem)}
+.griot-msg--griot{border-left:3px solid var(--gold)}
+.griot-msg--pending .griot-body{color:var(--text-faint);font-style:italic}
+.griot-who{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--text-muted)}
+.griot-body{line-height:1.65;color:var(--text);overflow-wrap:anywhere}
+.griot-meta{margin:.25rem 0 0;font-size:.76rem;color:var(--text-faint);line-height:1.5}
+/* GRIOT's evidence labels are its differentiator, so they read at a glance.
+   The text carries the meaning; colour only reinforces it. */
+.griot-label{font-family:var(--font-mono);font-size:.74rem;letter-spacing:.04em;
+  padding:.05rem .35rem;border-radius:4px;background:var(--bg-sunken);color:var(--ink)}
+.griot-label--fact{box-shadow:inset 3px 0 0 var(--navy)}
+.griot-label--inference{box-shadow:inset 3px 0 0 var(--gold)}
+.griot-label--hypothesis,.griot-label--unknown{box-shadow:inset 3px 0 0 var(--text-faint)}
+.griot-label--recommendation{box-shadow:inset 3px 0 0 var(--danger)}
+.griot-composer{border-top:1px solid var(--line);padding-top:1.25rem}
+.griot-topup{border-color:var(--gold)}
+.griot-topup[hidden],.griot-app [hidden]{display:none}
+@media(max-width:560px){
+  .griot-msg--user{margin-left:0}
+  .griot-chat-head{align-items:flex-start;flex-direction:column}
+}
+
+.studio-learn{display:inline-block;margin-top:.7rem;font-size:.85rem;font-weight:500}
+.griot-notice{margin:0 0 1rem;padding:.7rem .85rem;border-left:3px solid var(--gold);border-radius:var(--radius);
+  background:var(--bg-sunken);color:var(--text);font-size:.88rem;line-height:1.5}
+.griot-notice[hidden]{display:none}
+
+
+/* ==========================================================================
+   Accounts — sign-in, pay wall, account page (account.js, account-page.js)
+   ========================================================================== */
+.signin h2{margin-top:0}
+.signin-lead{margin-top:0}
+.signin-google{margin:1rem 0 .25rem;min-height:44px;max-width:400px}
+.signin-or{display:flex;align-items:center;gap:.75rem;margin:1.1rem 0 .9rem;color:var(--text-faint);font-size:.8rem}
+.signin-or::before,.signin-or::after{content:"";flex:1;height:1px;background:var(--line)}
+.signin-email,.signin-code{display:grid;gap:.9rem}
+.signin-email[hidden],.signin-code[hidden]{display:none}
+.signin-fine{margin-top:1.25rem}
+.topup-options[aria-busy="true"] .btn{opacity:.6;pointer-events:none}
+.topup-options[aria-busy="true"] .btn:focus{opacity:1}
+
+.account-app{display:grid;gap:1.25rem;padding-top:clamp(1.25rem,1rem + 1vw,2rem)}
+.account-app [hidden]{display:none}
+.account-app h2{margin-top:0}
+#acHome{display:grid;gap:1.25rem}
+.account-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem}
+.account-card{padding:clamp(1.1rem,1rem + .6vw,1.5rem);border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--bg-raised)}
+.account-card .builder-note{margin-top:.35rem}
+.account-figure{margin:.35rem 0 0;font-family:var(--font-display);font-size:clamp(1.6rem,1.3rem + 1vw,2.1rem);font-weight:600;color:var(--navy-deep);line-height:1.15}
+.account-who{margin:.35rem 0 0;font-weight:600;color:var(--ink);overflow-wrap:anywhere}
+.account-email{overflow-wrap:anywhere}
+.account-signout{margin-top:.75rem;padding:.45rem .9rem;font-size:.82rem}
+.account-table{width:100%;border-collapse:collapse;font-size:.9rem;margin-top:.5rem}
+.account-table th{text-align:left;font-family:var(--font-mono);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-faint);font-weight:500;padding:.5rem .5rem .5rem 0;border-bottom:1px solid var(--line)}
+.account-table td{padding:.65rem .5rem .65rem 0;border-bottom:1px solid var(--line);vertical-align:top;color:var(--text);overflow-wrap:anywhere}
+.account-table td:last-child,.account-table th:last-child{padding-right:0;text-align:right;white-space:nowrap}
+@media(max-width:720px){
+  .account-summary{grid-template-columns:1fr}
+  .account-table{font-size:.84rem}
+  .account-table td:last-child{white-space:normal}
+}
+.builder-gate{margin-top:1.25rem;padding:clamp(1.1rem,1rem + .6vw,1.5rem);border:1px solid var(--gold);border-radius:var(--radius-lg);background:var(--bg-raised)}
+.builder-gate[hidden],.output-paid[hidden],.builder-notice[hidden]{display:none}
+.builder-gate h2{margin-top:0;font-size:clamp(1.2rem,1.05rem + .5vw,1.45rem)}
+.builder-notice{margin:1rem 0 0}
+.output-paid{margin:.35rem 0 0;font-size:.82rem;color:var(--text-muted)}
