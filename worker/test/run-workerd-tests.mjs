@@ -1,6 +1,6 @@
 // SpeakPower Studio API — the same worker.js, run on Cloudflare's own runtime.
 //
-//   cd worker && npm install --no-save miniflare@4 && node test/run-workerd-tests.mjs
+//   cd worker && npm install && npm install --no-save miniflare@4 wrangler@4 && node test/run-workerd-tests.mjs
 //
 // run-tests.mjs covers the business rules quickly in plain Node, against a
 // stand-in database and without an HTML parser. This suite closes both gaps:
@@ -10,6 +10,7 @@
 // here touches the network.
 
 import { Miniflare, supportedCompatibilityDate } from "miniflare";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -110,6 +111,7 @@ async function googleToken(email) {
 }
 
 const flw = { transactions: {}, verifies: 0, delayMs: 0 };
+const coachCalls = [];
 const pageFetches = [];
 
 async function outbound(request) {
@@ -132,18 +134,51 @@ async function outbound(request) {
     pageFetches.push({ url, redirect: request.redirect });
     return PAGES[url]();
   }
+  // The Rehearsal Room's coach: the Anthropic SDK, bundled, calling out.
+  if (url.startsWith("https://api.anthropic.com/v1/messages")) {
+    const body = await request.json();
+    coachCalls.push({ key: request.headers.get("x-api-key"), beta: request.headers.get("anthropic-beta"), body });
+    const lenses = ["Politics", "Organizations", "Law", "Security", "Socioeconomics"].map((lens) => ({ lens, score: 4, note: "Clear." }));
+    return Response.json({
+      id: "msg_wd", type: "message", role: "assistant", model: body.model, stop_reason: "end_turn", stop_sequence: null,
+      content: [{ type: "text", text: JSON.stringify({ lenses, landed: "The figure.", lost: "The ask.",
+        fixes: ["Lead with the ask.", "Cut the history.", "End on the figure."], opening_line: "Forty schools.",
+        sixty_second_version: "Forty schools now teach after dark." }) }],
+      usage: { input_tokens: 900, output_tokens: 600 }
+    });
+  }
   return new Response("unexpected outbound fetch: " + url, { status: 599 });
 }
 
 /* -------------------------------------------------------------- harness */
 
 const ORIGIN = "https://speakpower-commits.github.io";
+// worker.js imports the Anthropic SDK, so it runs here exactly as Workers
+// Builds deploys it: bundled by wrangler first.
+const bundleDir = join(here, "..", ".wrangler", "test-bundle");
+execFileSync("npx", ["wrangler", "deploy", "--dry-run", "--outdir", bundleDir], { cwd: join(here, ".."), stdio: "pipe" });
+
+// A stand-in Workers AI binding with Whisper's output shape: 120 words over
+// 50 seconds, one long pause.
+const FAKE_AI = `export default function () {
+  return { async run(model, input) {
+    if (!input || typeof input.audio !== "string") throw new Error("no audio");
+    const words = []; let t = 0.4;
+    for (let i = 0; i < 120; i++) { if (i === 60) t += 3; words.push({ word: " " + (i === 5 ? "um" : "word"), start: t, end: t + 0.35 }); t += 0.4; }
+    return { text: words.map((w) => w.word).join("") + ".", segments: [{ start: words[0].start, end: words[119].end, words }] };
+  } };
+}`;
+
 const mf = new Miniflare({
+  workers: [{
+  name: "speakpower",
   modules: true,
-  scriptPath: join(here, "..", "worker.js"),
+  scriptPath: join(bundleDir, "worker.js"),
   compatibilityDate,
   d1Databases: { DB: "speakpower-test" },
+  wrappedBindings: { AI: "fake-ai" },
   bindings: {
+    ANTHROPIC_API_KEY: "sk-ant-workerd-test",
     SESSION_SECRET: "workerd-secret-0123456789abcdef-0123456789",
     GOOGLE_CLIENT_ID: CLIENT_ID,
     ALLOWED_ORIGINS: ORIGIN,
@@ -153,6 +188,12 @@ const mf = new Miniflare({
     FLW_SECRET_HASH: "flw-hash-secret"
   },
   outboundService: outbound
+  }, {
+    // A wrapped binding takes the compatibility date of the Worker using it.
+    name: "fake-ai",
+    modules: true,
+    script: FAKE_AI
+  }]
 });
 
 const db = await mf.getD1Database("DB");
@@ -357,6 +398,23 @@ await test("seo: this site's own pages, as committed, parse cleanly", async () =
     console.log("      " + (path || "index.html").padEnd(12) + section(r, "Summary") +
       "\n        fix: " + names(fix) + "\n        review: " + names(section(r, "Worth reviewing")));
   }
+});
+
+await test("rehearse: the bundled Worker transcribes, scores and coaches on workerd, with real D1", async () => {
+  const s = await signIn("rehearser@example.com");
+  const audio = Buffer.from("x".repeat(3000)).toString("base64");
+  const r = await call("POST", "/rehearse", { token: s.token, body: { moment: "donor-presentation", audio, seconds: 52 } });
+  eq(r.status, 200, "status " + JSON.stringify(r.data).slice(0, 200));
+  eq(r.data.kind, "speak", "coached");
+  eq(r.data.metrics.words, 120); eq(r.data.metrics.longPauses, 1); eq(r.data.metrics.fillers, 1);
+  eq(r.data.coaching.lenses.length, 5);
+  eq(coachCalls.length, 1, "one call through the Anthropic SDK");
+  eq(coachCalls[0].key, "sk-ant-workerd-test"); eq(coachCalls[0].body.model, "claude-opus-5-5");
+  eq(coachCalls[0].body.fallbacks, "default");
+  const row = await db.prepare("SELECT moment, kind, score FROM rehearsals").first();
+  eq(row.moment, "donor-presentation"); eq(row.score, r.data.score);
+  const h = await call("GET", "/rehearsals", { token: s.token });
+  eq(h.data.rehearsals.length, 1);
 });
 
 await mf.dispose();

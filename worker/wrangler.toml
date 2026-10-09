@@ -12,6 +12,8 @@
 #   FLW_SECRET_KEY    Flutterwave → Settings → API keys → Secret key
 #   FLW_SECRET_HASH   Flutterwave → Settings → Webhooks → Secret hash
 #   PAGESPEED_KEY     optional: adds Google Lighthouse scores to the SEO audit
+#   ANTHROPIC_API_KEY optional: written coaching in the Rehearsal Room; without
+#                     it a rehearsal is scores only, at half the price
 #   TURNSTILE_SECRET  only if email-code sign-in is switched on
 
 # Must equal the Worker's name in the dashboard, or the build fails.
@@ -41,6 +43,11 @@ TOPUP_AMOUNTS = "50000,100000,250000"
 # Sign in with Google: the OAuth client's ID. Public — the same value goes in
 # site-config.js as googleClientId. The client SECRET is never used anywhere.
 GOOGLE_CLIENT_ID = "182240978118-lgaemhoen0o04o649rqtin1fd8j18dgm.apps.googleusercontent.com"
+
+# Workers AI: speech-to-text for the Rehearsal Room (Whisper large-v3-turbo).
+# The free plan includes 10,000 neurons a day, about 214 minutes of audio.
+[ai]
+binding = "AI"
 
 [[d1_databases]]
 binding = "DB"

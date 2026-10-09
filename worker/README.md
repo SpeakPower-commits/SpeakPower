@@ -33,6 +33,7 @@ One balance in Uganda shillings, like airtime. One price list, in `worker.js`:
 | Data Story Builder | UGX 100,000 |
 | Speaker Ready Pack | UGX 75,000 |
 | GRIOT | UGX 2,500 per message |
+| Rehearsal Room | UGX 5,000 per rehearsal (UGX 2,500 when it is scores only) |
 
 **To change a price**, change it in all four places together: `PRICES` in `worker.js`, the card in `studio.html`, `studio-product.js` (or `PRICE` in `griot-app.js` and the wording on `griot-app.html` / `studio-griot.html` for GRIOT). The test suite fails if any of them disagree, so a price can never be shown at one number and charged at another.
 
@@ -127,6 +128,7 @@ Only the secrets go here — the public settings are already in `wrangler.toml` 
 | `FLW_SECRET_KEY` | **Secret** | From step 5 — when you switch on top-ups. |
 | `FLW_SECRET_HASH` | **Secret** | The secret hash you chose in step 5. |
 | `PAGESPEED_KEY` | **Secret** | Optional, from step 6. |
+| `ANTHROPIC_API_KEY` | **Secret** | Optional: written coaching in the Rehearsal Room. Create it at console.anthropic.com. |
 
 Already in `wrangler.toml`: `ENVIRONMENT`, `ALLOWED_ORIGINS`, `FREE_TRIALS`, `SITE_URL`, `GRIOT_API_BASE`, `TOPUP_AMOUNTS`. `GOOGLE_CLIENT_ID` is added there (it is public) once step 4 is done.
 
@@ -177,6 +179,15 @@ There is deliberately no result cache: a customer who fixes their site and pays 
 
 The Worker also supports sign-in by a 6-digit emailed code. It stays off (`emailCodes: false` in `site-config.js`) because Cloudflare only sends email to arbitrary addresses on the **Workers Paid plan**, from **a domain you own on Cloudflare DNS**. Once both exist: onboard the domain in **Email Service → Email Sending**, add the `SEND_EMAIL` binding, set `MAIL_FROM` and `TURNSTILE_SECRET`, create a Turnstile widget, and flip `emailCodes` to `true`.
 
+## The Rehearsal Room
+
+- **Speech to text** is Workers AI (`@cf/openai/whisper-large-v3-turbo`), through the `AI` binding in `wrangler.toml`: nothing to set up in the dashboard. It costs about $0.0005 an audio minute; the free 10,000 neurons a day cover roughly 214 minutes (about 70 three-minute rehearsals).
+- **Delivery is measured in the Worker**, exactly, from Whisper's word timings: pace, fillers a minute, long pauses (over 2.5 s) a minute, the longest sentence. The Speak Score is `100 × (0.25 pace + 0.20 fillers + 0.15 flow + 0.40 message)`.
+- **Written coaching** (the message part: POLSSE ratings, three fixes, an opening line, a 60-second version) comes from Claude (`claude-opus-5-5`) through the official Anthropic SDK, the Worker's one dependency (`package.json`; Workers Builds installs it). It needs the `ANTHROPIC_API_KEY` secret. Without it, or if the coach cannot answer, a rehearsal is **scores only at UGX 2,500** and the difference is refunded. About $0.03 a rehearsal.
+- **The audio is never stored**, nor the transcript: the browser sends it, Whisper reads it, and it is gone. D1 keeps the scores and the coaching (`rehearsals`) so customers see their progress; "Delete my rehearsals" removes them.
+- **CPU:** the browser sends the recording already in base64 (Opus at 32 kbps: three minutes is about 1 MB), so the Worker only parses it, about 1 ms on the free plan's 10 ms allowance.
+- **The `rehearsals` table** is in `schema.sql`; on an existing database run its `CREATE TABLE IF NOT EXISTS rehearsals …` block once in the D1 console.
+
 ## Known limitation
 
 If someone closes the tab while GRIOT is still answering, Cloudflare cancels the Worker's wait and the message is not refunded. GRIOT still finishes and keeps the exchange in that client's thread, so the next message carries on from it.
@@ -202,13 +213,13 @@ FROM payments WHERE status = 'paid' GROUP BY day ORDER BY day DESC;
 ## Testing
 
 ```
-node --experimental-sqlite worker/test/run-tests.mjs
+cd worker && npm install && cd .. && node --experimental-sqlite worker/test/run-tests.mjs
 ```
 
 The business rules, fast, in plain Node: the real `worker.js` against an in-memory D1, with Google, GRIOT, Flutterwave and audited sites faked at the network edge only. Google sign-in is tested with real RS256 signatures, so forged keys, `alg: none` and edited tokens are refused by actual cryptography rather than a stub. It also fails if any page quotes a different price from the Worker.
 
 ```
-cd worker && npm install --no-save miniflare@4 && node test/run-workerd-tests.mjs
+cd worker && npm install && npm install --no-save miniflare@4 wrangler@4 && node test/run-workerd-tests.mjs
 ```
 
-The same `worker.js` on **workerd**, the engine Cloudflare runs Workers on: real D1, the real HTML parser for the SEO audit, WebCrypto sign-in, and the exactly-once top-up under truly concurrent notifications. It also audits this site's own pages.
+The Worker bundled exactly as Workers Builds deploys it (`wrangler deploy --dry-run`), on **workerd**, the engine Cloudflare runs Workers on: real D1, the real HTML parser for the SEO audit, WebCrypto sign-in, and the exactly-once top-up under truly concurrent notifications. It also audits this site's own pages.
