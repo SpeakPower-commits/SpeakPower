@@ -92,6 +92,11 @@ async function route(request, env, ctx) {
     if (path === "/account") return accountSummary(request, env);
     if (path === "/rehearsals") return rehearsalHistory(request, env);
     if (path === "/plans") return json(request, env, { plans: publicPlans(), currency: CURRENCY, canBuy: paymentsEnabled(env) });
+    if (path === "/griot/workspace") return griotWorkspace(request, env);
+    if (path === "/griot/threads") return griotThreads(request, env);
+    if (path === "/griot/thread") return griotThread(request, env, url);
+    if (path === "/griot/memories") return griotMemories(request, env);
+    if (path === "/griot/decisions") return griotDecisions(request, env);
   }
 
   if (request.method === "POST") {
@@ -100,6 +105,8 @@ async function route(request, env, ctx) {
     if (path === "/auth/google") return authGoogle(request, env);
     if (path === "/studio/generate") return generate(request, env);
     if (path === "/griot/chat") return griotChat(request, env);
+    if (path === "/griot/memory") return griotAddMemory(request, env);
+    if (path === "/griot/memories/delete") return griotDeleteMemory(request, env);
     if (path === "/rehearse") return rehearse(request, env);
     if (path === "/rehearsals/delete") return deleteRehearsals(request, env);
     if (path === "/wallet/checkout") return walletCheckout(request, env);
@@ -1540,6 +1547,19 @@ async function griotChat(request, env) {
   // resolves to nothing there.
   const threadId = str(body.threadId, 64) || null;
 
+  // Lenses the person chose: up to three, each one GRIOT actually has.
+  // Checked here, before a use is spent.
+  let lenses = [];
+  if (Array.isArray(body.lenses) && body.lenses.length) {
+    const health = await griotHealth(env);
+    if (!health.workspace) throw new HttpError(400, "unknown_lens", "Choosing lenses is being switched on. Ask without them for now.");
+    const known = new Set((await griotLenses(env)).lenses.map((l) => l.key));
+    lenses = [...new Set(body.lenses.map((k) => (typeof k === "string" ? k : "")))].slice(0, 3);
+    if (body.lenses.length > 3 || !lenses.every((k) => known.has(k))) {
+      throw new HttpError(400, "unknown_lens", "Choose up to three of GRIOT's lenses.");
+    }
+  }
+
   // One question: the plan's allowance, otherwise a free try. GRIOT is never
   // priced per message.
   const reserved = await reserveRun(env, user, "griot");
@@ -1547,7 +1567,7 @@ async function griotChat(request, env) {
 
   let reply;
   try {
-    reply = await callGriot(env, user.id, message, threadId);
+    reply = await callGriot(env, user.id, message, threadId, lenses);
   } catch (err) {
     // A failed message never costs the customer: give back what was taken.
     await refundRun(env, user, reserved);
@@ -1572,7 +1592,7 @@ async function griotChat(request, env) {
   });
 }
 
-async function callGriot(env, tenantId, message, threadId) {
+async function callGriot(env, tenantId, message, threadId, lenses) {
   const base = String(env.GRIOT_API_BASE).replace(/\/+$/, "");
   const controller = new AbortController();
   // GRIOT runs a large model and may legitimately take a while; without a
@@ -1591,7 +1611,10 @@ async function callGriot(env, tenantId, message, threadId) {
       // `project` is deliberately omitted. GRIOT validates it against the
       // operator's own venture list, so a client must never be able to set it;
       // omitted, GRIOT files the exchange under the tenant's own "global".
-      body: JSON.stringify({ message: message, thread_id: threadId, mode: "think" }),
+      body: JSON.stringify(Object.assign(
+        { message: message, thread_id: threadId, mode: "think",
+          effort: GRIOT_CLIENT_EFFORT, max_output_tokens: GRIOT_CLIENT_MAX_TOKENS },
+        lenses && lenses.length ? { lenses } : {})),
       signal: controller.signal
     });
   } catch (err) {
@@ -1632,27 +1655,196 @@ async function callGriot(env, tenantId, message, threadId) {
 const griotTenancy = new Map();
 
 async function griotIsTenantAware(env) {
+  return (await griotHealth(env)).ok;
+}
+
+// The same /health call also says whether this GRIOT has the client
+// workspace (chosen lenses, threads, decisions, memory deletion).
+async function griotHealth(env) {
   const base = String(env.GRIOT_API_BASE).replace(/\/+$/, "");
   const now = Date.now();
   const cached = griotTenancy.get(base);
-  if (cached && now < cached.until) return cached.ok;
+  if (cached && now < cached.until) return cached;
 
   let ok = false;
+  let workspace = false;
   try {
     const res = await fetch(base + "/health?check_db=false");
     if (res.ok) {
       const body = await res.json();
       ok = Boolean(body && body.tenancy === true && body.tenant_header === "X-Tenant-Id");
+      workspace = ok && body.workspace === true;
     }
   } catch (e) { ok = false; }
   if (!ok) console.error("GRIOT at " + base + " does not report tenancy; refusing client traffic.");
-  griotTenancy.set(base, { ok, until: now + (ok ? 600000 : 30000) });
-  return ok;
+  const entry = { ok, workspace, until: now + (ok ? 600000 : 30000) };
+  griotTenancy.set(base, entry);
+  return entry;
 }
 
 function griotTimeoutMs(env) {
   const n = parseInt(env.GRIOT_TIMEOUT_MS || "120000", 10);
   return Number.isFinite(n) && n >= 5000 ? n : 120000;
+}
+
+/* --------------------------------------------------------------------------
+   The GRIOT workspace: lenses, the 9 steps, Memory, Conversations, Decisions
+
+   Every route here runs behind the session, sets X-Tenant-Id to the
+   account's own id (never anything the browser sends), keeps GRIOT's key
+   server-side, and charges nothing. GRIOT's /projects (the operator's own
+   ventures) is never reachable from here. A GRIOT without the workspace
+   says so on /health; until then these routes answer 503 and the page
+   keeps them hidden.
+   ------------------------------------------------------------------------ */
+
+// What a client's turn may cost: effort shortens reasoning; the token figure
+// is only a backstop (hitting it cuts an answer off, and GRIOT says so).
+const GRIOT_CLIENT_EFFORT = "medium";
+const GRIOT_CLIENT_MAX_TOKENS = 8000;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const griotCatalogue = new Map(); // GRIOT address -> { lenses, steps, until }
+
+async function griotWorkspaceUser(request, env, needWorkspace = true) {
+  if (!env.GRIOT_API_BASE || !env.GRIOT_API_KEY) {
+    throw new HttpError(503, "griot_unconfigured", "GRIOT is not connected on this deployment yet.");
+  }
+  const user = await authenticate(request, env);
+  if (!(await rateLimit(env, "griot-ws:" + user.id, 300, 3600))) {
+    throw new HttpError(429, "rate_limited", "That is a lot of requests for one hour. Please wait a little.");
+  }
+  const health = await griotHealth(env);
+  if (!health.ok || (needWorkspace && !health.workspace)) {
+    throw new HttpError(503, "griot_workspace_not_ready", "This part of GRIOT is being switched on. Please try again shortly.");
+  }
+  return { user, health };
+}
+
+// One call to GRIOT for one account. Upstream wording never reaches the
+// customer; a 404 stays a 404 (another account's id looks exactly like a
+// missing one).
+async function griotJson(env, tenantId, method, path, body) {
+  const base = String(env.GRIOT_API_BASE).replace(/\/+$/, "");
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20000);
+  let res;
+  try {
+    res = await fetch(base + path, {
+      method,
+      headers: Object.assign({ "X-API-Key": env.GRIOT_API_KEY, "X-Tenant-Id": tenantId },
+        body ? { "Content-Type": "application/json" } : {}),
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal
+    });
+  } catch (e) {
+    throw new HttpError(504, "griot_timeout", "GRIOT took too long to answer.");
+  } finally {
+    clearTimeout(timer);
+  }
+  if (res.status === 404) throw new HttpError(404, "not_found", "That could not be found.");
+  if (!res.ok) {
+    console.error("GRIOT workspace call failed", method, path.split("?")[0], res.status);
+    throw new HttpError(502, "griot_upstream", "GRIOT could not load that right now.");
+  }
+  try { return await res.json(); } catch (e) {
+    throw new HttpError(502, "griot_malformed", "GRIOT returned something unreadable.");
+  }
+}
+
+// The 9 specialists and the 9 steps: the same for every client, so cached
+// per GRIOT address for an hour.
+async function griotLenses(env) {
+  const base = String(env.GRIOT_API_BASE).replace(/\/+$/, "");
+  const cached = griotCatalogue.get(base);
+  if (cached && Date.now() < cached.until) return cached;
+  const [agents, protocol] = await Promise.all([
+    griotJson(env, "catalogue", "GET", "/agents"),
+    griotJson(env, "catalogue", "GET", "/protocol")
+  ]);
+  const lenses = Object.keys(agents || {}).filter((k) => /^[a-z]{2,20}$/.test(k)).map((key) => ({
+    key, name: String(agents[key]).replace(/Agent$/, "").slice(0, 40)
+  }));
+  const steps = Array.isArray(protocol && protocol.steps) ? protocol.steps.map((x) => String(x).slice(0, 40)).slice(0, 12) : [];
+  const entry = { lenses, steps, until: Date.now() + 3600000 };
+  griotCatalogue.set(base, entry);
+  return entry;
+}
+
+async function griotWorkspace(request, env) {
+  const { health } = await griotWorkspaceUser(request, env, false);
+  if (!health.workspace) return json(request, env, { ready: false, lenses: [], steps: [] });
+  const c = await griotLenses(env);
+  return json(request, env, { ready: true, lenses: c.lenses, steps: c.steps });
+}
+
+async function griotThreads(request, env) {
+  const { user } = await griotWorkspaceUser(request, env);
+  const rows = await griotJson(env, user.id, "GET", "/threads?limit=30");
+  return json(request, env, {
+    threads: (Array.isArray(rows) ? rows : []).map((t) => ({
+      id: str(t.thread_id, 64), firstQuestion: str(t.first_question, 200),
+      lastAt: str(t.last_at, 40), messages: num(t.messages) || 0
+    }))
+  });
+}
+
+async function griotThread(request, env, url) {
+  const { user } = await griotWorkspaceUser(request, env);
+  const id = str(url.searchParams.get("id"), 64);
+  if (!UUID_RE.test(id)) throw new HttpError(400, "bad_request", "That conversation could not be found.");
+  const t = await griotJson(env, user.id, "GET", "/threads/" + id);
+  return json(request, env, {
+    id,
+    messages: (Array.isArray(t && t.messages) ? t.messages : [])
+      .filter((m) => m && (m.role === "user" || m.role === "assistant"))
+      .map((m) => ({ role: m.role, content: str(m.content, 40000), at: str(m.created_at, 40) }))
+  });
+}
+
+function publicMemory(m) {
+  return {
+    id: str(m.id, 64), kind: str(m.kind, 40), title: str(m.title, 200), content: str(m.content, 2000),
+    confidence: str(m.confidence, 20), at: str(m.created_at, 40)
+  };
+}
+
+async function griotMemories(request, env) {
+  const { user } = await griotWorkspaceUser(request, env);
+  const rows = await griotJson(env, user.id, "GET", "/memories");
+  return json(request, env, { memories: (Array.isArray(rows) ? rows : []).map(publicMemory) });
+}
+
+async function griotAddMemory(request, env) {
+  const { user } = await griotWorkspaceUser(request, env);
+  const body = await readJson(request, 8192);
+  const title = str(body.title, 200);
+  const content = str(body.content, 2000);
+  if (!title || !content) throw new HttpError(400, "memory_required", "Give the fact a short title and the detail.");
+  // Something the client tells GRIOT about themselves is a fact, filed in
+  // their own 'global' memory; the project list is never theirs to choose.
+  const row = await griotJson(env, user.id, "POST", "/memory",
+    { project: "global", kind: "fact", title, content, confidence: "fact" });
+  return json(request, env, { memory: publicMemory(row || {}) });
+}
+
+async function griotDeleteMemory(request, env) {
+  const { user } = await griotWorkspaceUser(request, env);
+  const body = await readJson(request, 1024);
+  const id = str(body.id, 64);
+  if (!UUID_RE.test(id)) throw new HttpError(400, "bad_request", "That memory could not be found.");
+  await griotJson(env, user.id, "DELETE", "/memories/" + id);
+  return json(request, env, { deleted: id });
+}
+
+async function griotDecisions(request, env) {
+  const { user } = await griotWorkspaceUser(request, env);
+  const rows = await griotJson(env, user.id, "GET", "/decisions?limit=30");
+  return json(request, env, {
+    decisions: (Array.isArray(rows) ? rows : []).map((d) => ({
+      id: str(d.id, 64), threadId: str(d.thread_id, 64), question: str(d.request, 500),
+      recommendation: str(d.recommendation, 600), at: str(d.created_at, 40)
+    }))
+  });
 }
 
 /* --------------------------------------------------------------------------

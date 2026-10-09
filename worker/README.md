@@ -190,6 +190,15 @@ There is deliberately no result cache: a customer who fixes their site and pays 
 
 The Worker also supports sign-in by a 6-digit emailed code. It stays off (`emailCodes: false` in `site-config.js`) because Cloudflare only sends email to arbitrary addresses on the **Workers Paid plan**, from **a domain you own on Cloudflare DNS**. Once both exist: onboard the domain in **Email Service → Email Sending**, add the `SEND_EMAIL` binding, set `MAIL_FROM` and `TURNSTILE_SECRET`, create a Turnstile widget, and flip `emailCodes` to `true`.
 
+## The GRIOT workspace
+
+- **What clients see** on `griot-app.html`: up to three chosen **lenses** (GRIOT's specialists), GRIOT's **nine steps** lighting up while it works, and the **Conversations**, **Memory** and **Decisions** tabs.
+- **Routes:** `GET /griot/workspace`, `/griot/threads`, `/griot/thread?id=`, `/griot/memories`, `/griot/decisions`; `POST /griot/memory`, `/griot/memories/delete`.
+  - Every route runs behind the session, sets `X-Tenant-Id` to the account's own id, and charges nothing.
+  - GRIOT's `/projects` (your own ventures) is never reachable.
+- **Bounded turns:** every client question goes to GRIOT with `effort: "medium"` and an 8,000-token backstop (`GRIOT_CLIENT_EFFORT`, `GRIOT_CLIENT_MAX_TOKENS`). Effort shortens reasoning; the backstop only stops a runaway answer, and GRIOT says when one was cut short.
+- **Switching on:** this needs claude-central-agent PR #24 deployed, which reports `"workspace": true` on `/health`. Until then, the tabs and lens picker stay hidden and plain questions work as before.
+
 ## The Rehearsal Room
 
 - **Speech to text** is Workers AI (`@cf/openai/whisper-large-v3-turbo`), through the `AI` binding in `wrangler.toml`: nothing to set up in the dashboard. It costs about $0.0005 an audio minute; the free 10,000 neurons a day cover roughly 214 minutes (about 70 three-minute rehearsals).
