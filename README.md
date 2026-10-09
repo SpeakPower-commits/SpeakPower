@@ -12,7 +12,7 @@
 </p>
 
 **SpeakPower helps leaders in Kampala and across East Africa pitch, present and persuade.**
-It pairs a human practice (communication strategy, public speaking, brand narrative) with tools people can use on their own phone, any time: **GRIOT**, *the storyteller who remembers you*, a strategy advisor that keeps your goals between conversations; Studio builders that turn a few answers into a usable first draft; and, next, an AI rehearsal coach.
+It pairs a human practice (communication strategy, public speaking, brand narrative) with tools people can use on their own phone, any time: **GRIOT**, *the storyteller who remembers you*, a strategy advisor that keeps your goals between conversations; Studio builders that turn a few answers into a usable first draft; and the **Rehearsal Room**, an AI speaking coach that scores you out loud.
 
 > **Live preview:** [speakpower-commits.github.io/SpeakPower](https://speakpower-commits.github.io/SpeakPower/) · **Founder:** Otieno Thomas · *Articulate is key.*
 
@@ -24,7 +24,7 @@ It pairs a human practice (communication strategy, public speaking, brand narrat
 
 | Product | What it does | Price | Status |
 |---|---|---|---|
-| **Rehearsal Room** | Speak for up to three minutes; get pace, fillers, pauses, a Speak Score and a stronger opening line | UGX 5,000 a rehearsal | Release 2 |
+| **Rehearsal Room** | Speak for up to three minutes; get pace, fillers, pauses, a Speak Score and a stronger opening line | UGX 5,000 a rehearsal | Live on the preview |
 | **GRIOT** | A strategy advisor that remembers your goals and labels fact from inference | UGX 2,500 a message (monthly bundles in release 6) | Live; workspace in build |
 | **Studio builders** | Brand Story, Website SEO Audit, Market Plan, SEO Content Starter, Data Story, Speaker Ready Pack | UGX 75,000 to 125,000 | Live |
 | **Coaching with Otieno** | Human-led preparation for the rooms that cannot go wrong | On enquiry | Live |
@@ -44,13 +44,14 @@ flowchart LR
   W -->|server to server,<br/>one tenant per customer| R[GRIOT OS<br/>FastAPI on Vercel]
   R --> N[(Neon Postgres<br/>memories, decisions)]
   R --> C[Claude]
-  W -.->|speech to text,<br/>release 2| A[Workers AI<br/>Whisper]
+  W -->|speech to text| A[Workers AI<br/>Whisper]
+  W -->|written coaching| C
   classDef sp fill:#16233f,stroke:#c9a227,stroke-width:2px,color:#faf7f0
   classDef ext fill:#faf7f0,stroke:#c9a227,color:#121a2b
   classDef planned fill:#faf7f0,stroke:#9c7a12,stroke-dasharray:5 4,color:#121a2b
   class P,W,R sp
   class V,D,G,F,N,C ext
-  class A planned
+  class A ext
 ```
 
 - **The website is static.** Plain HTML, CSS and JavaScript on GitHub Pages: no build step, no framework, fast on mobile data.
@@ -87,6 +88,7 @@ sequenceDiagram
 .
 ├── index.html · services.html · work.html · about.html · contact.html   marketing pages
 ├── studio.html · studio-product.html/.js                                Studio catalogue and builders
+├── rehearse.html · rehearse.js · rehearse.css                          the Rehearsal Room
 ├── studio-griot.html · griot-app.html/.js                               GRIOT page and chat
 ├── account.html · account.js · account-page.js                          sign-up, balance, top-ups
 ├── audit.html · audit.js                                                free Clarity Audit (runs in the browser)
@@ -113,7 +115,7 @@ sequenceDiagram
   | `GRIOT_API_KEY` | the Worker's server-to-server key for GRIOT |
   | `FLW_SECRET_KEY` · `FLW_SECRET_HASH` | Flutterwave checkout and webhook checks |
   | `PAGESPEED_KEY` | optional: Lighthouse scores in the SEO audit |
-  | `ANTHROPIC_API_KEY` | release 2: written feedback in the Rehearsal Room |
+  | `ANTHROPIC_API_KEY` | optional: written coaching in the Rehearsal Room (without it, scores only at half price) |
 
 ## Deploying
 
@@ -163,8 +165,8 @@ GRIOT is named after West Africa's griot (*jeli*): the keeper of memory, adviser
 
 | Release | What ships | Status |
 |---|---|---|
-| 1 | Midnight & Gold on every page, new Home and Studio, this README | on the preview |
-| 2 | Rehearsal Room with the live Speak Score | planned |
+| 1 | Midnight & Gold on every page, new Home and Studio, this README | shipped |
+| 2 | Rehearsal Room with the live Speak Score | on the preview |
 | 3 | Sign-up profile (who you are, your challenge); GRIOT briefed from day one | planned |
 | 4 | GRIOT workspace: lenses, memory, conversations, decisions | planned |
 | 5 | Documents for GRIOT, cited by page | planned |

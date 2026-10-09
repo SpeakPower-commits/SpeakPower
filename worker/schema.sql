@@ -104,3 +104,24 @@ CREATE TABLE IF NOT EXISTS payments (
   paid_at      INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_payments_user ON payments (user_id, created_at);
+
+-- The Rehearsal Room: one row per scored recording. The audio itself is never
+-- stored, nor is the transcript; only what the customer needs to see their
+-- progress. "Delete my rehearsals" removes every row for the account.
+CREATE TABLE IF NOT EXISTS rehearsals (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id       TEXT NOT NULL,
+  run_id        INTEGER,
+  moment        TEXT NOT NULL,
+  seconds       INTEGER NOT NULL,
+  words         INTEGER NOT NULL,
+  wpm           INTEGER NOT NULL,
+  fillers_pm    REAL NOT NULL,
+  pauses_pm     REAL NOT NULL,
+  score         INTEGER NOT NULL,
+  -- 'speak' with written coaching, 'delivery' for scores only.
+  kind          TEXT NOT NULL,
+  feedback_json TEXT,
+  created_at    INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_rehearsals_user ON rehearsals (user_id, id);

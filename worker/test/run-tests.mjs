@@ -64,6 +64,23 @@ const flw = { checkouts: [], transactions: {}, verifies: 0 };
 // Every request that reaches the fake GRIOT, so tests can assert exactly what
 // crossed the boundary: which tenant, which key, and that no project leaked.
 const griotCalls = [];
+// Every request that reaches the stand-in coach, and what Whisper was asked.
+const coachCalls = [];
+const whisperCalls = [];
+const COACHING = {
+  lenses: [
+    { lens: "Politics", score: 4, note: "You name the board's priority." },
+    { lens: "Organizations", score: 3, note: "Two messages compete." },
+    { lens: "Law", score: 5, note: "Claims are modest and sourced." },
+    { lens: "Security", score: 4, note: "Holds up if quoted." },
+    { lens: "Socioeconomics", score: 4, note: "Fits a cost-conscious room." }
+  ],
+  landed: "The 40 schools figure.",
+  lost: "The ask arrived last.",
+  fixes: ["Lead with the ask.", "Cut the history.", "End on the 40 schools."],
+  opening_line: "Forty schools now teach after dark, and we can reach a hundred more.",
+  sixty_second_version: "Forty schools now teach after dark..."
+};
 let griotOldChats = 0;
 let griotHealthChecks = 0;
 const realFetch = globalThis.fetch;
@@ -154,6 +171,23 @@ globalThis.fetch = async (input, init) => {
       }
     }));
   }
+  // A stand-in Claude Messages API for the Rehearsal Room's coach.
+  if (url === "https://api.anthropic.com/v1/messages" || url.startsWith("https://api.anthropic.com/v1/messages?")) {
+    const headers = new Headers(init.headers);
+    const body = JSON.parse(init.body);
+    coachCalls.push({ key: headers.get("x-api-key"), beta: headers.get("anthropic-beta"), body });
+    if (net.coach === "fail") return new Response(JSON.stringify({ type: "error", error: { type: "api_error", message: "boom" } }), { status: 500, headers: { "content-type": "application/json" } });
+    const reply = (stop, text) => new Response(JSON.stringify({
+      id: "msg_test", type: "message", role: "assistant", model: body.model, stop_reason: stop, stop_sequence: null,
+      stop_details: stop === "refusal" ? { type: "refusal", category: "cyber", explanation: "" } : null,
+      content: [{ type: "text", text }], usage: { input_tokens: 900, output_tokens: 700 }
+    }), { headers: { "content-type": "application/json" } });
+    if (net.coach === "refusal") return reply("refusal", "");
+    if (net.coach === "cutoff") return reply("max_tokens", "{\"lenses\": [");
+    if (net.coach === "garbled") return reply("end_turn", "not json at all");
+    if (net.coach === "incomplete") return reply("end_turn", JSON.stringify(Object.assign({}, COACHING, { lenses: COACHING.lenses.slice(0, 3) })));
+    return reply("end_turn", JSON.stringify(COACHING));
+  }
   // The sites customers ask to have audited.
   const page = PAGES[url.replace(/\/$/, "")];
   if (page !== undefined) {
@@ -191,8 +225,44 @@ const env = {
   MAIL_FROM: "studio@example.com",
   LEAD_NOTIFY_TO: "owner@example.com",
   FREE_TRIALS: "3",
-  ENVIRONMENT: "production"
+  ENVIRONMENT: "production",
+  ANTHROPIC_API_KEY: "sk-ant-test-key",
+  // A stand-in Workers AI: Whisper's output shape, with word timings.
+  AI: {
+    async run(model, input) {
+      whisperCalls.push({ model, input });
+      if (net.whisper === "fail") throw new Error("AiError: could not decode audio");
+      if (net.whisper === "silent") return { text: " ", segments: [] };
+      if (net.whisper === "nowords") return heardWithoutWordTimes();
+      return HEARD;
+    }
+  }
 };
+
+// 150 words at 0.4 s each, with one 3-second pause after word 75: 63 s of
+// speech. Two "um"s and one "you know" are in the text.
+const HEARD = (() => {
+  const words = [];
+  let t = 0.5;
+  for (let i = 0; i < 150; i++) {
+    if (i === 75) t += 3;
+    const w = i === 10 || i === 40 ? "um" : i === 100 ? "you" : i === 101 ? "know" : "word";
+    words.push({ word: " " + w, start: t, end: t + 0.35 });
+    t += 0.4;
+  }
+  const sentences = [];
+  for (let i = 0; i < 150; i += 25) sentences.push(words.slice(i, i + 25).map((w) => w.word.trim()).join(" ") + ".");
+  return {
+    text: sentences.join(" "),
+    word_count: 150,
+    segments: [{ start: words[0].start, end: words[74].end, text: "", words: words.slice(0, 75) },
+               { start: words[75].start, end: words[149].end, text: "", words: words.slice(75) }]
+  };
+})();
+function heardWithoutWordTimes() {
+  return { text: HEARD.text, segments: HEARD.segments.map((s) => ({ start: s.start, end: s.end, text: s.text })) };
+}
+const AUDIO = "QUJD".repeat(1000); // 4,000 base64 characters of stand-in audio
 
 let ipCounter = 0;
 async function call(method, path, { body, token, origin = ORIGIN, ip, raw } = {}) {
@@ -860,7 +930,7 @@ await test("prices: the Worker charges exactly what studio.html shows, for every
   eq(r.status, 200);
   PRICES = r.data.prices;
   const keys = Object.keys(PRICES).sort().join(",");
-  eq(keys, "brand-story,content-seo,data-story,griot,market-plan,seo-audit,speaker-ready", "every service priced");
+  eq(keys, "brand-story,content-seo,data-story,griot,market-plan,rehearsal,seo-audit,speaker-ready", "every service priced");
   for (const [key, amount] of Object.entries(PRICES)) {
     ok(Number.isInteger(amount) && amount > 0, key + " has a whole-shilling price");
     ok(cardPrice(key).startsWith(ugx(amount)),
@@ -876,7 +946,7 @@ await test("prices: the builder page, the GRIOT app and the GRIOT pages quote th
   const site = (f) => readFileSync(join(here, "..", "..", f), "utf8");
   const builder = site("studio-product.js");
   for (const [key, amount] of Object.entries(PRICES)) {
-    if (key === "griot") continue;
+    if (key === "griot" || key === "rehearsal") continue;
     const m = builder.match(new RegExp('"' + key + '": \\{\\s*title: "[^"]+",\\s*price: (\\d+)'));
     ok(m, "studio-product.js prices " + key);
     eq(Number(m[1]), amount, "studio-product.js price for " + key);
@@ -887,6 +957,10 @@ await test("prices: the builder page, the GRIOT app and the GRIOT pages quote th
     ok(quoted.length > 0, page + " states the price");
     ok(quoted.every((n) => n === PRICES.griot), page + " quotes " + quoted.join(", "));
   }
+  // The Rehearsal Room states its price, and the scores-only half price.
+  const rq = [...site("rehearse.html").matchAll(/UGX ([\d,]+)/g)].map((m) => Number(m[1].replace(/,/g, "")));
+  ok(rq.includes(PRICES.rehearsal), "rehearse.html states UGX " + PRICES.rehearsal);
+  ok(rq.every((n) => n === PRICES.rehearsal || n === PRICES.rehearsal / 2), "rehearse.html quotes " + rq.join(", "));
 });
 
 // Valid inputs for every service, so each one can be run for real.
@@ -905,9 +979,13 @@ const INPUTS = {
   "speaker-ready": SPEAKER
 };
 async function use(token, service, inputs) {
+  if (service === "rehearsal") return rehearse(token);
   return service === "griot"
     ? chat(token, "a paid question")
     : call("POST", "/studio/generate", { token, body: { product: service, inputs: inputs || INPUTS[service] } });
+}
+function rehearse(token, over) {
+  return call("POST", "/rehearse", { token, body: Object.assign({ moment: "investor-pitch", audio: AUDIO, seconds: 64 }, over) });
 }
 
 await test("prices: each paid use deducts exactly that service's price — no more, no less", async () => {
@@ -1370,6 +1448,199 @@ await test("account: balance, prices, every use and every top-up — and nobody 
     "failed checkouts hidden; pending and paid shown");
   ok(!JSON.stringify(r.data).includes("market-plan trial"), "another account's use never appears");
   ok(!JSON.stringify(r.data).includes("tx_ref") && !JSON.stringify(r.data).includes("sp-"), "no payment references exposed");
+});
+
+/* ------------------------------------------------ the Rehearsal Room */
+
+function rehearsalRows(email) {
+  return db.q("SELECT moment, score, kind, wpm, fillers_pm, pauses_pm, words, seconds, feedback_json FROM rehearsals WHERE user_id = ? ORDER BY id", userId(email));
+}
+function runsOf(email) {
+  return db.q("SELECT product, paid_with, amount, status FROM runs WHERE user_id = ? ORDER BY id", userId(email));
+}
+
+await test("rehearse: measures pace, fillers and pauses exactly from Whisper's word timings", async () => {
+  const s = await signUp("r-metrics@example.com");
+  whisperCalls.length = 0;
+  const r = await rehearse(s.token);
+  eq(r.status, 200, "status");
+  const m = r.data.metrics;
+  eq(m.words, 150, "words"); eq(m.seconds, 63, "speaking time from first to last word");
+  eq(m.wpm, 143, "pace"); eq(m.fillers, 3, "two ums and one 'you know'"); eq(m.fillersPerMin, 2.9, "fillers a minute");
+  eq(m.longPauses, 1, "one pause over 2.5 s"); eq(m.pausesPerMin, 1, "pauses a minute"); eq(m.longestSentence, 25);
+  eq(whisperCalls[0].model, "@cf/openai/whisper-large-v3-turbo", "Whisper large-v3-turbo");
+  eq(whisperCalls[0].input.audio, AUDIO, "the browser's base64 is passed through untouched");
+  eq(whisperCalls[0].input.language, "en");
+  ok(/um/i.test(whisperCalls[0].input.initial_prompt), "a filler-rich prompt keeps fillers in");
+  ok(!("vad_filter" in whisperCalls[0].input), "silence is kept, so pauses can be measured");
+});
+
+await test("rehearse: segment gaps stand in when Whisper gives no word timings", async () => {
+  const s = await signUp("r-segments@example.com");
+  net.whisper = "nowords";
+  const r = await rehearse(s.token);
+  net.whisper = "ok";
+  eq(r.status, 200);
+  eq(r.data.metrics.wpm, 143); eq(r.data.metrics.longPauses, 1);
+});
+
+await test("rehearse: the Speak Score follows the formula, with Claude's POLSSE ratings as the message part", async () => {
+  const s = await signUp("r-score@example.com");
+  coachCalls.length = 0;
+  const r = await rehearse(s.token);
+  eq(r.status, 200);
+  const sp = 1 - Math.abs(143 - 145) / 60, sf = 1 - 2.9 / 8, sfl = 1 - 1 / 4, sm = 20 / 25;
+  eq(r.data.score, Math.round(100 * (0.25 * sp + 0.20 * sf + 0.15 * sfl + 0.40 * sm)), "S");
+  eq(r.data.kind, "speak");
+  eq(r.data.coaching.lenses.map((l) => l.lens + ":" + l.score).join(","),
+    "Politics:4,Organizations:3,Law:5,Security:4,Socioeconomics:4");
+  eq(r.data.coaching.fixes.length, 3); ok(r.data.coaching.openingLine.startsWith("Forty schools"));
+  ok(r.data.transcript.length > 100, "transcript returned to the customer");
+  const req = coachCalls[0];
+  eq(req.key, "sk-ant-test-key", "key sent server-side");
+  eq(req.body.model, "claude-opus-5-5");
+  eq(req.body.fallbacks, "default", "refusals fall back server-side");
+  ok(/server-side-fallback-2026-07-01/.test(req.beta), "fallback beta header");
+  eq(req.body.output_config.effort, "medium");
+  eq(req.body.output_config.format.type, "json_schema");
+  ok(/<transcript>[\s\S]*word[\s\S]*<\/transcript>/.test(req.body.messages[0].content), "transcript fenced as data");
+  ok(/143 words a minute/.test(req.body.messages[0].content), "measurements included");
+  eq(req.body.system[0].cache_control.type, "ephemeral", "stable rubric marked for caching");
+  ok(!JSON.stringify(r.data).includes("sk-ant"), "key never reaches the customer");
+});
+
+await test("rehearse: costs UGX 5,000 from the balance after the free tries; the audio is never stored", async () => {
+  const s = await signUp("r-paid@example.com");
+  db.db.prepare("UPDATE users SET trials_remaining = 0, balance = 12000 WHERE email_canonical = ?").run("r-paid@example.com");
+  const r = await rehearse(s.token);
+  eq(r.status, 200); eq(r.data.paidWith, "balance"); eq(r.data.amount, 5000);
+  eq(r.data.account.balance, 7000); eq(userRow("r-paid@example.com").balance, 7000);
+  const row = rehearsalRows("r-paid@example.com")[0];
+  ok(!JSON.stringify(row).includes(AUDIO.slice(0, 40)), "no audio in D1");
+  ok(!JSON.stringify(row).includes("word word word"), "no transcript in D1");
+  eq(row.kind, "speak"); eq(row.score, r.data.score);
+});
+
+await test("rehearse: without an Anthropic key it is scores only, at UGX 2,500, and Claude is never called", async () => {
+  const s = await signUp("r-nokey@example.com");
+  db.db.prepare("UPDATE users SET trials_remaining = 0, balance = 5000 WHERE email_canonical = ?").run("r-nokey@example.com");
+  const saved = env.ANTHROPIC_API_KEY; delete env.ANTHROPIC_API_KEY;
+  coachCalls.length = 0;
+  const r = await rehearse(s.token);
+  env.ANTHROPIC_API_KEY = saved;
+  eq(r.status, 200); eq(r.data.amount, 2500); eq(r.data.kind, "delivery"); eq(r.data.coaching, null);
+  eq(coachCalls.length, 0, "no call to Claude");
+  const sp = 1 - Math.abs(143 - 145) / 60, sf = 1 - 2.9 / 8, sfl = 1 - 1 / 4;
+  eq(r.data.score, Math.round(100 * (0.25 * sp + 0.20 * sf + 0.15 * sfl) / 0.60), "delivery score scaled to 100");
+  eq(userRow("r-nokey@example.com").balance, 2500);
+});
+
+for (const mode of ["refusal", "cutoff", "garbled", "incomplete", "fail"]) {
+  await test("rehearse: coaching " + mode + " still delivers the scores and refunds the difference", async () => {
+    const email = "r-coach-" + mode + "@example.com";
+    const s = await signUp(email);
+    db.db.prepare("UPDATE users SET trials_remaining = 0, balance = 5000 WHERE email_canonical = ?").run(email);
+    net.coach = mode;
+    const r = await rehearse(s.token);
+    net.coach = "ok";
+    eq(r.status, 200, "scores delivered"); eq(r.data.kind, "delivery"); eq(r.data.coaching, null);
+    eq(r.data.amount, 2500, "charged the scores-only price"); eq(r.data.account.balance, 2500);
+    eq(userRow(email).balance, 2500, "UGX 2,500 back on the balance");
+    eq(JSON.stringify(runsOf(email)), JSON.stringify([{ product: "rehearsal", paid_with: "balance", amount: 2500, status: "ok" }]));
+  });
+}
+
+await test("rehearse: a recording Whisper cannot read is refunded in full and nothing is kept", async () => {
+  const s = await signUp("r-unreadable@example.com");
+  db.db.prepare("UPDATE users SET trials_remaining = 0, balance = 5000 WHERE email_canonical = ?").run("r-unreadable@example.com");
+  net.whisper = "fail";
+  const r = await rehearse(s.token);
+  net.whisper = "silent";
+  const quiet = await rehearse(s.token);
+  net.whisper = "ok";
+  eq(r.status, 422); eq(r.data.error, "audio_unreadable"); ok(/not charged/.test(r.data.message));
+  eq(quiet.status, 422); eq(quiet.data.error, "too_little_speech");
+  eq(userRow("r-unreadable@example.com").balance, 5000, "balance untouched");
+  eq(rehearsalRows("r-unreadable@example.com").length, 0);
+  ok(runsOf("r-unreadable@example.com").every((x) => x.status === "refunded"), "both runs refunded");
+});
+
+await test("rehearse: a free try that fails is given back", async () => {
+  const s = await signUp("r-freefail@example.com");
+  net.whisper = "fail";
+  await rehearse(s.token);
+  net.whisper = "ok";
+  eq(userRow("r-freefail@example.com").trials_remaining, 3);
+});
+
+await test("rehearse: bad requests are refused before anything is spent", async () => {
+  const s = await signUp("r-bad@example.com");
+  whisperCalls.length = 0;
+  const cases = [
+    [{ moment: "rap-battle" }, "unknown_moment"],
+    [{ audio: "short" }, "bad_audio"],
+    [{ audio: AUDIO + "A" }, "bad_audio"],
+    [{ audio: "!!!!" + AUDIO.slice(4) }, "bad_audio"],
+    [{ seconds: 1 }, "too_short"],
+    [{ seconds: 240 }, "too_long"]
+  ];
+  for (const [over, code] of cases) {
+    const r = await rehearse(s.token, over);
+    eq(r.status, 400, code); eq(r.data.error, code);
+  }
+  const anon = await call("POST", "/rehearse", { body: { moment: "investor-pitch", audio: AUDIO, seconds: 30 } });
+  eq(anon.status, 401, "an account is needed");
+  eq(whisperCalls.length, 0, "Whisper never called"); eq(userRow("r-bad@example.com").trials_remaining, 3);
+});
+
+await test("rehearse: with no Workers AI binding it says so, and charges nothing", async () => {
+  const s = await signUp("r-noai@example.com");
+  const ai = env.AI; delete env.AI;
+  const r = await rehearse(s.token);
+  env.AI = ai;
+  eq(r.status, 503); eq(r.data.error, "rehearsal_unconfigured");
+  eq(userRow("r-noai@example.com").trials_remaining, 3);
+});
+
+await test("rehearse: after the free tries with no balance, the pay wall names the price and the shortfall", async () => {
+  const s = await signUp("r-wall@example.com");
+  db.db.prepare("UPDATE users SET trials_remaining = 0, balance = 1000 WHERE email_canonical = ?").run("r-wall@example.com");
+  const r = await rehearse(s.token);
+  eq(r.status, 402); eq(r.data.service, "rehearsal"); eq(r.data.price, 5000); eq(r.data.shortfall, 4000);
+  const saved = env.ANTHROPIC_API_KEY; delete env.ANTHROPIC_API_KEY;
+  const lite = await rehearse(s.token);
+  env.ANTHROPIC_API_KEY = saved;
+  eq(lite.data.price, 2500, "scores-only price when there is no coach");
+});
+
+await test("rehearse: progress, history and deletion stay within one account", async () => {
+  const a = await signUp("r-hist-a@example.com");
+  const b = await signUp("r-hist-b@example.com");
+  const first = await rehearse(a.token);
+  eq(first.data.previousScore, null);
+  const second = await rehearse(a.token);
+  eq(second.data.previousScore, first.data.score, "the last score for the same moment");
+  await rehearse(a.token, { moment: "intro-60" });
+  await rehearse(b.token);
+  const h = await call("GET", "/rehearsals", { token: a.token });
+  eq(h.status, 200); eq(h.data.rehearsals.length, 3, "only A's three");
+  eq(h.data.rehearsals[0].moment, "intro-60", "newest first");
+  eq(h.data.rehearsals[0].momentTitle, "60-second introduction");
+  const del = await call("POST", "/rehearsals/delete", { token: a.token, body: {} });
+  eq(del.status, 200); eq(del.data.deleted, 3);
+  eq((await call("GET", "/rehearsals", { token: a.token })).data.rehearsals.length, 0);
+  eq((await call("GET", "/rehearsals", { token: b.token })).data.rehearsals.length, 1, "B's rehearsal untouched");
+  eq((await call("GET", "/rehearsals")).status, 401);
+});
+
+await test("rehearse: Flutterwave can send a customer back to the Rehearsal Room", async () => {
+  const s = await signUp("r-return@example.com");
+  env.FLW_SECRET_KEY = "FLWSECK_TEST-x"; env.FLW_SECRET_HASH = "hash";
+  net.flwCheckout = "ok";
+  flw.checkouts.length = 0;
+  const r = await call("POST", "/wallet/checkout", { token: s.token, body: { amount: 50000, returnTo: "rehearse.html" } });
+  eq(r.status, 200);
+  ok(/rehearse\.html/.test(flw.checkouts[0].body.redirect_url), "redirects to rehearse.html");
 });
 
 console.log("\n" + passed + " passed, " + failures.length + " failed\n");

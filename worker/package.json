@@ -1,0 +1,9 @@
+{
+  "name": "speakpower-worker",
+  "private": true,
+  "description": "SpeakPower's Cloudflare Worker. Workers Builds installs these dependencies before `npx wrangler deploy`.",
+  "type": "module",
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.132.1"
+  }
+}

@@ -23,7 +23,17 @@ POLSSE is a SpeakPower strategic lens for testing whether communication is ready
 4. **Security** — protecting the message, data and reputation after communication leaves the room.
 5. **Socioeconomics** — connecting communication to social impact, economic opportunity and the wider purpose of the work.
 
-## Free diagnostic\n\n- **Pitch & Document Clarity Audit** — https://speakpower-commits.github.io/SpeakPower/audit.html\n  A browser-only diagnostic for pasted or locally selected pitch/proposal documents. It measures readability, sentence rhythm, passive voice, hedging, jargon and evidence density; the source document is not uploaded or stored.\n\n## Selected work
+## Rehearsal Room
+
+- **Rehearsal Room** — https://speakpower-commits.github.io/SpeakPower/rehearse.html
+  Practise a pitch, presentation, interview answer, 60-second introduction or toast out loud, for up to three minutes. It returns a Speak Score out of 100: pace, fillers and long pauses measured from the recording (60%), and the message judged through the POLSSE lenses (40%), with three fixes, a stronger opening line and a 60-second version. The audio is never stored. First 3 tries free; then UGX 5,000 a rehearsal.
+
+## Free diagnostic
+
+- **Pitch & Document Clarity Audit** — https://speakpower-commits.github.io/SpeakPower/audit.html
+  A browser-only diagnostic for pasted or locally selected pitch/proposal documents. It measures readability, sentence rhythm, passive voice, hedging, jargon and evidence density; the source document is not uploaded or stored.
+
+## Selected work
 
 - **Tonninyira** — a browser-first commerce system designed around product discovery, customer ordering, digital payments and operational workflows.
 - **CuePointe** — a pool tournament and league concept designed around players, events, matches, talent records and community visibility.
