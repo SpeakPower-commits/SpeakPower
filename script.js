@@ -426,6 +426,35 @@
   }
 
   /* ------------------------------------------------------------------------
+     STUDIO FILTER — show the tools for one problem. The chips ship hidden
+     and appear only here, so without JavaScript every card simply shows.
+     ------------------------------------------------------------------------ */
+  (function studioFilter() {
+    var group = document.getElementById("studioFilter");
+    if (!group) return;
+    var cards = document.querySelectorAll(".studio-product[data-problem]");
+    var count = document.getElementById("studioFilterCount");
+    var chips = group.querySelectorAll("[data-filter]");
+    function apply(filter) {
+      var shown = 0;
+      Array.prototype.forEach.call(cards, function (card) {
+        var tags = (card.getAttribute("data-problem") || "").split(" ");
+        var on = filter === "all" || tags.indexOf("all") !== -1 || tags.indexOf(filter) !== -1;
+        card.hidden = !on;
+        if (on) shown += 1;
+      });
+      Array.prototype.forEach.call(chips, function (chip) {
+        chip.setAttribute("aria-pressed", String(chip.getAttribute("data-filter") === filter));
+      });
+      if (count) count.textContent = filter === "all" ? "" : "Showing " + shown + " of " + cards.length + " tools.";
+    }
+    Array.prototype.forEach.call(chips, function (chip) {
+      chip.addEventListener("click", function () { apply(chip.getAttribute("data-filter")); });
+    });
+    group.hidden = false;
+  })();
+
+  /* ------------------------------------------------------------------------
      6. Sliders
      Progressive enhancement over a scroll-snap track: without this the track
      is still swipeable and keyboard-scrollable, so nothing is trapped. The

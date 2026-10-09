@@ -46,27 +46,26 @@
 <main id="main">
 <div class="page-hero"><div class="wrap">
 <span class="eyebrow">SpeakPower Studio · Buy a defined outcome</span>
-<h1>Products the software can deliver without a meeting.</h1>
-<p>Choose a practical problem, answer a guided set of questions and generate a useful first deliverable. No confidential proposal upload. No meeting required.</p>
+<h1>Know the problem? <em>Pick the tool.</em></h1>
+<p>Answer a guided set of questions and get a finished first draft you can use today. No meeting, no confidential upload. Your first 3 tries are free, on any tool.</p>
+<div class="studio-filter" id="studioFilter" role="group" aria-label="Show tools for a problem" hidden>
+<button type="button" class="chip" data-filter="all" aria-pressed="true">All tools</button>
+<button type="button" class="chip" data-filter="pitch" aria-pressed="false">I need to pitch</button>
+<button type="button" class="chip" data-filter="customers" aria-pressed="false">I need customers</button>
+<button type="button" class="chip" data-filter="found" aria-pressed="false">I need to be found online</button>
+<button type="button" class="chip" data-filter="data" aria-pressed="false">I need to present data or speak</button>
+</div>
+<p class="studio-filter-count" id="studioFilterCount" aria-live="polite"></p>
 </div></div>
 
-<section><div class="wrap">
-<div class="studio-intro" data-reveal>
-<div>
-<span class="eyebrow">How to choose</span>
-<h2>Know the problem? Pick the product.</h2>
-<p>The Audit is for diagnosing public or non-sensitive communication. Studio products are guided builders: the customer supplies answers, the software creates the first deliverable.</p>
-</div>
-<a href="audit.html" class="btn btn-ghost">Run the free Audit</a>
-</div>
-</div></section>
 
 <section style="padding-top:0"><div class="wrap">
 <div class="product-catalog" data-reveal>
 
-<article class="studio-product" id="product-brand-story">
+<article class="studio-product" id="product-brand-story" data-problem="pitch">
 <span class="studio-status">Brand · UGX 100,000</span>
 <h2>Brand Story Builder</h2>
+<div class="sp-prev" aria-hidden="true"><i class="t"></i><i></i><i></i><i class="g"></i><i class="s"></i></div>
 <p class="studio-best"><strong>For:</strong> founders and organisations that struggle to explain who they are, why they matter and what makes them different.</p>
 <div class="studio-price">UGX 100,000</div>
 <ul class="studio-includes"><li>Core brand story</li><li>Positioning statement + tagline options</li><li>30-second and 2-minute brand pitch</li><li>Key messaging pillars</li></ul>
@@ -75,9 +74,10 @@
 <a href="studio-product.html?product=brand-story" class="btn btn-primary studio-order">Build my Brand Story</a>
 </article>
 
-<article class="studio-product" id="product-seo-audit">
+<article class="studio-product" id="product-seo-audit" data-problem="found">
 <span class="studio-status">SEO · UGX 75,000</span>
 <h2>Website SEO & Visibility Audit</h2>
+<div class="sp-prev" aria-hidden="true"><b class="ring" style="--v:72"></b><i class="t"></i><i></i><i class="g"></i></div>
 <p class="studio-best"><strong>For:</strong> businesses and organisations that want to know how their website performs on search fundamentals before paying for a larger SEO engagement.</p>
 <div class="studio-price">UGX 75,000</div>
 <ul class="studio-includes"><li>Indexability, title and description checks</li><li>Headings, structured data and sharing preview</li><li>Mobile readiness and content depth</li><li>Prioritised fix list, with Google Lighthouse scores where available</li></ul>
@@ -86,9 +86,10 @@
 <a href="studio-product.html?product=seo-audit" class="btn btn-primary studio-order">Audit my Website</a>
 </article>
 
-<article class="studio-product" id="product-market-plan">
+<article class="studio-product" id="product-market-plan" data-problem="customers">
 <span class="studio-status">Market · UGX 125,000</span>
 <h2>Market Development Planner</h2>
+<div class="sp-prev" aria-hidden="true"><i class="t"></i><span class="bars"><u style="--h:40%"></u><u style="--h:65%"></u><u style="--h:90%"></u><u style="--h:55%"></u></span><i class="s"></i></div>
 <p class="studio-best"><strong>For:</strong> a founder or organisation that has an offer but needs a clearer route from audience → visibility → engagement → growth.</p>
 <div class="studio-price">UGX 125,000</div>
 <ul class="studio-includes"><li>Audience definition</li><li>Market problem and value proposition</li><li>Channel and visibility plan</li><li>30/60/90-day action roadmap</li></ul>
@@ -97,9 +98,10 @@
 <a href="studio-product.html?product=market-plan" class="btn btn-primary studio-order">Build my Market Plan</a>
 </article>
 
-<article class="studio-product" id="product-content-seo">
+<article class="studio-product" id="product-content-seo" data-problem="found customers">
 <span class="studio-status">Content · UGX 75,000</span>
 <h2>SEO Content Starter</h2>
+<div class="sp-prev" aria-hidden="true"><i class="t"></i><i class="li"></i><i class="li"></i><i class="li g"></i></div>
 <p class="studio-best"><strong>For:</strong> businesses that know what they sell but need a practical content system that supports discoverability.</p>
 <div class="studio-price">UGX 75,000</div>
 <ul class="studio-includes"><li>Keyword-theme starter list</li><li>10 content opportunities</li><li>5 starter article/social angles</li><li>CTA and publishing rhythm</li></ul>
@@ -108,9 +110,10 @@
 <a href="studio-product.html?product=content-seo" class="btn btn-primary studio-order">Build my Content Plan</a>
 </article>
 
-<article class="studio-product" id="product-data-story">
+<article class="studio-product" id="product-data-story" data-problem="data">
 <span class="studio-status">Data · UGX 100,000</span>
 <h2>Data Story Builder</h2>
+<div class="sp-prev" aria-hidden="true"><span class="bars"><u style="--h:30%"></u><u style="--h:55%"></u><u style="--h:45%"></u><u style="--h:85%" class="hi"></u><u style="--h:60%"></u></span><i class="t"></i><i class="s"></i></div>
 <p class="studio-best"><strong>For:</strong> teams, researchers and businesses that have a CSV dataset but need the first layer of insight without hiring a data analyst for the basic work.</p>
 <div class="studio-price">UGX 100,000</div>
 <ul class="studio-includes"><li>Dataset profile + missingness check</li><li>Numeric summaries and category patterns</li><li>Top observations and anomalies</li><li>Plain-language data story</li></ul>
@@ -119,9 +122,10 @@
 <a href="studio-product.html?product=data-story" class="btn btn-primary studio-order">Analyse my CSV</a>
 </article>
 
-<article class="studio-product studio-product--feature" id="product-speaker-ready">
+<article class="studio-product studio-product--feature" id="product-speaker-ready" data-problem="data pitch">
 <span class="studio-status">Speaking · UGX 75,000</span>
 <h2>Speaker Ready Pack</h2>
+<div class="sp-prev" aria-hidden="true"><i class="t"></i><i class="li"></i><i class="li g"></i><i class="li"></i></div>
 <p class="studio-best"><strong>For:</strong> professionals who have a speaking opportunity and need a strong structure without hiring a coach for the whole process.</p>
 <div class="studio-price">UGX 75,000</div>
 <ul class="studio-includes"><li>Talk title + opening hook</li><li>Audience-focused 3-part structure</li><li>Transitions + closing</li><li>Likely Q&A preparation</li></ul>
@@ -130,9 +134,11 @@
 <a href="studio-product.html?product=speaker-ready" class="btn btn-primary studio-order">Build my Speaker Pack</a>
 </article>
 
-<article class="studio-product studio-product--feature" id="product-griot">
+<article class="studio-product studio-product--griot dark glow grain" id="product-griot" data-problem="all">
+<img class="griot-tile-mark" src="assets/brand/griot/griot-mark-a.svg" width="512" height="512" alt="GRIOT's mark: a portrait in a gold ring of bogolan marks" loading="lazy">
 <span class="studio-status">Agent &middot; UGX 2,500 per message</span>
 <h2>GRIOT</h2>
+<p class="griot-tile-line">The storyteller who remembers you.</p>
 <p class="studio-best"><strong>For:</strong> founders and directors making strategic calls without an analyst beside them.</p>
 <div class="studio-price">UGX 2,500 <span class="studio-price-unit">per message</span></div>
 <ul class="studio-includes"><li>Remembers your business between conversations</li><li>Labels every claim fact, inference or hypothesis</li><li>Routes each question to specialist analysis</li><li>Keeps a durable decision log</li></ul>
@@ -148,7 +154,7 @@
 </div></section>
 
 <section><div class="wrap">
-<div class="positioning-band" data-reveal>
+<div class="positioning-band dark" data-reveal>
 <span class="eyebrow">Customer journey</span>
 <h2>Answer → generate → download.</h2>
 <p class="section-intro">The software does the repetitive production. Customers complete a guided brief, generate their pack and download the result. Human consulting remains outside Studio.</p>
