@@ -266,6 +266,11 @@ p:last-child { margin-bottom: 0; }
   color: var(--gold-text);
   margin-bottom: 1.1rem;
 }
+.eyebrow a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+/* Θ (theta, Socioeconomics in POLSΘ) as a drawn letter where it stands alone
+   in a lens badge: Fraunces has no Greek, and a fallback font's Θ looks heavier
+   and smaller than the Latin letters beside it. Sized to Fraunces' capitals. */
+.theta-glyph { display: block; width: .64em; height: .8em; fill: currentColor; }
 .eyebrow::before {
   content: "";
   width: 1.6rem;
@@ -453,7 +458,7 @@ p:last-child { margin-bottom: 0; }
 }
 @media (min-width: 881px) and (max-width: 980px) {
   .site-header .wrap { gap: 1rem; }
-  .nav-links { gap: .8rem; }
+  .nav-links { gap: .7rem; }
   .nav-links > a { font-size: .86rem; }
   .nav-links > a.nav-cta { padding: .55rem .85rem; }
   .nav-links > a.nav-account { padding: .4rem .7rem; }
