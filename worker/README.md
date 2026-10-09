@@ -2,15 +2,15 @@
 
 One Worker runs every paid service on the site, with nobody in the loop:
 
-**sign in with Google → 3 free tries, on any service → top up one balance by card or mobile money → each use takes its price → balance credited automatically.**
+**sign in with Google → 3 free tries, on any service → a 30-day plan for GRIOT and the Rehearsal Room, or a one-off Studio pack → paid by card or mobile money → settled automatically.**
 
-Visitors can browse everything without an account. An account is needed to *use* a service: the six Studio builders and GRIOT.
+Visitors can browse everything without an account. An account is needed to *use* a service: the Rehearsal Room, GRIOT and the six Studio packs. The Clarity Audit stays free and runs in the browser.
 
 Everything here is set up in a browser. No local tools needed.
 
 ```
 Browser (GitHub Pages)  ──session token──▶  this Worker  ──X-API-Key + X-Tenant-Id──▶  GRIOT (Vercel)
-                                              │  D1: accounts, free tries, balance,
+                                              │  D1: accounts, free tries, plans, balance,
                                               │      every use, every payment
                                               ├──▶ Flutterwave (checkout + verification)
                                               └──▶ the site being audited (SEO audit)
@@ -20,11 +20,24 @@ The browser never sees GRIOT's address or key, never chooses its own tenant, and
 
 ---
 
-## Prices
+## Plans and prices
 
-One balance in Uganda shillings, like airtime. One price list, in `worker.js`:
+**GRIOT and the Rehearsal Room are never priced per use.** After the 3 free tries they come with a plan (`PLANS` in `worker.js`), 30 days each:
 
-| Service | Price per use |
+| Plan | Price | Fair use in 30 days (shown only in plan details) |
+|---|---|---|
+| Starter | UGX 60,000 | 120 GRIOT questions, 20 rehearsals |
+| Pro | UGX 150,000 | 300 GRIOT questions, 60 rehearsals, 1 Studio pack, 15% off other packs |
+
+- **Spending order,** each step one atomic `UPDATE`: the plan's allowance → a free try → (Studio packs only) the balance.
+- **Pages show a share of the month, never a count.** The Worker sends percentages; 100% only when nothing is left.
+- **Renewing the same plan early** adds 30 days after the current end, so no day is lost. **Switching plan** starts the new one at once and ends the old one that day.
+- **Each period keeps the limits it was bought with**, so changing `PLANS` never alters what someone already paid for.
+- **Mobile money cannot auto-debit,** so nothing renews on its own. Pages show "renew" from three days before the end.
+
+Studio packs keep a one-off price, paid from a balance in Uganda shillings (`PRICES` in `worker.js`):
+
+| Studio pack | Price |
 |---|---|
 | Brand Story Builder | UGX 100,000 |
 | Website SEO & Visibility Audit | UGX 75,000 |
@@ -32,10 +45,8 @@ One balance in Uganda shillings, like airtime. One price list, in `worker.js`:
 | SEO Content Starter | UGX 75,000 |
 | Data Story Builder | UGX 100,000 |
 | Speaker Ready Pack | UGX 75,000 |
-| GRIOT | UGX 2,500 per message |
-| Rehearsal Room | UGX 5,000 per rehearsal (UGX 2,500 when it is scores only) |
 
-**To change a price**, change it in all four places together: `PRICES` in `worker.js`, the card in `studio.html`, `studio-product.js` (or `PRICE` in `griot-app.js` and the wording on `griot-app.html` / `studio-griot.html` for GRIOT). The test suite fails if any of them disagree, so a price can never be shown at one number and charged at another.
+**To change a price**, change it everywhere it appears: `PLANS` or `PRICES` in `worker.js`, the cards in `plans.html` and `studio.html`, and `studio-product.js` for packs. The test suite fails if any of them disagree, and if any page quotes a per-message or per-rehearsal price.
 
 Suggested top-ups (`TOPUP_AMOUNTS`, default `50000,100000,250000`) are only suggestions: the pay wall always leads with *exactly what this use needs*. Any whole amount from UGX 1,000 to UGX 5,000,000 is accepted.
 
@@ -50,7 +61,7 @@ The order matters in exactly one place: **GRIOT must have tenancy before the Wor
 1. **claude-central-agent PR #22 is merged.** Open `https://<your-griot>.vercel.app/health`: it must show `"tenancy": true`. If it does not, the production deployment has not picked up the merge yet.
 2. Note your `GRIOT_API_KEY` from Vercel's environment variables — the Worker needs the same value.
 
-**Cost control (recommended):** on Vercel, set `GRIOT_MAX_OUTPUT_TOKENS`. At the default 16,000 the worst-case cost of one message is about $0.46 on `claude-opus-5` — about two-thirds of the UGX 2,500 (roughly $0.68) it is sold for, before Flutterwave's fee. A typical message costs about $0.11. At 4,000 the worst case drops to about $0.16. Check answer quality on a few real questions before deciding.
+**Cost control:** a typical GRIOT answer costs about $0.09 on `claude-opus-5-5`; at 16,000 output tokens the worst case is about $0.37. Plans are sized so the full fair use stays inside the price (Starter: 120 × $0.09 ≈ UGX 40,000 of UGX 60,000), which holds only if one answer cannot run long. Release 4 has the Worker ask GRIOT for at most 4,000 tokens for clients (about $0.13 worst case); your own GRIOT use is unaffected.
 
 ### 2. Database (Cloudflare D1) — done
 
@@ -144,12 +155,12 @@ Check: `https://<your-worker>/health` returns `{"ok":true}`.
 
 With your own Google account:
 
-1. Header → **Sign in** → you land on your account: **3 of 3 free tries, UGX 0**.
-2. Use one free try each on the Brand Story Builder, the SEO audit and GRIOT. The header counts down.
-3. Open the Market Development Planner and press Generate: the pay wall says it costs UGX 125,000, your balance is UGX 0, and offers **Top up UGX 125,000 — exactly what this needs**.
-4. Pay with a Flutterwave **test** card or test mobile money. You come back to the same page, answers still filled in, with "Payment received — UGX 125,000 added".
-5. Generate: the plan arrives and the balance drops to UGX 0. Your account page lists every use and the top-up.
-6. Sign out and back in: same balance, no fresh free tries.
+1. Header → **Sign in** → you land on your account: **3 free tries**, and the plans.
+2. Use one free try each on the Rehearsal Room, the SEO audit and GRIOT. The header counts down.
+3. Ask GRIOT again: the wall offers **Starter** and **Pro**, with no price per message. Choose Starter, pay with a Flutterwave **test** card or test mobile money, and come back to "your Starter plan runs until …".
+4. Ask GRIOT and rehearse: the usage bar moves; the header reads "Account · Starter".
+5. Open the Market Development Planner and press Generate: the pay wall offers **Top up UGX 125,000 — exactly what this needs**. Pay, come back with your answers still filled in, and generate.
+6. Sign out and back in: same plan, same balance, no fresh free tries.
 
 Then switch `FLW_SECRET_KEY` to the live key, and merge the preview into `main`.
 
@@ -158,9 +169,9 @@ Then switch `FLW_SECRET_KEY` to the live key, and merge the preview into `main`.
 ## How the money is kept honest
 
 - **Free tries are granted once, on account creation**, and shared by every service. Signing in again, by Google or by email, through any Gmail alias (`a.b+x@gmail.com` is `ab@gmail.com`), never resets them.
-- **Every use reserves before it runs**, in one atomic statement: a free try if any are left, otherwise the service's exact price, and only if the balance covers it. Two tabs at once can never spend the same try or take the balance below zero (the database refuses a negative balance outright).
-- **A failed use is refunded exactly**: the free try, or the shillings taken. A page that cannot be reached, GRIOT down, slow (120 s ceiling), rate-limited or returning garbage — the customer is told they were not charged.
-- **Top-ups are credited in one place**, reached from the webhook and from the customer's return to the page, in either order, any number of times — and credit exactly once.
+- **Every use reserves before it runs**, in one atomic statement: the plan's allowance, else a free try, else (Studio packs only) the pack's exact price, and only if the balance covers it. Two tabs at once can never spend the same try or take the balance below zero (the database refuses a negative balance outright).
+- **A failed use is given back exactly**: the plan use, the free try, or the shillings taken. A page that cannot be reached, GRIOT down, slow (120 s ceiling), rate-limited or returning garbage — the customer is told they were not charged.
+- **Payments are settled in one place**, reached from the webhook and from the customer's return to the page, in either order, any number of times — and settle exactly once: a top-up credits the balance, a plan payment opens its 30 days.
 - **No payment notification is believed on its own.** Each is re-verified with Flutterwave's API: status `successful`, this payment's reference, the right currency, at least the right amount. The shillings credited come from our own payment row, never from the notification.
 - **The webhook's secret hash is compared in constant time.**
 - **A bank later** slots in without a schema change: `payments.provider` is `flutterwave` today.
@@ -183,10 +194,10 @@ The Worker also supports sign-in by a 6-digit emailed code. It stays off (`email
 
 - **Speech to text** is Workers AI (`@cf/openai/whisper-large-v3-turbo`), through the `AI` binding in `wrangler.toml`: nothing to set up in the dashboard. It costs about $0.0005 an audio minute; the free 10,000 neurons a day cover roughly 214 minutes (about 70 three-minute rehearsals).
 - **Delivery is measured in the Worker**, exactly, from Whisper's word timings: pace, fillers a minute, long pauses (over 2.5 s) a minute, the longest sentence. The Speak Score is `100 × (0.25 pace + 0.20 fillers + 0.15 flow + 0.40 message)`.
-- **Written coaching** (the message part: POLSSE ratings, three fixes, an opening line, a 60-second version) comes from Claude (`claude-opus-5-5`) through the official Anthropic SDK, the Worker's one dependency (`package.json`; Workers Builds installs it). It needs the `ANTHROPIC_API_KEY` secret. Without it, or if the coach cannot answer, a rehearsal is **scores only at UGX 2,500** and the difference is refunded. About $0.03 a rehearsal.
+- **Written coaching** (the message part: POLSΘ ratings, three fixes, an opening line, a 60-second version) comes from Claude (`claude-opus-5-5`) through the official Anthropic SDK, the Worker's one dependency (`package.json`; Workers Builds installs it). It needs the `ANTHROPIC_API_KEY` secret. Without it a rehearsal is scores only; if the coach cannot answer, the scores still show and that rehearsal does not count. About $0.03 a rehearsal.
 - **The audio is never stored**, nor the transcript: the browser sends it, Whisper reads it, and it is gone. D1 keeps the scores and the coaching (`rehearsals`) so customers see their progress; "Delete my rehearsals" removes them.
 - **CPU:** the browser sends the recording already in base64 (Opus at 32 kbps: three minutes is about 1 MB), so the Worker only parses it, about 1 ms on the free plan's 10 ms allowance.
-- **The `rehearsals` table** is in `schema.sql`; on an existing database run its `CREATE TABLE IF NOT EXISTS rehearsals …` block once in the D1 console.
+- **The `rehearsals` table** is in `schema.sql`; on an existing database run its `CREATE TABLE IF NOT EXISTS rehearsals …` block once in the D1 console. The same goes for `subscriptions`, plus `ALTER TABLE payments ADD COLUMN purpose TEXT NOT NULL DEFAULT 'topup';`.
 
 ## Known limitation
 

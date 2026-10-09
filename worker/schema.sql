@@ -15,8 +15,8 @@ CREATE TABLE IF NOT EXISTS users (
   verified         INTEGER NOT NULL DEFAULT 0,
   -- Free tries, shared across every service: 3 in total, granted once.
   trials_remaining INTEGER NOT NULL DEFAULT 3,
-  -- Prepaid balance in Uganda shillings, like airtime. Top-ups add to it;
-  -- each paid use deducts that service's price. Never negative.
+  -- Prepaid balance in Uganda shillings for Studio packs. Top-ups add to it;
+  -- each pack bought deducts its price. Never negative.
   balance          INTEGER NOT NULL DEFAULT 0 CHECK (balance >= 0),
   plan             TEXT NOT NULL DEFAULT 'trial',
   -- Bump this to sign a user out of every device (invalidates old tokens).
@@ -100,10 +100,36 @@ CREATE TABLE IF NOT EXISTS payments (
   provider     TEXT NOT NULL DEFAULT 'flutterwave',
   status       TEXT NOT NULL DEFAULT 'pending',
   provider_ref TEXT UNIQUE,
+  -- 'topup' adds to the balance; 'plan:starter' or 'plan:pro' opens 30 days.
+  -- Added 9 Oct 2026; on an older database run:
+  --   ALTER TABLE payments ADD COLUMN purpose TEXT NOT NULL DEFAULT 'topup';
+  purpose      TEXT NOT NULL DEFAULT 'topup',
   created_at   INTEGER NOT NULL,
   paid_at      INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_payments_user ON payments (user_id, created_at);
+
+-- Plans: one row per paid 30-day period. A renewal of the same plan starts
+-- when the last one ends; switching plan ends the old one at once. Each row
+-- keeps the limits it was bought with. Usage is counted here and shown to the
+-- customer only as a share of the month, never as a number.
+CREATE TABLE IF NOT EXISTS subscriptions (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id         TEXT NOT NULL,
+  plan            TEXT NOT NULL,
+  starts_at       INTEGER NOT NULL,
+  ends_at         INTEGER NOT NULL,
+  griot_limit     INTEGER NOT NULL,
+  rehearsal_limit INTEGER NOT NULL,
+  pack_limit      INTEGER NOT NULL DEFAULT 0,
+  pack_discount   INTEGER NOT NULL DEFAULT 0,
+  griot_used      INTEGER NOT NULL DEFAULT 0 CHECK (griot_used >= 0),
+  rehearsal_used  INTEGER NOT NULL DEFAULT 0 CHECK (rehearsal_used >= 0),
+  packs_used      INTEGER NOT NULL DEFAULT 0 CHECK (packs_used >= 0),
+  tx_ref          TEXT NOT NULL UNIQUE,
+  created_at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions (user_id, ends_at);
 
 -- The Rehearsal Room: one row per scored recording. The audio itself is never
 -- stored, nor is the transcript; only what the customer needs to see their
