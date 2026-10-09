@@ -1,0 +1,168 @@
+/* ==========================================================================
+   SpeakPower — the Rehearsal Room (rehearse.html)
+   Loaded after styles.css and commercial.css.
+
+   The page: a midnight recording stage (pick a moment, record, scoring),
+   then the report on ivory: the Speak Score as a hero figure in a gold ring,
+   three delivery meters with their target band, five POLSSE lens ratings,
+   the coaching, and a progress line of the last ten rehearsals.
+   Status colours appear only inside the score UI and always with a word.
+   ========================================================================== */
+
+.rr-app { display: grid; gap: 1.25rem; }
+
+/* --------------------------------------------------------------- stage */
+
+.rr-stage {
+  border-radius: var(--radius-lg);
+  padding: clamp(1.4rem, 1rem + 2vw, 2.4rem);
+  display: grid;
+  gap: 1rem;
+}
+.rr-status { margin: 0; font-size: .88rem; }
+.rr-step { display: flex; align-items: center; gap: .65rem; margin: 0 0 .9rem; font-size: clamp(1.3rem, 1.1rem + .8vw, 1.7rem); }
+.rr-step > span:first-child {
+  display: inline-grid; place-items: center; flex: none;
+  width: 2rem; height: 2rem; border-radius: 50%;
+  border: 1px solid rgba(201, 162, 39, .55);
+  font: 600 .95rem/1 var(--font-sans); color: var(--gold-hi);
+}
+.rr-moment-name { color: var(--gold-hi); }
+.rr-moments { display: flex; flex-wrap: wrap; gap: .55rem; }
+.rr-stage .chip { background: var(--glass); border-color: var(--line-dark); color: var(--ivory); }
+.rr-stage .chip:hover { border-color: var(--gold); }
+.rr-stage .chip[aria-checked="true"] { background: var(--gold); border-color: var(--gold); color: var(--midnight); }
+.rr-tip { margin: .9rem 0 0; font-size: .92rem; }
+.rr-stage .builder-actions { display: flex; flex-wrap: wrap; gap: .7rem; margin-top: 1rem; }
+.rr-stage .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
+
+.rr-timer { margin: 0; font: 600 clamp(2.6rem, 2rem + 3vw, 3.6rem)/1 var(--font-sans); color: var(--ivory) !important; font-variant-numeric: tabular-nums; }
+.rr-timer small { font: 500 .95rem/1 var(--font-sans); color: var(--mist); }
+.rr-wave { display: block; width: 100%; height: 96px; margin-top: .6rem; }
+
+.rr-scoring { display: flex; align-items: center; gap: 1rem; }
+.rr-scoring p { margin: 0; color: var(--ivory) !important; }
+.rr-dots { display: inline-flex; gap: 6px; }
+.rr-dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--gold); animation: rr-dot 1.2s infinite; }
+.rr-dots i:nth-child(2) { animation-delay: .15s; }
+.rr-dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes rr-dot { 0%, 60%, 100% { opacity: .25; } 30% { opacity: 1; } }
+.rr-error { margin: 0; }
+.rr-stage .rr-error { background: rgba(224, 90, 79, .14); color: #ffd9d4; border-color: rgba(224, 90, 79, .4); }
+
+/* -------------------------------------------------------------- report */
+
+.rr-report {
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: clamp(1.3rem, 1rem + 2vw, 2.4rem);
+  display: grid;
+  gap: 1.6rem;
+}
+.rr-report section { padding-block: 0; }
+.rr-report h2 { margin: 0; font-size: clamp(1.4rem, 1.2rem + .8vw, 1.9rem); }
+.rr-report h3 { margin: 0 0 .7rem; font-size: 1.15rem; }
+.rr-kicker { margin: 0 0 .35rem; font: 500 .72rem/1 var(--font-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--gold-text); }
+
+.rr-top { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1.4rem 2rem; align-items: center; }
+@media (max-width: 640px) { .rr-top { grid-template-columns: 1fr; justify-items: start; } }
+
+/* Hero figure in a ring meter: the number is the point, the ring its gauge. */
+.rr-ring { position: relative; width: 156px; height: 156px; flex: none; }
+.rr-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.rr-ring-value { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+.rr-ring-value b { font: 600 3.2rem/1 var(--font-sans); letter-spacing: -.02em; color: var(--ink); }
+.rr-ring-value span { margin-top: .3rem; font: 500 .68rem/1 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--text-muted); }
+
+.rr-verdict { display: grid; gap: .45rem; }
+.rr-verdict p { margin: 0; color: var(--text-muted); }
+.rr-badge { display: inline-flex; align-items: center; gap: .45rem; width: fit-content; font-weight: 600; color: var(--ink); }
+.rr-badge::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--sig, var(--gold)); }
+.rr-delta { font-size: .92rem; }
+
+/* Delivery meters: a track, the target band one step lighter, and a marker. */
+.rr-meters { display: grid; gap: 1.1rem; }
+.rr-meters + .rr-note { margin-top: .9rem; }
+.rr-meter { display: grid; gap: .3rem; }
+.rr-meter-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .2rem 1rem; }
+.rr-meter-head b { font-size: .98rem; }
+.rr-meter-head span { font-size: .92rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.rr-track { position: relative; height: 26px; margin: 0 7px; }
+.rr-track::before { content: ""; position: absolute; left: -7px; right: -7px; top: 10px; height: 6px; border-radius: 3px; background: #ece5d3; }
+.rr-band { position: absolute; top: 7px; height: 12px; border-radius: 4px; background: #e9d48f; }
+.rr-dot { position: absolute; top: 6.5px; width: 13px; height: 13px; margin-left: -6.5px; border-radius: 50%; background: var(--sig); box-shadow: 0 0 0 2px #fff; }
+.rr-meter-foot { display: flex; justify-content: space-between; gap: 1rem; font-size: .8rem; color: var(--text-faint); }
+.rr-state { display: inline-flex; align-items: center; gap: .35rem; font-weight: 600; color: var(--ink) !important; }
+.rr-state::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--sig); }
+
+/* POLSSE: five segments a lens, 2px surface gaps between them. */
+.rr-lenses { display: grid; gap: .8rem; margin: 0; padding: 0; list-style: none; }
+.rr-lens { display: grid; grid-template-columns: minmax(7.5rem, auto) auto minmax(0, 1fr); gap: .2rem .9rem; align-items: center; }
+.rr-lens b { font-size: .95rem; }
+.rr-lens-score { display: inline-flex; align-items: center; }
+.rr-lens svg { width: 118px; height: 10px; display: block; }
+.rr-lens small { font-size: .88rem; color: var(--text-muted); }
+.rr-lens .rr-of { font: 500 .8rem/1 var(--font-mono); color: var(--text-muted); margin-left: .4rem; }
+@media (max-width: 640px) { .rr-lens { grid-template-columns: 1fr auto; } .rr-lens small { grid-column: 1 / -1; } }
+
+.rr-cols { display: grid; gap: 1.6rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); }
+.rr-landed { margin: 0 0 .6rem; }
+.rr-fixes { margin: 0; padding-left: 1.2rem; display: grid; gap: .5rem; }
+.rr-quote {
+  margin: 0; padding: 1rem 1.1rem; border-left: 3px solid var(--gold); border-radius: var(--radius);
+  background: var(--paper-2); font: italic 500 1.12rem/1.5 var(--font-display); color: var(--ink);
+}
+.rr-sixty { white-space: pre-line; margin: 0; color: var(--text); }
+.rr-transcript summary, .rr-table summary { cursor: pointer; font-weight: 600; }
+.rr-transcript p { margin-top: .7rem; color: var(--text-muted); white-space: pre-line; }
+.rr-note { margin: 0; font-size: .88rem; color: var(--text-muted); }
+.rr-report .builder-actions { display: flex; flex-wrap: wrap; gap: .7rem; }
+
+/* ------------------------------------------------------------- history */
+
+.rr-history {
+  padding: clamp(1.2rem, 1rem + 1.4vw, 2rem);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-raised);
+  display: grid;
+  gap: 1rem;
+}
+.rr-history-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: .5rem 1rem; }
+.rr-history-head h2 { margin: 0; font-size: 1.4rem; }
+.rr-link { background: none; border: 0; padding: 0; font: 500 .9rem/1.4 var(--font-sans); color: var(--text-muted); text-decoration: underline; cursor: pointer; }
+.rr-link:hover { color: var(--danger); }
+.rr-progress { position: relative; }
+.rr-progress svg { width: 100%; height: auto; display: block; overflow: visible; }
+.rr-progress .hit { fill: transparent; cursor: pointer; }
+.rr-progress .mk { pointer-events: none; transition: r .12s ease; }
+.rr-progress .hit:focus { outline: none; }
+.rr-progress .hit:focus-visible + .mk, .rr-progress .hit:hover + .mk { r: 6; }
+.rr-tip-box {
+  position: absolute; z-index: 2; pointer-events: none; transform: translate(-50%, calc(-100% - 12px));
+  padding: .45rem .65rem; border-radius: 8px; background: var(--midnight); color: var(--ivory);
+  font-size: .82rem; line-height: 1.35; white-space: nowrap; box-shadow: var(--shadow-md);
+}
+.rr-tip-box b { display: block; font-size: 1rem; }
+.rr-table table { width: 100%; margin-top: .7rem; border-collapse: collapse; font-size: .9rem; }
+.rr-table th, .rr-table td { text-align: left; padding: .45rem .5rem; border-bottom: 1px solid var(--line); }
+.rr-table td:last-child, .rr-table th:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ------------------------------------------------------- how, FAQ */
+
+.rr-how { counter-reset: rr; display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); margin: 0; padding: 0; list-style: none; }
+.rr-how li { counter-increment: rr; padding: 1.3rem; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); }
+.rr-how li::before { content: counter(rr); display: inline-grid; place-items: center; width: 2rem; height: 2rem; margin-bottom: .8rem; border-radius: 50%; background: var(--navy); color: var(--gold-hi); font-weight: 600; }
+.rr-how h3 { margin-bottom: .4rem; }
+.rr-how p { margin: 0; color: var(--text-muted); font-size: .95rem; }
+
+.rr-faq { display: grid; gap: .7rem; max-width: 820px; }
+.rr-faq-item { border: 1px solid var(--line); border-radius: 14px; background: var(--bg-raised); padding: 1rem 1.15rem; }
+.rr-faq-item summary { cursor: pointer; font-weight: 600; }
+.rr-faq-item p { margin: .7rem 0 0; color: var(--text-muted); }
+
+@media (prefers-reduced-motion: reduce) {
+  .rr-dots i { animation: none; opacity: .8; }
+}

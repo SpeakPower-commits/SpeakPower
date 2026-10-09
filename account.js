@@ -2,8 +2,8 @@
    SpeakPower — accounts
    One account for every service: sign in with Google, keep one session,
    show the balance, open a top-up, and settle it when the customer returns
-   from Flutterwave. Used by account.html, studio-product.html and
-   griot-app.html; needs script.js (window.SP) loaded first.
+   from Flutterwave. Used by account.html, studio-product.html, griot-app.html
+   and rehearse.html; needs script.js (window.SP) loaded first.
 
    The browser holds a signed session token and a copy of the account to draw
    the page with. Every number that matters — free tries, balance, prices —
@@ -28,7 +28,8 @@
     "content-seo": "SEO Content Starter",
     "data-story": "Data Story Builder",
     "speaker-ready": "Speaker Ready Pack",
-    "griot": "GRIOT message"
+    "griot": "GRIOT message",
+    "rehearsal": "Rehearsal Room"
   };
 
   function el(tag, className, text) {
@@ -447,13 +448,14 @@
   // pages only, so ?next= can never send anyone off-site.
   function safeNext(value) {
     var v = String(value || "");
-    if (v === "griot-app.html") return v;
+    if (v === "griot-app.html" || v === "rehearse.html") return v;
     var m = v.match(/^studio-product\.html\?product=([a-z-]{2,40})$/);
     return m && m[1] !== "griot" && SERVICE_NAMES[m[1]] ? v : null;
   }
 
   function nextServiceName(next) {
     if (next === "griot-app.html") return "GRIOT";
+    if (next === "rehearse.html") return "the Rehearsal Room";
     var m = String(next || "").match(/product=([a-z-]+)$/);
     return m ? SERVICE_NAMES[m[1]] : "";
   }

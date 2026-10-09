@@ -81,7 +81,7 @@
       if (prices[key] == null) return;
       body.appendChild(row([
         key === "griot" ? "GRIOT" : A.SERVICE_NAMES[key],
-        A.formatUgx(prices[key]) + (key === "griot" ? " per message" : "")
+        A.formatUgx(prices[key]) + (key === "griot" ? " per message" : key === "rehearsal" ? " per rehearsal" : "")
       ]));
     });
 
