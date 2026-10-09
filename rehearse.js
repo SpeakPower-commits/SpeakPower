@@ -7,7 +7,9 @@
    sends it to the Worker, which transcribes, measures and coaches. The audio
    is never stored anywhere. If Whisper cannot read a phone's format, the
    page converts the same recording once to a plain WAV and tries again; the
-   failed attempt was refunded, so that costs nothing.
+   failed attempt was given back, so it never counts.
+
+   After the free tries, rehearsals come with a plan: never priced per use.
 
    Security: every string written into the DOM goes through textContent or
    createTextNode, never innerHTML. Charts are built as SVG nodes.
@@ -18,10 +20,6 @@
 
   var SP = window.SP;
   var A = window.SPAccount;
-  // UGX. Must match the Worker's price list; its test suite fails if this
-  // page quotes anything else. The Worker charges; this only says what it costs.
-  var PRICE = 5000;
-  var SCORES_PRICE = 2500;
   var MAX_SECONDS = 180;
   var SVGNS = "http://www.w3.org/2000/svg";
   var PAGE_URL = "https://speakpower-commits.github.io/SpeakPower/rehearse.html";
@@ -61,22 +59,23 @@
   function renderAccount(next) {
     if (next) account = next;
     if (!account) return;
-    $("rrStatus").textContent = A.statusText(account) + " · " + A.formatUgx(PRICE) + " a rehearsal";
+    $("rrStatus").textContent = A.statusText(account);
+    A.renderUsage($("rrUsage"), account, "rehearsal");
   }
 
-  // Nothing left to pay with at all: say so before anyone records for three
-  // minutes. (Between the two prices the Worker decides; a 402 still lands here.)
+  // Nothing left to rehearse with: say so before anyone records for three
+  // minutes. (The Worker decides; a 402 still lands here.)
   function cannotPay() {
-    return account && !(Number(account.trialsRemaining) > 0) && !(Number(account.balance) >= SCORES_PRICE);
+    if (!account || Number(account.trialsRemaining) > 0) return false;
+    var m = account.membership;
+    return !(m && m.plan && m.usage && m.usage.rehearsal < 100);
   }
 
   function openTopup(info) {
     info = info || {};
-    A.renderPayWall($("rrTopup"), {
-      heading: "Top up to keep rehearsing",
-      title: "A rehearsal",
-      price: info.price || PRICE,
-      shortfall: info.shortfall != null ? info.shortfall : Math.max(0, PRICE - (Number(account && account.balance) || 0)),
+    A.renderPlanWall($("rrTopup"), {
+      message: info.message,
+      plans: info.plans,
       account: account,
       returnTo: "rehearse.html",
       onSignedOut: signedOut
@@ -292,8 +291,8 @@
       openTopup(e.data);
       return;
     }
-    // Any other failure was refunded by the Worker.
-    showError(e.message || "That did not work. You were not charged; please try again.");
+    // Any other failure was given back by the Worker.
+    showError(e.message || "That did not work, and it did not count; please try again.");
   }
 
   // 16 kHz mono G.711 mu-law WAV: what every speech decoder reads, at 16 KB a
@@ -447,8 +446,9 @@
         : (d > 0 ? "Up " + d : "Down " + (-d)) + " since your last " + r.momentTitle.toLowerCase() + " (" + r.previousScore + ")."));
     }
     if (!coached) {
-      vd.appendChild(el("p", "rr-note", "Scores only this time: written coaching was not available, so this rehearsal cost " +
-        A.formatUgx(SCORES_PRICE) + " (or a free try). The score covers delivery alone."));
+      vd.appendChild(el("p", "rr-note", r.counted === false
+        ? "Scores only this time: written coaching was not available, so this rehearsal did not count. The score covers delivery alone."
+        : "Scores only: the score covers delivery alone."));
     }
     top.appendChild(vd);
     host.appendChild(top);
@@ -465,7 +465,7 @@
 
     if (coached) {
       var c = r.coaching;
-      var lens = section("Message, through the POLSSE lenses", "40% of your Speak Score");
+      var lens = section("Message, through the POLSΘ lenses", "40% of your Speak Score");
       var list = el("ul", "rr-lenses");
       c.lenses.forEach(function (l) {
         var li = el("li", "rr-lens");

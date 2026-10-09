@@ -483,3 +483,62 @@
   .studio-product--reh{grid-template-columns:1fr}
   .studio-product--reh>*,.studio-product--reh .studio-includes,.studio-product--reh .studio-delivery{grid-column:1;grid-row:auto}
 }
+
+/* ==========================================================================
+   Plans: the offer on a pay wall, the usage bar, the account's plan card and
+   plans.html. Prices appear per 30 days only, never per use.
+   ========================================================================== */
+.plan-offer{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));margin:1.1rem 0 .6rem}
+.plan-offer[aria-busy="true"] .btn{opacity:.6;pointer-events:none}
+.plan-offer-card{display:grid;gap:.45rem;align-content:start;padding:1.2rem 1.25rem;border:1px solid var(--line);border-radius:16px;background:var(--bg-raised)}
+.plan-offer-card--pro{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}
+.plan-offer-card h3{margin:0;font-size:1.25rem}
+.plan-offer-price{margin:0;font:600 1.35rem/1.2 var(--font-sans);color:var(--ink)}
+.plan-offer-price span{font:500 .9rem/1 var(--font-sans);color:var(--text-muted)}
+.plan-offer-line{margin:0 0 .4rem;color:var(--text-muted);font-size:.95rem}
+.plan-offer-card .btn{justify-self:start}
+.plan-offer-more{color:var(--text);font-weight:600}
+
+.usage{display:grid;gap:.35rem;margin:.2rem 0 .4rem}
+.usage[hidden]{display:none}
+.usage-label{display:flex;justify-content:space-between;gap:1rem;margin:0;font-size:.85rem;color:var(--text-muted)}
+.usage-value{font-weight:600;color:var(--ink)}
+.usage-track{position:relative;height:8px;border-radius:4px;background:var(--paper-3);overflow:hidden}
+.usage-fill{position:absolute;inset:0 auto 0 0;border-radius:4px;background:var(--gold-lo)}
+.usage-fill--high{background:var(--bark)}
+.usage-renew{justify-self:start;font-size:.88rem;font-weight:600;color:var(--text)}
+.usage-name{margin:.9rem 0 0;font-weight:600}
+.usage--dark .usage-label{color:var(--mist)}
+.usage--dark .usage-value{color:var(--ivory)}
+.usage--dark .usage-track{background:rgba(255,255,255,.14)}
+.usage--dark .usage-fill{background:var(--gold)}
+.usage--dark .usage-fill--high{background:var(--gold-hi)}
+.usage--dark .usage-renew{color:var(--gold-hi)}
+
+.account-plan-head h2{margin:0 0 .3rem}
+.account-plan .usage{max-width:560px}
+
+/* plans.html */
+.plans-grid{display:grid;gap:1.25rem;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));align-items:stretch}
+.plan-card{display:flex;flex-direction:column;gap:.7rem;padding:clamp(1.4rem,1.1rem + 1vw,2rem);border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--bg-raised);box-shadow:var(--shadow-sm,0 1px 2px rgba(19,28,46,.06))}
+.plan-card h2{margin:0;font-size:clamp(1.5rem,1.3rem + .6vw,1.9rem)}
+.plan-card .plan-tag{width:fit-content}
+.plan-price{font:600 clamp(1.9rem,1.6rem + 1vw,2.4rem)/1.1 var(--font-display);color:var(--ink)}
+.plan-price span{display:block;margin-top:.35rem;font:500 .95rem/1 var(--font-sans);color:var(--text-muted)}
+.plan-card > p{margin:0;color:var(--text-muted)}
+.plan-card ul{margin:.2rem 0 0;padding-left:1.15rem;display:grid;gap:.4rem}
+.plan-card .btn{margin-top:auto;align-self:flex-start}
+.plan-card--pro{background:radial-gradient(70% 60% at 90% 0%,rgba(201,162,39,.22),transparent 60%),var(--midnight);border-color:transparent;color:var(--ivory)}
+.plan-card--pro h2,.plan-card--pro .plan-price{color:var(--ivory)}
+.plan-card--pro > p,.plan-card--pro .plan-price span,.plan-card--pro li{color:var(--mist)}
+.plan-card--pro .plan-tag{background:rgba(241,212,122,.14);color:var(--gold-hi)}
+.plan-details{margin-top:1.5rem;max-width:860px}
+.plan-details table{width:100%;border-collapse:collapse;font-size:.95rem}
+.plan-details th,.plan-details td{text-align:left;padding:.6rem .5rem;border-bottom:1px solid var(--line)}
+.plan-details td:not(:first-child),.plan-details th:not(:first-child){text-align:right;font-variant-numeric:tabular-nums}
+.faq-list{display:grid;gap:.7rem;max-width:820px}
+.faq-item{border:1px solid var(--line);border-radius:14px;background:var(--bg-raised);padding:1rem 1.15rem}
+.faq-item summary{cursor:pointer;font-weight:600}
+.faq-item p{margin:.7rem 0 0;color:var(--text-muted)}
+.plan-details summary{cursor:pointer;font-weight:600;margin-bottom:.6rem}
+.plan-card--current{outline:2px solid var(--gold);outline-offset:3px}

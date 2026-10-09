@@ -1,11 +1,11 @@
 /* ==========================================================================
    SpeakPower — GRIOT app
-   Sign in once (account.js), use the free tries, then pay per message from
-   the same balance every Studio service uses.
+   Sign in once (account.js), use the free tries, then carry on with a plan.
+   GRIOT has no per-use price.
 
    The browser holds only a SpeakPower session token and a thread id. It never
    sees GRIOT's address or key: every message goes to the Worker, which takes
-   a free try or the message price and calls GRIOT server-to-server under this
+   a plan use or a free try and calls GRIOT server-to-server under this
    account's own tenant.
 
    Security: all text written into the DOM goes through textContent, never
@@ -18,9 +18,6 @@
   var SP = window.SP;
   var A = window.SPAccount;
   var THREAD_KEY = "sp_griot_thread";
-  // UGX per message. Must match the Worker's price list; its test suite
-  // fails if they differ. The Worker charges; this only says what it costs.
-  var PRICE = 2500;
 
   function $(id) { return document.getElementById(id); }
 
@@ -64,29 +61,31 @@
   function renderAccount(next) {
     if (next) account = next;
     if (!account) return;
-    $("gaBalance").textContent = A.statusText(account) + " · " + A.formatUgx(PRICE) + " a message";
+    $("gaBalance").textContent = A.statusText(account);
     $("gaWho").textContent = account.email || "";
+    A.renderUsage($("gaUsage"), account, "griot");
   }
 
+  // No free try left, and no plan with GRIOT left this month.
   function cannotPay() {
-    return account && !(Number(account.trialsRemaining) > 0) && !(Number(account.balance) >= PRICE);
+    if (!account || Number(account.trialsRemaining) > 0) return false;
+    var m = account.membership;
+    return !(m && m.plan && m.usage && m.usage.griot < 100);
   }
 
   function openTopup(info) {
     info = info || {};
-    A.renderPayWall(panels.topup, {
-      heading: "Top up to keep talking",
-      title: "A GRIOT message",
-      price: info.price || PRICE,
-      shortfall: info.shortfall != null ? info.shortfall : Math.max(0, PRICE - (Number(account && account.balance) || 0)),
+    A.renderPlanWall(panels.topup, {
+      message: info.message,
+      plans: info.plans,
       account: account,
       returnTo: "griot-app.html",
       onSignedOut: function () { signedOut("Your session ended. Please sign in again."); }
     });
     var keep = document.createElement("p");
     keep.className = "builder-note";
-    keep.textContent = "GRIOT still remembers everything you told it. Top up and carry on from exactly where you stopped.";
-    panels.topup.insertBefore(keep, panels.topup.children[1] || null);
+    keep.textContent = "GRIOT still remembers everything you told it. Carry on from exactly where you stopped.";
+    panels.topup.insertBefore(keep, panels.topup.children[2] || null); // after the lead line
     show("chat", true);
     $("gaSendBtn").disabled = true;
   }
@@ -141,7 +140,7 @@
 
   function describe(reply) {
     var parts = [];
-    parts.push(reply.paidWith === "trial" ? "Free try" : A.formatUgx(reply.amount) + " from your balance");
+    parts.push(reply.paidWith === "trial" ? "Free try" : "Included in your plan");
     if (reply.agents && reply.agents.length) parts.push("Lens: " + reply.agents.join(", "));
     if (reply.memoryUsed) parts.push("drew on " + reply.memoryUsed + " thing" + (reply.memoryUsed === 1 ? "" : "s") + " it remembers");
     if (reply.memoryWritten) parts.push("now remembers: “" + reply.memoryWritten + "”");
