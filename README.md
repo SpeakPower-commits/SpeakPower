@@ -25,7 +25,7 @@ It pairs a human practice (communication strategy, public speaking, brand narrat
 | Product | What it does | Price | Status |
 |---|---|---|---|
 | **Rehearsal Room** | Speak for up to three minutes; get pace, fillers, pauses, a Speak Score and a stronger opening line | In every plan | Live |
-| **GRIOT** | A strategy advisor that remembers your goals and labels fact from inference | In every plan | Live; workspace in build |
+| **GRIOT** | A strategy advisor that remembers your goals and labels fact from inference; choose its lenses, see its nine steps, and browse your conversations, memory and decisions | In every plan | Live |
 | **Studio packs** | Brand Story, Website SEO Audit, Market Plan, SEO Content Starter, Data Story, Speaker Ready Pack | UGX 75,000 to 125,000 each | Live |
 | **Coaching with Otieno** | Human-led preparation for the rooms that cannot go wrong | On enquiry | Live |
 | **Clarity Audit** | Free in-browser check of a pitch or document: readability, jargon, evidence (a Studio tool) | Free | Live |
@@ -176,7 +176,7 @@ GRIOT is named after West Africa's griot (*jeli*): the keeper of memory, adviser
 | 1 | Midnight & Gold on every page, new Home and Studio, this README | shipped |
 | 2 | Rehearsal Room with the live Speak Score | shipped |
 | 3 | Monthly plans in place of per-use prices; the Clarity Audit inside the Studio; POLSΘ | on the preview |
-| 4 | GRIOT workspace: lenses, the 9 steps, memory, conversations, decisions | in build |
+| 4 | GRIOT workspace: lenses, the 9 steps, memory, conversations, decisions | on the preview (switches on with GRIOT PR #24) |
 | 5 | Sign-up profile (who you are, your challenge); GRIOT briefed from day one | planned |
 | 6 | Documents for GRIOT, cited by page | planned |
 | 7 | The animated GRIOT mark everywhere; proverbs while GRIOT thinks | planned |

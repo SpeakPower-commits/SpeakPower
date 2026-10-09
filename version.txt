@@ -6,7 +6,8 @@ Open this file on the live site to see which build GitHub Pages is serving:
     https://speakpower-commits.github.io/SpeakPower/version.txt
 
 branch:   claude/studio-griot-live
-build:    release 3, plans; the Clarity Audit in the Studio; POLSΘ (2026-10-09)
+build:    releases 3 and 4: plans, the Clarity Audit in the Studio, POLSΘ,
+          and the GRIOT workspace (2026-10-09)
 expects:  every page — the menu reads Rehearse · Services · Studio · Plans,
                        with no "Audit"
           plans.html — Free, Starter (UGX 60,000 / 30 days) and Pro
@@ -14,6 +15,8 @@ expects:  every page — the menu reads Rehearse · Services · Studio · Plans,
           studio.html — GRIOT and the Rehearsal Room say "Included in every
                         plan"; the free Clarity Audit is the second card
           index.html — the five-lens band shows Θ for Socioeconomics
+          griot-app.html — Ask · Conversations · Memory · Decisions tabs and
+                       the lens picker, once GRIOT reports its workspace
 
 If this file still shows an older build, Pages has not rebuilt yet: wait a
 minute and reload. If it 404s, Pages is serving a different branch.
