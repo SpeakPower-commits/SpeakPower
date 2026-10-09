@@ -119,3 +119,100 @@
   .service-detail-label .index { font-size: 2rem; }
   .service-detail-label .format { margin-top: 0; }
 }
+
+/* ==========================================================================
+   POLSSE ACCORDION
+   Moved here from home.css, which services.html never loaded: the
+   accordion on this page was unstyled until now.
+   ========================================================================== */
+
+.polsse-wrap {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--bg-raised);
+}
+
+.polsse-item + .polsse-item { border-top: 1px solid var(--line); }
+
+.polsse-trigger {
+  display: grid;
+  grid-template-columns: 3rem 1fr auto;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  padding: 1.15rem clamp(1rem, .8rem + .8vw, 1.5rem);
+  background: none;
+  border: 0;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color .16s var(--ease);
+}
+.polsse-trigger:hover { background: var(--paper-2); }
+
+.polsse-letter {
+  display: grid;
+  place-items: center;
+  width: 2.5rem; height: 2.5rem;
+  background: var(--paper-2);
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  font-family: var(--font-display);
+  font-size: .95rem;
+  font-weight: 600;
+  font-variation-settings: "opsz" 20;
+  color: var(--navy-deep);
+  transition: background-color .18s var(--ease), color .18s var(--ease),
+              border-color .18s var(--ease);
+}
+.polsse-trigger[aria-expanded="true"] .polsse-letter {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+}
+
+.polsse-title {
+  font-family: var(--font-display);
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  font-variation-settings: "opsz" 30;
+  letter-spacing: -.01em;
+  color: var(--ink);
+}
+
+.polsse-icon {
+  width: 1.75rem; height: 1.75rem;
+  display: grid;
+  place-items: center;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: var(--gold-text);
+  transition: transform .25s var(--ease);
+}
+/* The +/- affordance only means something when the panels actually collapse. */
+html:not(.js) .polsse-icon,
+html:not(.js) .polsse-trigger { pointer-events: none; }
+html:not(.js) .polsse-icon { visibility: hidden; }
+.polsse-trigger[aria-expanded="true"] .polsse-icon { transform: rotate(45deg); }
+
+/* grid-template-rows 0fr -> 1fr animates to the content's natural height
+   without hard-coding a max-height that would clip longer copy.
+   Gated on `js`: with scripting off, nothing sets data-open, so the panels
+   stay open and every lens remains readable. */
+.polsse-body { display: grid; grid-template-rows: 1fr; }
+
+.js .polsse-body {
+  grid-template-rows: 0fr;
+  transition: grid-template-rows .28s var(--ease);
+}
+.js .polsse-item[data-open="true"] .polsse-body { grid-template-rows: 1fr; }
+
+.polsse-body-inner { overflow: hidden; }
+.polsse-body-inner p {
+  margin: 0;
+  padding: 0 clamp(1rem, .8rem + .8vw, 1.5rem) 1.35rem
+           calc(3rem + clamp(1rem, .8rem + .8vw, 1.5rem) + 1rem);
+  color: var(--text-muted);
+  max-width: 68ch;
+}

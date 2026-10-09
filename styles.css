@@ -25,32 +25,48 @@
      pinned to stop form controls and scrollbars inverting on a dark-mode OS. */
   color-scheme: light;
 
-  /* --- Brand palette -----------------------------------------------------
-     Taken from the SpeakPower logo: deep navy speech bubble, antique gold
-     rays and wordmark. Navy carries structure and calls to action; gold is
-     an accent only. */
-  --navy:       #16233f;   /* logo navy — primary brand      */
+  /* --- Brand palette: Midnight & Gold ------------------------------------
+     The logo's navy and gold, given depth: midnight for the bands that sell,
+     warm ivory for reading, gold for what matters. Barkcloth (Buganda's
+     lubugo) is the one accent from home, used at most once per screen. */
+  --midnight:   #0a1020;   /* hero and feature bands         */
+  --midnight-2: #101a33;   /* raised surface on midnight     */
+  --navy:       #16233f;   /* logo navy — structure, buttons */
   --navy-deep:  #0d1729;   /* pressed / hover state          */
-  --navy-soft:  #223252;   /* raised surface on dark bands   */
+  --navy-soft:  #1e2d4f;   /* raised surface on navy         */
 
-  --gold:       #c9a227;   /* logo gold — decoration         */
-  --gold-bright:#e0be4f;   /* gold on dark backgrounds       */
-  --gold-text:  #8a6d14;   /* gold as TEXT on light: 5.2:1   */
+  --gold:       #c9a227;   /* logo gold — rims, highlights   */
+  --gold-hi:    #f1d47a;   /* gold on dark, key words        */
+  --gold-lo:    #9c7a12;
+  --gold-bright:#e0be4f;
+  --gold-text:  #7e630f;   /* gold as TEXT on ivory: 5.3:1   */
+  --gold-grad:  linear-gradient(180deg, var(--gold-hi), var(--gold) 70%);
+
+  --bark:       #9c5b34;   /* barkcloth — accent strips      */
+  --bark-deep:  #5a3220;
+  --bark-ink:   #7a4428;   /* barkcloth as text on ivory     */
 
   --ink:        #131c2e;   /* near-black, navy-cast          */
-  --paper:      #f7f7f5;   /* neutral off-white              */
-  --paper-2:    #eef0f3;   /* cool light grey, echoes logo   */
-  --paper-3:    #e2e6ec;
+  --ivory:      #faf7f0;
+  --mist:       #a3b0c6;   /* muted text on dark: 8.6:1      */
+  --paper:      var(--ivory);
+  --paper-2:    #f2eee4;
+  --paper-3:    #e7e1d3;
+
+  /* Score signals: only ever inside score and evidence UI. */
+  --good: #3fb68b; --warn: #e0a33a; --bad: #e05a4f; --info: #7fa6f0;
 
   /* --- Semantic ---------------------------------------------------------- */
   --bg:           var(--paper);
   --bg-raised:    #ffffff;
   --bg-sunken:    var(--paper-2);
   --text:         var(--ink);
-  --text-muted:   #515e73;
-  --text-faint:   #78849a;
-  --line:         #dfe3e9;
-  --line-strong:  #c4ccd8;
+  --text-muted:   #4f5b70;   /* 6.4:1 on ivory */
+  --text-faint:   #5d6880;   /* 4.7:1 on the sunken ivory */
+  --line:         #e3ddcf;
+  --line-strong:  #cbc2ae;
+  --line-dark:    rgba(255, 255, 255, .11);
+  --glass:        rgba(255, 255, 255, .06);
   --brand:        var(--navy);
   --ring:         #1f5c92;
   /* Validation errors. 6.91:1 on --paper and 6.48:1 on --danger-tint, so it
@@ -58,11 +74,11 @@
   --danger:       #a4231b;
   --danger-tint:  #fdeceb;
 
-  /* --- Inverted bands (footer, masterclass, proof strip) ----------------- */
-  --band-bg:    var(--navy);
-  --band-text:  #f2f4f8;
-  --band-muted: #9aa8c0;
-  --band-line:  #2c3c5c;
+  /* --- Inverted bands (header, footer, page heroes, ventures) ----------- */
+  --band-bg:    var(--midnight);
+  --band-text:  var(--ivory);
+  --band-muted: var(--mist);
+  --band-line:  rgba(255, 255, 255, .12);
 
   /* --- Type -------------------------------------------------------------- */
   --font-display: "Fraunces", "Iowan Old Style", Palatino, Georgia,
@@ -86,12 +102,12 @@
   --gutter:    clamp(1.25rem, 0.8rem + 1.9vw, 2.5rem);
   --measure:   64ch;
 
-  --radius:    6px;
-  --radius-lg: 12px;
+  --radius:    10px;
+  --radius-lg: 20px;
   --header-h:  72px;
 
-  --shadow-sm: 0 1px 2px rgba(19, 28, 46, .05);
-  --shadow-md: 0 14px 34px -22px rgba(19, 28, 46, .38);
+  --shadow-sm: 0 1px 2px rgba(10, 16, 32, .06);
+  --shadow-md: 0 1px 2px rgba(10, 16, 32, .06), 0 14px 34px -16px rgba(10, 16, 32, .26);
 
   --ease: cubic-bezier(.22, .61, .36, 1);
 }
@@ -216,7 +232,9 @@ h1, h2, h3, h4 {
   font-variation-settings: "opsz" 96;
 }
 
-h1 { font-size: var(--fs-h1); letter-spacing: -.03em; }
+h1 { font-size: var(--fs-h1); letter-spacing: -.03em; font-variation-settings: "opsz" 144; }
+/* One key phrase per headline, in gold italic. */
+:is(h1, h2) em { font-style: italic; font-weight: 500; color: var(--gold-text); }
 h2 { font-size: var(--fs-h2); }
 h3 { font-size: var(--fs-h3); line-height: 1.28; letter-spacing: -.01em; font-variation-settings: "opsz" 30; }
 h4 {
@@ -265,9 +283,10 @@ p:last-child { margin-bottom: 0; }
   align-items: center;
   justify-content: center;
   gap: .55rem;
-  padding: .9rem 1.6rem;
+  min-height: 46px;
+  padding: .8rem 1.45rem;
   border: 1px solid transparent;
-  border-radius: var(--radius);
+  border-radius: 999px;
   font-family: var(--font-sans);
   font-size: .95rem;
   font-weight: 600;
@@ -302,6 +321,14 @@ p:last-child { margin-bottom: 0; }
 }
 .btn-ghost:hover { border-color: var(--navy); color: var(--navy-deep); }
 
+/* Gold: the one action that matters on a dark band. Midnight on gold is 7.8:1. */
+.btn-gold {
+  background: var(--gold-grad);
+  color: var(--midnight);
+  box-shadow: 0 8px 24px -12px rgba(201, 162, 39, .8), inset 0 1px 0 rgba(255, 255, 255, .5);
+}
+.btn-gold:hover { color: var(--midnight); box-shadow: 0 12px 28px -12px rgba(201, 162, 39, .95), inset 0 1px 0 rgba(255, 255, 255, .5); }
+
 /* ==========================================================================
    6. HEADER & NAVIGATION
    ========================================================================== */
@@ -313,15 +340,14 @@ p:last-child { margin-bottom: 0; }
   min-height: var(--header-h);
   display: flex;
   align-items: center;
-  background: rgba(247, 247, 245, .88);
-  backdrop-filter: saturate(180%) blur(12px);
-  -webkit-backdrop-filter: saturate(180%) blur(12px);
-  border-bottom: 1px solid transparent;
+  background: rgba(10, 16, 32, .94);
+  backdrop-filter: saturate(160%) blur(12px);
+  -webkit-backdrop-filter: saturate(160%) blur(12px);
+  border-bottom: 1px solid var(--line-dark);
   transition: border-color .2s var(--ease), box-shadow .2s var(--ease);
 }
 .site-header[data-scrolled="true"] {
-  border-bottom-color: var(--line);
-  box-shadow: 0 6px 20px -18px rgba(19, 28, 46, .5);
+  box-shadow: 0 10px 28px -18px rgba(0, 0, 0, .8);
 }
 
 .site-header .wrap {
@@ -340,11 +366,12 @@ p:last-child { margin-bottom: 0; }
   font-weight: 600;
   font-variation-settings: "opsz" 40;
   letter-spacing: -.025em;
-  color: var(--ink);
+  color: var(--ivory);
   text-decoration: none;
   white-space: nowrap;
+  gap: .55rem;
 }
-.logo:hover { color: var(--ink); }
+.logo:hover { color: var(--ivory); }
 
 /* The mark only, not the full lockup. assets/logo.png is the whole lockup —
    mark, "SPEAKPOWER" wordmark and tagline — and at 42px tall the wordmark
@@ -361,7 +388,7 @@ p:last-child { margin-bottom: 0; }
    would not appear in the header at all. If the image does fail, script.js adds
    .logo--fallback and the wordmark carries the header on its own. */
 .logo-text { display: inline; }
-.logo-text span { color: var(--gold-text); }
+.logo-text span { color: var(--gold); }
 
 .logo--fallback .logo-mark { display: none; }
 .logo--fallback .logo-text { display: inline; }
@@ -375,7 +402,7 @@ p:last-child { margin-bottom: 0; }
   position: relative;
   font-size: .94rem;
   font-weight: 500;
-  color: var(--text-muted);
+  color: var(--mist);
   text-decoration: none;
   white-space: nowrap;
   transition: color .16s var(--ease);
@@ -386,37 +413,37 @@ p:last-child { margin-bottom: 0; }
   left: 0; bottom: -6px;
   width: 100%;
   height: 1.5px;
-  background: var(--navy);
+  background: var(--gold);
   transform: scaleX(0);
   transform-origin: left;
   transition: transform .22s var(--ease);
 }
-.nav-links > a:hover { color: var(--ink); }
-.nav-links > a[aria-current="page"] { color: var(--ink); font-weight: 600; }
+.nav-links > a:hover { color: var(--ivory); }
+.nav-links > a[aria-current="page"] { color: var(--ivory); font-weight: 600; }
 .nav-links > a:hover::after,
 .nav-links > a[aria-current="page"]::after { transform: scaleX(1); }
 
 /* The CTA is a button, so it opts out of the underline treatment. */
 .nav-links > a.nav-cta {
   padding: .62rem 1.15rem;
-  background: var(--navy);
-  border-radius: var(--radius);
-  color: #fff;
+  background: var(--gold-grad);
+  border-radius: 999px;
+  color: var(--midnight);
   font-weight: 600;
 }
-.nav-links > a.nav-cta:hover { background: var(--navy-deep); color: #fff; }
+.nav-links > a.nav-cta:hover { color: var(--midnight); box-shadow: 0 8px 20px -12px rgba(201, 162, 39, .9); }
 .nav-links > a.nav-cta::after { display: none; }
 
 /* The account link (added by script.js once sign-in is connected): quieter
    than the CTA, but findable — it is where a balance and free tries live. */
 .nav-links > a.nav-account {
   padding: .45rem .85rem;
-  border: 1px solid var(--line-strong);
+  border: 1px solid rgba(255, 255, 255, .22);
   border-radius: 999px;
-  color: var(--ink);
+  color: var(--ivory);
   font-size: .86rem;
 }
-.nav-links > a.nav-account:hover { border-color: var(--navy); }
+.nav-links > a.nav-account:hover { border-color: var(--gold); }
 .nav-links > a.nav-account::after { display: none; }
 /* Between the phone menu and a wide screen, nine links only fit tighter, and
    the account link drops its balance (still on account.html and in its title). */
@@ -425,7 +452,11 @@ p:last-child { margin-bottom: 0; }
   .nav-account-extra { display: none; }
 }
 @media (min-width: 881px) and (max-width: 980px) {
-  .nav-links { gap: .95rem; }
+  .site-header .wrap { gap: 1rem; }
+  .nav-links { gap: .8rem; }
+  .nav-links > a { font-size: .86rem; }
+  .nav-links > a.nav-cta { padding: .55rem .85rem; }
+  .nav-links > a.nav-account { padding: .4rem .7rem; }
 }
 
 .nav-toggle {
@@ -435,33 +466,153 @@ p:last-child { margin-bottom: 0; }
   align-items: center;
   justify-content: center;
   background: none;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  color: var(--ink);
+  border: 1px solid var(--line-dark);
+  border-radius: 12px;
+  color: var(--ivory);
   font-size: 1.15rem;
   line-height: 1;
   cursor: pointer;
   transition: border-color .16s var(--ease), background-color .16s var(--ease);
 }
-.nav-toggle:hover { border-color: var(--navy); }
-.nav-toggle[aria-expanded="true"] { background: var(--paper-2); border-color: var(--navy); }
+.nav-toggle:hover { border-color: var(--gold); }
+.nav-toggle[aria-expanded="true"] { background: var(--glass); border-color: var(--gold); }
 
 /* ==========================================================================
    7. PAGE HERO — inner-page header band (services, and reusable elsewhere)
    ========================================================================== */
 
 .page-hero {
-  background: var(--paper-2);
-  border-bottom: 1px solid var(--line);
-  padding-block: clamp(3rem, 2rem + 4vw, 5.5rem);
+  position: relative;
+  overflow: hidden;
+  padding-block: clamp(3.25rem, 2rem + 4.5vw, 6rem);
 }
-.page-hero h1 { margin-bottom: .45em; }
+.page-hero > .wrap { position: relative; z-index: 1; }
+.page-hero h1 { margin-bottom: .45em; max-width: 22ch; }
 .page-hero p {
   font-size: var(--fs-lede);
   line-height: 1.58;
-  color: var(--text-muted);
   max-width: 58ch;
   margin-bottom: 0;
+}
+/* Pages whose first section was built to sit flush against a light hero get
+   breathing room now that the hero is a dark band. */
+.page-hero + section[style*="padding-top:0"] { padding-top: clamp(2rem, 1.4rem + 2.4vw, 3.5rem) !important; }
+
+/* ==========================================================================
+   7b. DARK BANDS AND SHARED PIECES
+   Midnight sections (.dark, and every .page-hero), the gold glow and film
+   grain that give them depth without a background image, glass panels,
+   price chips, filter chips and GRIOT's evidence labels.
+   ========================================================================== */
+
+.dark,
+.page-hero {
+  background: var(--midnight);
+  color: var(--band-text);
+}
+.glow,
+.page-hero {
+  background:
+    radial-gradient(60% 70% at 85% 10%, rgba(201, 162, 39, .2), transparent 60%),
+    radial-gradient(50% 60% at 10% 90%, rgba(46, 74, 140, .32), transparent 65%),
+    var(--midnight);
+}
+.grain,
+.page-hero { position: relative; isolation: isolate; }
+.grain::after,
+.page-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: .3;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.35 0'/></filter><rect width='120' height='120' filter='url(%23n)'/></svg>");
+}
+.grain > * { position: relative; z-index: 1; }
+
+:is(.dark, .page-hero, .venture-band, .cta-panel, .proof-band) :is(h1, h2, h3) { color: var(--ivory); }
+:is(.dark, .page-hero, .venture-band, .cta-panel, .proof-band) :is(h1, h2) em {
+  background: linear-gradient(120deg, var(--gold-hi), var(--gold) 55%, var(--gold-lo));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+:is(.dark, .page-hero, .venture-band, .cta-panel, .proof-band) .eyebrow { color: var(--gold-hi); }
+:is(.dark, .page-hero, .venture-band, .cta-panel, .proof-band) :is(p, .lede) { color: var(--mist); }
+:is(.dark, .page-hero, .venture-band, .cta-panel, .proof-band) strong { color: var(--ivory); }
+:is(.dark, .page-hero, .venture-band, .cta-panel, .proof-band) a:not(.btn) { color: var(--gold-hi); }
+:is(.dark, .page-hero, .venture-band, .cta-panel, .proof-band) .btn-primary { background: var(--gold-grad); border-color: transparent; color: var(--midnight); }
+:is(.dark, .page-hero, .venture-band, .cta-panel, .proof-band) .btn-ghost { border-color: rgba(255, 255, 255, .24); color: var(--ivory); }
+:is(.dark, .page-hero, .venture-band, .cta-panel, .proof-band) .btn-ghost:hover { border-color: var(--gold); color: var(--ivory); }
+
+.glass {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .09), rgba(255, 255, 255, .03)), var(--midnight-2);
+  border: 1px solid var(--line-dark);
+  border-radius: 22px;
+}
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass {
+    background: linear-gradient(180deg, rgba(255, 255, 255, .09), rgba(255, 255, 255, .03));
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+}
+
+.price-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: .3rem;
+  width: fit-content;
+  padding: .3rem .72rem;
+  border-radius: 999px;
+  background: var(--paper-2);
+  font: 600 .78rem/1.2 var(--font-mono);
+  letter-spacing: .02em;
+  color: var(--gold-text);
+  font-variant-numeric: tabular-nums;
+}
+:is(.dark, .glass, .page-hero) .price-chip { background: rgba(241, 212, 122, .12); color: var(--gold-hi); }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  min-height: 38px;
+  padding: .4rem .95rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg-raised);
+  font: 500 .88rem/1.2 var(--font-sans);
+  color: var(--ink);
+  cursor: pointer;
+  transition: background-color .16s var(--ease), border-color .16s var(--ease), color .16s var(--ease);
+}
+.chip:hover { border-color: var(--navy); }
+.chip[aria-pressed="true"] { background: var(--navy); border-color: var(--navy); color: var(--ivory); }
+
+/* GRIOT's evidence labels: every claim says what it rests on. */
+.lab {
+  display: inline-block;
+  margin-right: .45rem;
+  padding: .22rem .42rem;
+  border-radius: 6px;
+  font: 700 .66rem/1 var(--font-mono);
+  letter-spacing: .1em;
+  vertical-align: .08em;
+  color: var(--midnight);
+}
+.lab--fact { background: var(--good); }
+.lab--inf  { background: var(--info); }
+.lab--hyp  { background: var(--warn); }
+.lab--rec  { background: var(--gold-hi); }
+
+/* The barkcloth rule: one per screen, at most. */
+.bark-rule {
+  height: 28px;
+  border-block: 2px solid var(--gold);
+  background: var(--bark-deep) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='82' height='24'><rect width='82' height='24' fill='%235a3220'/><g fill='none' stroke='%23f1d47a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M10 7.5 L15.5 12 L10 16.5'/><path d='M26 7 L36 17 M36 7 L26 17'/><path d='M52 7.5 L46.5 12 L52 16.5'/></g><circle cx='68' cy='12' r='5' fill='%230a1020' stroke='%23c9a227' stroke-width='2'/></svg>") repeat-x left center / 82px 24px;
 }
 
 /* ==========================================================================
@@ -663,6 +814,7 @@ textarea { resize: vertical; min-height: 120px; }
 
 .site-footer {
   background: var(--band-bg);
+  border-top: 1px solid var(--line-dark);
   color: var(--band-muted);
   padding-block: clamp(2.75rem, 2rem + 2.5vw, 4rem) 2rem;
   font-size: var(--fs-small);
@@ -711,11 +863,11 @@ textarea { resize: vertical; min-height: 120px; }
   text-decoration: none;
   transition: color .16s var(--ease);
 }
-.footer-links a:hover { color: var(--gold-bright); }
+.footer-links a:hover { color: var(--gold-hi); }
 
 .footer-bottom {
   padding-top: 1.5rem;
-  color: var(--text-faint);
+  color: var(--mist);
   font-size: .8rem;
 }
 
@@ -754,9 +906,9 @@ textarea { resize: vertical; min-height: 120px; }
     align-items: stretch;
     gap: 0;
     padding: .75rem var(--gutter) 1.75rem;
-    background: var(--paper);
-    border-bottom: 1px solid var(--line);
-    box-shadow: 0 22px 44px -26px rgba(19, 28, 46, .5);
+    background: var(--midnight);
+    border-bottom: 1px solid var(--line-dark);
+    box-shadow: 0 22px 44px -26px rgba(0, 0, 0, .8);
     opacity: 0;
     visibility: hidden;
     transform: translateY(-10px);
@@ -767,13 +919,13 @@ textarea { resize: vertical; min-height: 120px; }
   .nav-links > a {
     padding: .95rem 0;
     font-size: 1.04rem;
-    border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid var(--line-dark);
   }
   .nav-links > a::after { display: none; }
   .nav-links > a.nav-account {
     padding: .95rem 0;
     border: 0;
-    border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid var(--line-dark);
     border-radius: 0;
     font-size: 1.04rem;
   }
