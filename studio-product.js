@@ -312,7 +312,9 @@
     var acct = data.account || {};
     var text = data.paidWith === "trial"
       ? "Free try — " + A.triesText(acct.trialsRemaining) + " left."
-      : ugx(data.amount) + " from your balance — " + ugx(acct.balance) + " left.";
+      : data.paidWith === "plan"
+        ? "Included in your plan — this month's Studio pack."
+        : ugx(data.amount) + " from your balance — " + ugx(acct.balance) + " left.";
     $("outputPaid").textContent = text;
     $("outputPaid").hidden = false;
   }
@@ -394,7 +396,7 @@
 
   function drawStatus() {
     var acct = A && A.account();
-    $("builderMode").textContent = acct ? A.statusText(acct)
+    $("builderMode").textContent = acct ? A.statusText(acct, { balance: true })
       : (SP && SP.connected ? "3 free tries with an account" : "Automated output");
   }
 

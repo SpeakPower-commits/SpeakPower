@@ -54,7 +54,7 @@
       <span class="logo-text">Speak<span>Power</span></span>
     </a>
     <nav class="nav-links" id="navLinks" aria-label="Primary">
-<a href="rehearse.html">Rehearse</a><a href="services.html">Services</a><a href="audit.html">Audit</a><a href="studio.html">Studio</a><a href="work.html">Work</a><a href="about.html">About</a><a href="https://speakpower1.blogspot.com" target="_blank" rel="noopener">Insights</a><a href="contact.html" class="nav-cta">Book a discovery call</a>
+<a href="rehearse.html">Rehearse</a><a href="services.html">Services</a><a href="studio.html" aria-current="page">Studio</a><a href="plans.html">Plans</a><a href="work.html">Work</a><a href="about.html">About</a><a href="https://speakpower1.blogspot.com" target="_blank" rel="noopener">Insights</a><a href="contact.html" class="nav-cta">Book a discovery call</a>
 </nav>
     <button class="nav-toggle" id="navToggle" type="button"
             aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">&#9776;</button>
@@ -65,7 +65,7 @@
 
   <div class="page-hero">
     <div class="wrap">
-      <span class="eyebrow">Free tool · Pitch &amp; document analysis</span>
+      <span class="eyebrow"><a href="studio.html">SpeakPower Studio</a> · Free tool</span>
       <h1>Pitch &amp; Document Clarity Audit</h1>
       <p>Upload your deck, proposal or grant summary &mdash; or paste the text. You get a measured diagnosis across six dimensions in about a second, the formulas behind every number so you can argue with them, and each failure routed to the service that repairs it.</p>
     </div>
@@ -293,7 +293,8 @@
         <div class="footer-links">
           <a href="rehearse.html">Rehearsal Room</a>
           <a href="services.html">Services</a>
-          <a href="audit.html">Free audit</a>
+          <a href="studio.html">Studio</a>
+          <a href="plans.html">Plans</a>
           <a href="work.html">Work</a>
           <a href="about.html">About</a>
           <a href="https://speakpower1.blogspot.com" target="_blank" rel="noopener">Blog</a>
@@ -340,6 +341,12 @@
         {
           "@type": "ListItem",
           "position": 2,
+          "name": "Studio",
+          "item": "https://speakpower-commits.github.io/SpeakPower/studio.html"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
           "name": "Message Clarity Audit",
           "item": "https://speakpower-commits.github.io/SpeakPower/audit.html"
         }
@@ -354,8 +361,12 @@
       "operatingSystem": "Web browser",
       "browserRequirements": "Requires JavaScript",
       "description": "A free client-side diagnostic that scores a pitch, positioning paragraph or proposal on readability, sentence rhythm, passive voice, hedging, category jargon and evidence density. Text is analysed in the browser and never uploaded.",
-      "author": { "@id": "https://speakpower-commits.github.io/SpeakPower/#person" },
-      "publisher": { "@id": "https://speakpower-commits.github.io/SpeakPower/#organization" },
+      "author": {
+        "@id": "https://speakpower-commits.github.io/SpeakPower/#person"
+      },
+      "publisher": {
+        "@id": "https://speakpower-commits.github.io/SpeakPower/#organization"
+      },
       "isAccessibleForFree": true,
       "offers": {
         "@type": "Offer",

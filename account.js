@@ -1,13 +1,14 @@
 /* ==========================================================================
    SpeakPower — accounts
    One account for every service: sign in with Google, keep one session,
-   show the balance, open a top-up, and settle it when the customer returns
-   from Flutterwave. Used by account.html, studio-product.html, griot-app.html
-   and rehearse.html; needs script.js (window.SP) loaded first.
+   show the plan or the free tries, open a plan or a top-up, and settle it
+   when the customer returns from Flutterwave. Used by account.html,
+   plans.html, studio-product.html, griot-app.html and rehearse.html; needs
+   script.js (window.SP) loaded first.
 
-   The browser holds a signed session token and a copy of the account to draw
-   the page with. Every number that matters — free tries, balance, prices —
-   is decided by the Worker; this file only displays what it is told.
+   GRIOT and the Rehearsal Room come with a plan and are never priced per
+   use; Studio packs have a one-off price paid from the balance. Every number
+   that matters is decided by the Worker; this file only displays it.
 
    Security: dynamic text goes through textContent, never innerHTML.
    ========================================================================== */
@@ -28,7 +29,7 @@
     "content-seo": "SEO Content Starter",
     "data-story": "Data Story Builder",
     "speaker-ready": "Speaker Ready Pack",
-    "griot": "GRIOT message",
+    "griot": "GRIOT",
     "rehearsal": "Rehearsal Room"
   };
 
@@ -47,6 +48,20 @@
     n = Number(n) || 0;
     return n + " free " + (n === 1 ? "try" : "tries");
   }
+
+  // "8 Nov" from Unix seconds: the one date format the pages show.
+  var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  function dayMonth(sec) {
+    var d = new Date(Number(sec) * 1000);
+    return d.getUTCDate() + " " + MONTHS[d.getUTCMonth()];
+  }
+
+  // What each plan is for, in words: the fair-use numbers live in the plan's
+  // details on plans.html, never in a pay wall.
+  var PLAN_LINES = {
+    starter: "GRIOT on working days, the Rehearsal Room, and everything GRIOT remembers for you.",
+    pro: "Heavier GRIOT use, more rehearsals, one Studio pack a month and 15% off the rest."
+  };
 
   /* -------------------------------------------------------------- session */
 
@@ -339,17 +354,90 @@
       .then(function (data) { window.location.assign(data.link); });
   }
 
-  // The pay wall every service shows: what it costs, what is there, and a
-  // way to top up that comes straight back to this page.
+  function startPlan(plan, returnTo) {
+    return call("/plans/checkout", { plan: plan, returnTo: returnTo, anonId: SP.anonId, page: location.pathname })
+      .then(function (data) { window.location.assign(data.link); });
+  }
+
+  // The wall GRIOT and the Rehearsal Room show: the plans, never a price per
+  // use. Choosing one opens checkout and comes straight back to this page.
+  function renderPlanWall(host, info) {
+    info = info || {};
+    var acct = info.account || account() || {};
+    var m = acct.membership;
+    var plans = info.plans || acct.plans || [];
+    host.textContent = "";
+    host.appendChild(el("h2", null, info.heading || (m && m.plan ? "Your month's allowance is used" : "Keep going with a plan")));
+    var lead = info.message || (m && m.plan ? "It renews on " + dayMonth(m.endsAt) + "." : "Your free tries are used.");
+    host.appendChild(el("p", null, lead +
+      " Every plan runs 30 days and includes GRIOT and the Rehearsal Room. Pay by mobile money or card; renewing is one tap."));
+
+    var error = el("p", "builder-error");
+    error.setAttribute("role", "alert");
+    error.hidden = true;
+
+    var grid = el("div", "plan-offer");
+    plans.forEach(function (plan) {
+      if (m && m.plan === plan.key && plan.key === "pro") return; // already on the top plan
+      var card = el("div", "plan-offer-card" + (plan.key === "pro" ? " plan-offer-card--pro" : ""));
+      card.appendChild(el("h3", null, plan.name));
+      var price = el("p", "plan-offer-price", formatUgx(plan.price));
+      price.appendChild(el("span", null, " / 30 days"));
+      card.appendChild(price);
+      card.appendChild(el("p", "plan-offer-line", PLAN_LINES[plan.key] || ""));
+      var b = el("button", plan.key === "starter" && !(m && m.plan) ? "btn btn-primary" : "btn btn-ghost",
+        m && m.plan && m.plan !== plan.key ? "Switch to " + plan.name : "Choose " + plan.name);
+      b.type = "button";
+      if (!acct.canBuyPlans) b.hidden = true;
+      b.addEventListener("click", function () {
+        if (grid.getAttribute("aria-busy") === "true") return;
+        grid.setAttribute("aria-busy", "true");
+        var label = b.textContent;
+        b.textContent = "Opening secure checkout…";
+        error.hidden = true;
+        startPlan(plan.key, info.returnTo).then(null, function (e) {
+          grid.removeAttribute("aria-busy");
+          b.textContent = label;
+          error.textContent = e.message;
+          error.hidden = false;
+          if (e.status === 401 && info.onSignedOut) info.onSignedOut();
+        });
+      });
+      card.appendChild(b);
+      grid.appendChild(card);
+    });
+    host.appendChild(grid);
+    host.appendChild(error);
+
+    if (!acct.canBuyPlans) {
+      host.appendChild(el("p", "builder-note", "Online payment opens shortly. Until then, message me and I will switch your plan on."));
+      var talk = el("a", "btn btn-ghost", "Message me on WhatsApp");
+      talk.href = "https://wa.me/256743482588?text=" + encodeURIComponent("Hi Otieno, I would like a SpeakPower plan.");
+      talk.target = "_blank";
+      talk.rel = "noopener";
+      host.appendChild(actions(talk));
+      return;
+    }
+    var more = el("a", "plan-offer-more", "Compare the plans");
+    more.href = "plans.html";
+    var note = el("p", "builder-note", "Switching plan starts the new one today. ");
+    note.appendChild(more);
+    host.appendChild(note);
+  }
+
+  // The pay wall every service shows. GRIOT and the Rehearsal Room offer the
+  // plans; a Studio pack says what it costs, what is there, and offers a
+  // top-up that comes straight back to this page.
   function renderPayWall(host, info) {
     info = info || {};
+    if (info.plans || info.error === "plan_required") return renderPlanWall(host, info);
     var acct = info.account || account() || {};
     host.textContent = "";
     host.appendChild(el("h2", null, info.heading || "Top up to continue"));
 
     var lines = [];
     if (info.intro) {
-      lines.push("Add to your balance once; every Studio service and GRIOT draws on it.");
+      lines.push("Add to your balance once; every Studio pack draws on it.");
     } else {
       if (!(Number(acct.trialsRemaining) > 0)) lines.push("Your free tries are used.");
       if (info.title && info.price) {
@@ -394,7 +482,7 @@
     host.appendChild(row);
     host.appendChild(error);
     host.appendChild(el("p", "builder-note",
-      "Pay by card or mobile money (MTN, Airtel) through Flutterwave. You come straight back here, and your balance works on every service."));
+      "Pay by card or mobile money (MTN, Airtel) through Flutterwave. You come straight back here, and your balance works on every Studio pack."));
   }
 
   /* ------------------------------------------------- back from Flutterwave */
@@ -428,15 +516,24 @@
       return Promise.resolve({ ok: false, text: "Payment cancelled — nothing was charged." });
     }
     if (!session()) {
-      return Promise.resolve({ ok: false, text: "Sign in to see your payment. If it went through, it is already on your balance." });
+      return Promise.resolve({ ok: false, text: "Sign in to see your payment. If it went through, it is already on your account." });
     }
     returned = null;
     return call("/wallet/confirm", { txRef: r.txRef, transactionId: r.transactionId }).then(function (data) {
       setAccount(data.account);
+      var isPlan = /^plan:/.test(data.purpose || "");
       if (data.status === "credited" || data.status === "already_credited") {
+        var m = data.account.membership;
+        if (isPlan && m) {
+          return { ok: true, plan: true, text: m.plan
+            ? "Payment received — your " + m.name + " plan runs until " + dayMonth(m.paidUntil) + "."
+            : "Payment received — your plan starts on " + dayMonth(m.next.startsAt) + "." };
+        }
         return { ok: true, text: "Payment received — " + formatUgx(data.amount) + " added. Your balance is " + formatUgx(data.account.balance) + "." };
       }
-      return { ok: false, text: "We could not confirm that payment yet. If you were charged, it is added to your balance automatically as soon as it clears." };
+      return { ok: false, text: isPlan
+        ? "We could not confirm that payment yet. If you were charged, your plan switches on automatically as soon as it clears."
+        : "We could not confirm that payment yet. If you were charged, it is added to your balance automatically as soon as it clears." };
     }, function (e) {
       return { ok: false, text: e.message };
     });
@@ -448,7 +545,7 @@
   // pages only, so ?next= can never send anyone off-site.
   function safeNext(value) {
     var v = String(value || "");
-    if (v === "griot-app.html" || v === "rehearse.html") return v;
+    if (v === "griot-app.html" || v === "rehearse.html" || v === "plans.html") return v;
     var m = v.match(/^studio-product\.html\?product=([a-z-]{2,40})$/);
     return m && m[1] !== "griot" && SERVICE_NAMES[m[1]] ? v : null;
   }
@@ -456,6 +553,7 @@
   function nextServiceName(next) {
     if (next === "griot-app.html") return "GRIOT";
     if (next === "rehearse.html") return "the Rehearsal Room";
+    if (next === "plans.html") return "your plan";
     var m = String(next || "").match(/product=([a-z-]+)$/);
     return m ? SERVICE_NAMES[m[1]] : "";
   }
@@ -471,14 +569,52 @@
 
   /* --------------------------------------------------------- status line */
 
-  // "2 free tries left · balance UGX 45,000" — the one-line summary pages show.
-  function statusText(acct) {
+  // The one-line summary pages show: "Starter plan · renews 8 Nov", or
+  // "2 free tries left (any service)". The balance appears only where it
+  // can be spent: on Studio packs (opts.balance).
+  function statusText(acct, opts) {
     if (!acct) return "";
+    opts = opts || {};
+    var m = acct.membership;
     var free = Number(acct.trialsRemaining) || 0;
     var parts = [];
+    if (m && m.plan) {
+      parts.push(m.name + " plan · " + (m.next ? "paid until " + dayMonth(m.paidUntil) : "renews " + dayMonth(m.endsAt)));
+    } else if (m && m.next) {
+      parts.push(m.next.name + " plan starts " + dayMonth(m.next.startsAt));
+    }
     if (free > 0) parts.push(triesText(free) + " left (any service)");
-    parts.push("balance " + formatUgx(acct.balance));
+    else if (!(m && m.plan)) parts.push("free tries used");
+    if (opts.balance) parts.push("balance " + formatUgx(acct.balance));
     return parts.join(" · ");
+  }
+
+  // A member's month at a glance: a bar for one allowance, as a share of
+  // the month, never a count. Empty (and hidden) without a plan.
+  function renderUsage(host, acct, service) {
+    if (!host) return;
+    host.textContent = "";
+    var m = acct && acct.membership;
+    var pct = m && m.plan && m.usage ? Math.max(0, Math.min(100, Number(m.usage[service]) || 0)) : null;
+    host.hidden = pct === null;
+    if (pct === null) return;
+    var label = el("p", "usage-label");
+    label.appendChild(el("span", null, "This month"));
+    label.appendChild(el("span", "usage-value", pct >= 100 ? "All used · renews " + dayMonth(m.endsAt)
+      : pct >= 80 ? "Most used · renews " + dayMonth(m.endsAt) : pct + "% used"));
+    host.appendChild(label);
+    var track = el("div", "usage-track");
+    track.setAttribute("role", "img");
+    track.setAttribute("aria-label", pct + "% of this month's allowance used");
+    var fill = el("i", "usage-fill" + (pct >= 80 ? " usage-fill--high" : ""));
+    fill.style.width = pct + "%";
+    track.appendChild(fill);
+    host.appendChild(track);
+    if (m.renewSoon) {
+      var renew = el("a", "usage-renew", "Renew for another 30 days");
+      renew.href = "plans.html";
+      host.appendChild(renew);
+    }
   }
 
   window.SPAccount = {
@@ -493,6 +629,11 @@
     signInAvailable: signInAvailable,
     mountSignIn: mountSignIn,
     renderPayWall: renderPayWall,
+    renderPlanWall: renderPlanWall,
+    renderUsage: renderUsage,
+    startPlan: startPlan,
+    dayMonth: dayMonth,
+    PLAN_LINES: PLAN_LINES,
     topUpChoices: topUpChoices,
     startTopUp: startTopUp,
     settleReturn: settleReturn,

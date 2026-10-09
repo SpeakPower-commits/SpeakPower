@@ -313,6 +313,34 @@ await test("real D1: a burst of payment notifications plus the return page credi
   eq(p.status, "paid"); eq(p.provider_ref, "777001");
 });
 
+await test("real D1: a plan payment opens 30 days once; rehearsals then draw on it, never on the balance", async () => {
+  const email = "d1.member@example.com";
+  const s = await signIn(email);
+  await db.prepare("UPDATE users SET trials_remaining = 0, balance = 900000 WHERE email_canonical = ?").bind(email).run();
+  const audio = Buffer.from("x".repeat(3000)).toString("base64");
+  const wall = await call("POST", "/rehearse", { token: s.token, body: { moment: "intro-60", audio, seconds: 40 } });
+  eq(wall.status, 402); eq(wall.data.error, "plan_required"); ok(!("price" in wall.data), "no per-rehearsal price");
+  const c = await call("POST", "/plans/checkout", { token: s.token, body: { plan: "starter", amount: 1 } });
+  eq(c.status, 200); eq(c.data.amount, 60000, "the plan's price, not the browser's");
+  flw.transactions["777101"] = { id: 777101, tx_ref: c.data.txRef, status: "successful", amount: 60000, currency: "UGX" };
+  flw.delayMs = 40;
+  const hook = () => mf.dispatchFetch("https://api.test/webhooks/flutterwave", {
+    method: "POST", headers: { "Content-Type": "application/json", "verif-hash": "flw-hash-secret" },
+    body: JSON.stringify({ event: "charge.completed", data: { id: 777101, tx_ref: c.data.txRef } })
+  });
+  await Promise.all([hook(), hook(), hook(),
+    call("POST", "/wallet/confirm", { token: s.token, body: { txRef: c.data.txRef, transactionId: "777101" } })]);
+  flw.delayMs = 0;
+  const u = await user(email);
+  const rows = (await db.prepare("SELECT plan, starts_at, ends_at FROM subscriptions WHERE user_id = ?").bind(u.id).all()).results;
+  eq(rows.length, 1, "one period, not four"); eq(rows[0].ends_at - rows[0].starts_at, 30 * 86400);
+  eq(u.balance, 900000, "a plan payment never lands on the balance");
+  const r = await call("POST", "/rehearse", { token: s.token, body: { moment: "intro-60", audio, seconds: 40 } });
+  eq(r.status, 200); eq(r.data.paidWith, "plan");
+  eq(r.data.account.membership.plan, "starter"); eq(r.data.account.membership.usage.rehearsal, 5);
+  eq((await user(email)).balance, 900000);
+});
+
 await test("seo: a clean page — every check passes, SVG titles ignored, entities decoded", async () => {
   const r = await audit("https://clean.test");
   eq(r.status, 200);
@@ -403,6 +431,7 @@ await test("seo: this site's own pages, as committed, parse cleanly", async () =
 await test("rehearse: the bundled Worker transcribes, scores and coaches on workerd, with real D1", async () => {
   const s = await signIn("rehearser@example.com");
   const audio = Buffer.from("x".repeat(3000)).toString("base64");
+  coachCalls.length = 0;
   const r = await call("POST", "/rehearse", { token: s.token, body: { moment: "donor-presentation", audio, seconds: 52 } });
   eq(r.status, 200, "status " + JSON.stringify(r.data).slice(0, 200));
   eq(r.data.kind, "speak", "coached");
@@ -411,7 +440,7 @@ await test("rehearse: the bundled Worker transcribes, scores and coaches on work
   eq(coachCalls.length, 1, "one call through the Anthropic SDK");
   eq(coachCalls[0].key, "sk-ant-workerd-test"); eq(coachCalls[0].body.model, "claude-opus-5-5");
   eq(coachCalls[0].body.fallbacks, "default");
-  const row = await db.prepare("SELECT moment, kind, score FROM rehearsals").first();
+  const row = await db.prepare("SELECT moment, kind, score FROM rehearsals WHERE moment = 'donor-presentation'").first();
   eq(row.moment, "donor-presentation"); eq(row.score, r.data.score);
   const h = await call("GET", "/rehearsals", { token: s.token });
   eq(h.data.rehearsals.length, 1);

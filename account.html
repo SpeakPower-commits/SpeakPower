@@ -23,7 +23,7 @@
 <header class="site-header"><div class="wrap">
 <a href="index.html" class="logo" aria-label="SpeakPower — home"><img class="logo-mark" src="assets/logo-mark.png" alt="" width="160" height="160"><span class="logo-text">Speak<span>Power</span></span></a>
 <nav class="nav-links" id="navLinks" aria-label="Primary">
-<a href="rehearse.html">Rehearse</a><a href="services.html">Services</a><a href="audit.html">Audit</a><a href="studio.html">Studio</a><a href="work.html">Work</a><a href="about.html">About</a><a href="https://speakpower1.blogspot.com" target="_blank" rel="noopener">Insights</a><a href="contact.html" class="nav-cta">Book a discovery call</a>
+<a href="rehearse.html">Rehearse</a><a href="services.html">Services</a><a href="studio.html">Studio</a><a href="plans.html">Plans</a><a href="work.html">Work</a><a href="about.html">About</a><a href="https://speakpower1.blogspot.com" target="_blank" rel="noopener">Insights</a><a href="contact.html" class="nav-cta">Book a discovery call</a>
 </nav>
 <button class="nav-toggle" id="navToggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">&#9776;</button>
 </div></header>
@@ -32,7 +32,7 @@
 <div class="page-hero"><div class="wrap">
 <span class="eyebrow">SpeakPower account</span>
 <h1 id="acTitle">Your account.</h1>
-<p id="acLead">One account for every Studio service and GRIOT. Your first 3 tries are free, on any service. After that, top up one balance and each use takes its price.</p>
+<p id="acLead">One account for the Rehearsal Room, GRIOT and every Studio pack. Your first 3 tries are free, on any service. After that, a plan covers GRIOT and the Rehearsal Room for 30 days, and each Studio pack has one price.</p>
 </div></div>
 
 <section style="padding-top:0"><div class="wrap account-app">
@@ -50,16 +50,18 @@
 <div class="studio-builder-panel" id="acSignIn" hidden></div>
 
 <div id="acHome" hidden>
+<div class="studio-builder-panel account-plan" id="acPlan"></div>
+
 <div class="account-summary">
-<div class="account-card">
-<span class="eyebrow">Balance</span>
-<p class="account-figure" id="acBalance">&mdash;</p>
-<p class="builder-note">Works on every service. It never expires.</p>
-</div>
 <div class="account-card">
 <span class="eyebrow">Free tries</span>
 <p class="account-figure" id="acTries">&mdash;</p>
 <p class="builder-note">Use them on any service, in any mix.</p>
+</div>
+<div class="account-card">
+<span class="eyebrow">Studio balance</span>
+<p class="account-figure" id="acBalance">&mdash;</p>
+<p class="builder-note">For Studio packs. It never expires.</p>
 </div>
 <div class="account-card">
 <span class="eyebrow">Signed in as</span>
@@ -72,9 +74,10 @@
 <div class="studio-builder-panel" id="acTopup"></div>
 
 <div class="studio-builder-panel">
-<h2>What each service costs</h2>
+<h2>What each Studio pack costs</h2>
+<p class="builder-note" id="acPriceNote">GRIOT and the Rehearsal Room come with your plan.</p>
 <table class="account-table" id="acPrices">
-<thead><tr><th scope="col">Service</th><th scope="col">Price per use</th></tr></thead>
+<thead><tr><th scope="col">Studio pack</th><th scope="col">Price</th></tr></thead>
 <tbody></tbody>
 </table>
 <div class="builder-actions"><a class="btn btn-primary" href="studio.html">Go to the Studio</a><a class="btn btn-ghost" href="griot-app.html">Ask GRIOT</a></div>
@@ -90,10 +93,10 @@
 </div>
 
 <div class="studio-builder-panel">
-<h2>Top-ups</h2>
-<p class="output-empty" id="acPaymentsEmpty">No top-ups yet.</p>
+<h2>Payments</h2>
+<p class="output-empty" id="acPaymentsEmpty">No payments yet.</p>
 <table class="account-table" id="acPayments" hidden>
-<thead><tr><th scope="col">Amount</th><th scope="col">Status</th><th scope="col">When</th></tr></thead>
+<thead><tr><th scope="col">Amount</th><th scope="col">For</th><th scope="col">When</th></tr></thead>
 <tbody></tbody>
 </table>
 </div>
@@ -104,7 +107,7 @@
 
 <footer class="site-footer"><div class="wrap"><div class="footer-grid">
 <div><h4>SpeakPower</h4><p class="footer-tagline">Articulate is key.</p><p>Brand storytelling and market development, backed by SEO, writing, design, data, programming and public speaking. Kampala, Uganda.</p></div>
-<div><h4>Explore</h4><div class="footer-links"><a href="rehearse.html">Rehearsal Room</a><a href="services.html">Services</a><a href="audit.html">Audit</a><a href="studio.html">Studio</a><a href="work.html">Work</a><a href="about.html">About</a></div></div>
+<div><h4>Explore</h4><div class="footer-links"><a href="rehearse.html">Rehearsal Room</a><a href="services.html">Services</a><a href="studio.html">Studio</a><a href="plans.html">Plans</a><a href="work.html">Work</a><a href="about.html">About</a></div></div>
 <div><h4>Contact</h4><div class="footer-links"><a href="tel:+256743482588">+256 743 482 588</a><a href="mailto:thomasotieno583@gmail.com">thomasotieno583@gmail.com</a><a href="https://wa.me/256743482588" target="_blank" rel="noopener">WhatsApp</a></div></div>
 <div><h4>Follow</h4><div class="footer-links"><a href="https://www.linkedin.com/in/otieno-thomas-a39b1b21b/" target="_blank" rel="noopener">LinkedIn</a><a href="https://www.instagram.com/otienothomas8/" target="_blank" rel="noopener">Instagram</a><a href="https://www.tiktok.com/@otom323" target="_blank" rel="noopener">TikTok</a></div></div>
 </div><div class="footer-bottom">&copy; 2026 SpeakPower. All rights reserved.</div></div></footer>

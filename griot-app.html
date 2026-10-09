@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GRIOT — SpeakPower</title>
-<meta name="description" content="Sign in and try GRIOT, SpeakPower's strategic analyst that remembers your business. Your first 3 tries are free; then UGX 2,500 a message.">
+<meta name="description" content="Sign in and try GRIOT, SpeakPower's strategic analyst that remembers your business. Your first 3 tries are free; then it comes with every SpeakPower plan.">
 <meta name="robots" content="noindex, follow">
 <meta name="theme-color" content="#16233f">
 <link rel="icon" type="image/png" href="assets/logo-mark.png?v=4" sizes="160x160">
@@ -23,7 +23,7 @@
 <header class="site-header"><div class="wrap">
 <a href="index.html" class="logo" aria-label="SpeakPower — home"><img class="logo-mark" src="assets/logo-mark.png" alt="" width="160" height="160"><span class="logo-text">Speak<span>Power</span></span></a>
 <nav class="nav-links" id="navLinks" aria-label="Primary">
-<a href="rehearse.html">Rehearse</a><a href="services.html">Services</a><a href="audit.html">Audit</a><a href="studio.html">Studio</a><a href="work.html">Work</a><a href="about.html">About</a><a href="https://speakpower1.blogspot.com" target="_blank" rel="noopener">Insights</a><a href="contact.html" class="nav-cta">Book a discovery call</a>
+<a href="rehearse.html">Rehearse</a><a href="services.html">Services</a><a href="studio.html">Studio</a><a href="plans.html">Plans</a><a href="work.html">Work</a><a href="about.html">About</a><a href="https://speakpower1.blogspot.com" target="_blank" rel="noopener">Insights</a><a href="contact.html" class="nav-cta">Book a discovery call</a>
 </nav>
 <button class="nav-toggle" id="navToggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">&#9776;</button>
 </div></header>
@@ -32,7 +32,7 @@
 <div class="page-hero"><div class="wrap">
 <span class="eyebrow">SpeakPower Studio &middot; GRIOT</span>
 <h1>Ask GRIOT.</h1>
-<p>Your first 3 tries are free, shared with every Studio service &mdash; no card, no call. After that, UGX 2,500 a message from your balance. It remembers what you tell it, and it marks every claim as fact, inference or hypothesis.</p>
+<p>Your first 3 tries are free, shared with every Studio service &mdash; no card, no call. After that, GRIOT comes with every <a href="plans.html">SpeakPower plan</a>. It remembers what you tell it, and it marks every claim as fact, inference or hypothesis.</p>
 </div></div>
 
 <section style="padding-top:0"><div class="wrap griot-app">
@@ -49,24 +49,77 @@
 <!-- Sign in: built by account.js, one account for GRIOT and the Studio. -->
 <div class="studio-builder-panel" id="gaSignIn" hidden></div>
 
-<!-- The conversation -->
+<!-- The workspace: Ask, plus Conversations, Memory and Decisions once this
+     GRIOT has them (griot-app.js reveals the tabs and the lens picker). -->
 <div class="studio-builder-panel griot-chat" id="gaChat" hidden>
 <div class="griot-chat-head">
 <div class="studio-builder-meta" aria-live="polite"><span id="gaBalance">&mdash;</span><span id="gaWho"></span></div>
 <button class="btn btn-ghost griot-signout" type="button" id="gaSignout">Sign out</button>
 </div>
+<div class="usage" id="gaUsage" hidden></div>
+
+<div class="ga-tabs" role="tablist" aria-label="GRIOT workspace" id="gaTabs" hidden>
+<button type="button" role="tab" id="gaTab-ask" aria-controls="gaPanel-ask" aria-selected="true">Ask</button>
+<button type="button" role="tab" id="gaTab-conversations" aria-controls="gaPanel-conversations" aria-selected="false" tabindex="-1">Conversations</button>
+<button type="button" role="tab" id="gaTab-memory" aria-controls="gaPanel-memory" aria-selected="false" tabindex="-1">Memory</button>
+<button type="button" role="tab" id="gaTab-decisions" aria-controls="gaPanel-decisions" aria-selected="false" tabindex="-1">Decisions</button>
+</div>
+
+<div id="gaPanel-ask" role="tabpanel" aria-labelledby="gaTab-ask">
+<details class="ga-legend">
+<summary>How GRIOT labels every claim</summary>
+<ul>
+<li><strong class="griot-label griot-label--fact">FACT</strong> what you told it, or what can be checked</li>
+<li><strong class="griot-label griot-label--inference">INFERENCE</strong> reasoned from the facts</li>
+<li><strong class="griot-label griot-label--hypothesis">HYPOTHESIS</strong> plausible; worth testing</li>
+<li><strong class="griot-label griot-label--recommendation">RECOMMENDATION</strong> what to do next</li>
+<li><strong class="griot-label griot-label--unknown">UNKNOWN</strong> missing; ask or find out</li>
+</ul>
+</details>
 <div class="griot-log" id="gaLog" aria-live="polite" aria-relevant="additions">
 <p class="output-empty" id="gaEmpty">Start with the decision in front of you &mdash; pricing, positioning, a hire, a donor narrative. Give GRIOT the context once; it keeps it.</p>
 </div>
 <form id="gaComposer" class="griot-composer" novalidate>
+<fieldset class="ga-lenses" id="gaLenses" hidden>
+<legend>Lenses <span>&mdash; optional, up to three</span></legend>
+<div class="ga-lens-chips" id="gaLensChips"></div>
+<p class="builder-note" id="gaLensHint">Auto lets GRIOT pick the specialists your question needs.</p>
+</fieldset>
 <div class="builder-field"><label for="ga-message">Your question</label>
 <textarea id="ga-message" rows="4" maxlength="20000" placeholder="We sell solar kits to rural schools in Uganda. Donors are cooling. Where should the next quarter go?" required></textarea></div>
 <p class="builder-error" id="gaChatError" role="alert" hidden></p>
-<div class="builder-actions"><button class="btn btn-primary" type="submit" id="gaSendBtn">Ask GRIOT</button></div>
+<div class="builder-actions"><button class="btn btn-primary" type="submit" id="gaSendBtn">Ask GRIOT</button><button class="btn btn-ghost" type="button" id="gaNewBtn" hidden>New conversation</button></div>
 </form>
 </div>
 
-<!-- Shown when the free tries are used and the balance will not cover a message. -->
+<div id="gaPanel-conversations" role="tabpanel" aria-labelledby="gaTab-conversations" hidden>
+<h2 class="ga-h">Your conversations</h2>
+<p class="output-empty" id="gaConvEmpty">Loading&hellip;</p>
+<ul class="ga-list" id="gaConvList"></ul>
+</div>
+
+<div id="gaPanel-memory" role="tabpanel" aria-labelledby="gaTab-memory" hidden>
+<h2 class="ga-h">What GRIOT remembers about you</h2>
+<p class="builder-note">GRIOT reads these before every answer. It adds what it learns from your conversations; you can add facts yourself, or delete anything.</p>
+<form class="ga-mem-form" id="gaMemForm" novalidate>
+<div class="builder-field"><label for="ga-mem-title">A fact, in a few words</label><input id="ga-mem-title" maxlength="200" placeholder="Our runway"></div>
+<div class="builder-field"><label for="ga-mem-content">The detail</label><textarea id="ga-mem-content" rows="2" maxlength="2000" placeholder="Nine months of cash at the current burn."></textarea></div>
+<p class="builder-error" id="gaMemError" role="alert" hidden></p>
+<div class="builder-actions"><button class="btn btn-primary" type="submit" id="gaMemAdd">Add to memory</button></div>
+</form>
+<p class="output-empty" id="gaMemEmpty">Loading&hellip;</p>
+<ul class="ga-list" id="gaMemList"></ul>
+</div>
+
+<div id="gaPanel-decisions" role="tabpanel" aria-labelledby="gaTab-decisions" hidden>
+<h2 class="ga-h">Decisions log</h2>
+<p class="builder-note">Every question you bring is logged with GRIOT's recommendation, so you can see what was decided and why.</p>
+<p class="output-empty" id="gaDecEmpty">Loading&hellip;</p>
+<ul class="ga-list" id="gaDecList"></ul>
+</div>
+</div>
+
+<!-- Shown when the free tries are used and no plan covers another question. -->
 <div class="studio-builder-panel griot-topup" id="gaTopup" hidden></div>
 
 <p class="builder-note">GRIOT answers are analysis, not professional advice. What you send is stored against your account so GRIOT can remember it, and is never visible to any other account.</p>
@@ -75,7 +128,7 @@
 
 <footer class="site-footer"><div class="wrap"><div class="footer-grid">
 <div><h4>SpeakPower</h4><p class="footer-tagline">Articulate is key.</p><p>Brand storytelling and market development, backed by SEO, writing, design, data, programming and public speaking. Kampala, Uganda.</p></div>
-<div><h4>Explore</h4><div class="footer-links"><a href="rehearse.html">Rehearsal Room</a><a href="services.html">Services</a><a href="audit.html">Audit</a><a href="studio.html">Studio</a><a href="work.html">Work</a><a href="about.html">About</a></div></div>
+<div><h4>Explore</h4><div class="footer-links"><a href="rehearse.html">Rehearsal Room</a><a href="services.html">Services</a><a href="studio.html">Studio</a><a href="plans.html">Plans</a><a href="work.html">Work</a><a href="about.html">About</a></div></div>
 <div><h4>Contact</h4><div class="footer-links"><a href="tel:+256743482588">+256 743 482 588</a><a href="mailto:thomasotieno583@gmail.com">thomasotieno583@gmail.com</a><a href="https://wa.me/256743482588" target="_blank" rel="noopener">WhatsApp</a></div></div>
 <div><h4>Follow</h4><div class="footer-links"><a href="https://www.linkedin.com/in/otieno-thomas-a39b1b21b/" target="_blank" rel="noopener">LinkedIn</a><a href="https://www.instagram.com/otienothomas8/" target="_blank" rel="noopener">Instagram</a><a href="https://www.tiktok.com/@otom323" target="_blank" rel="noopener">TikTok</a></div></div>
 </div><div class="footer-bottom">&copy; 2026 SpeakPower. All rights reserved.</div></div></footer>

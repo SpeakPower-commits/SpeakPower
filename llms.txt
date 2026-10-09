@@ -13,9 +13,9 @@ SpeakPower connects brand storytelling with market development: clarifying what 
 - **Data Science, Analytics & Digital Systems** — data analysis, dashboards, programming, web applications and automation.
 - **Public Speaking & Thought Leadership** — talks, presentations, coaching, facilitation and public-facing expertise.
 
-## POLSSE framework
+## POLSΘ framework
 
-POLSSE is a SpeakPower strategic lens for testing whether communication is ready for the wider environment around it.
+POLSΘ (also written POLSSE; Θ, theta, stands for Socioeconomics) is a SpeakPower strategic lens for testing whether communication is ready for the wider environment around it.
 
 1. **Politics** — public and policy spaces where a message may be repeated by people outside the original room.
 2. **Organizations** — internal alignment across leadership, sales, support and delivery.
@@ -26,12 +26,12 @@ POLSSE is a SpeakPower strategic lens for testing whether communication is ready
 ## Rehearsal Room
 
 - **Rehearsal Room** — https://speakpower-commits.github.io/SpeakPower/rehearse.html
-  Practise a pitch, presentation, interview answer, 60-second introduction or toast out loud, for up to three minutes. It returns a Speak Score out of 100: pace, fillers and long pauses measured from the recording (60%), and the message judged through the POLSSE lenses (40%), with three fixes, a stronger opening line and a 60-second version. The audio is never stored. First 3 tries free; then UGX 5,000 a rehearsal.
+  Practise a pitch, presentation, interview answer, 60-second introduction or toast out loud, for up to three minutes. It returns a Speak Score out of 100: pace, fillers and long pauses measured from the recording (60%), and the message judged through the POLSΘ lenses (40%), with three fixes, a stronger opening line and a 60-second version. The audio is never stored. First 3 tries free; then included in every SpeakPower plan.
 
-## Free diagnostic
+## Free diagnostic (in the Studio)
 
 - **Pitch & Document Clarity Audit** — https://speakpower-commits.github.io/SpeakPower/audit.html
-  A browser-only diagnostic for pasted or locally selected pitch/proposal documents. It measures readability, sentence rhythm, passive voice, hedging, jargon and evidence density; the source document is not uploaded or stored.
+  A free, browser-only Studio tool for pasted or locally selected pitch/proposal documents. It measures readability, sentence rhythm, passive voice, hedging, jargon and evidence density; the source document is not uploaded or stored.
 
 ## Selected work
 
@@ -58,17 +58,28 @@ SpeakPower starts with audience and context rather than generic communication fo
 - Project-based
 - Periodic live masterclasses
 
-## SpeakPower ventures\n\n- **Tonninyira** — an online marketing app bringing local vendors to customers.\n- **CuePointe** — a cuesports marketing and community platform focused on events, talent visibility and participation.\n\n## SpeakPower Studio
+## SpeakPower ventures
+
+- **Tonninyira** — an online marketing app bringing local vendors to customers.
+- **CuePointe** — a cuesports marketing and community platform focused on events, talent visibility and participation.
+
+## Plans
+
+- **SpeakPower plans** — https://speakpower-commits.github.io/SpeakPower/plans.html
+  The first 3 tries are free on any service. After that, GRIOT (the AI strategy advisor that remembers each client's business) and the Rehearsal Room come with a 30-day plan: Starter UGX 60,000 or Pro UGX 150,000, paid by MTN MoMo, Airtel Money or card and renewed with one tap. Pro adds one Studio pack a month and 15% off the others. Neither GRIOT nor the Rehearsal Room is priced per use.
+
+## SpeakPower Studio
 
 SpeakPower Studio is the self-service product layer. Customers choose a practical problem, complete a guided questionnaire or provide a public URL/non-sensitive CSV, and the software generates a first deliverable without Thomas being in the loop.
 
-Current automated products:
+Current automated products (each a one-off purchase, from UGX 75,000):
 - Brand Story Builder
 - Website SEO & Visibility Audit
 - Market Development Planner
 - SEO Content Starter
 - Data Story Builder
 - Speaker Ready Pack
+- Pitch & Document Clarity Audit (free)
 
 The Studio is intentionally separate from bespoke Services. Confidential proposals and sensitive client documents are not required for Studio products.
 

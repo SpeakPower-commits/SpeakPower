@@ -24,13 +24,20 @@ It pairs a human practice (communication strategy, public speaking, brand narrat
 
 | Product | What it does | Price | Status |
 |---|---|---|---|
-| **Rehearsal Room** | Speak for up to three minutes; get pace, fillers, pauses, a Speak Score and a stronger opening line | UGX 5,000 a rehearsal | Live on the preview |
-| **GRIOT** | A strategy advisor that remembers your goals and labels fact from inference | UGX 2,500 a message (monthly bundles in release 6) | Live; workspace in build |
-| **Studio builders** | Brand Story, Website SEO Audit, Market Plan, SEO Content Starter, Data Story, Speaker Ready Pack | UGX 75,000 to 125,000 | Live |
+| **Rehearsal Room** | Speak for up to three minutes; get pace, fillers, pauses, a Speak Score and a stronger opening line | In every plan | Live |
+| **GRIOT** | A strategy advisor that remembers your goals and labels fact from inference; choose its lenses, see its nine steps, and browse your conversations, memory and decisions | In every plan | Live |
+| **Studio packs** | Brand Story, Website SEO Audit, Market Plan, SEO Content Starter, Data Story, Speaker Ready Pack | UGX 75,000 to 125,000 each | Live |
 | **Coaching with Otieno** | Human-led preparation for the rooms that cannot go wrong | On enquiry | Live |
-| **Clarity Audit** | Free in-browser check of a pitch or document: readability, jargon, evidence | Free | Live |
+| **Clarity Audit** | Free in-browser check of a pitch or document: readability, jargon, evidence (a Studio tool) | Free | Live |
 
-**Everyone starts with 3 free tries, on anything.** After that, one balance pays for every service. It tops up by MTN MoMo, Airtel Money or card, and each use takes exactly its price. A failed use is refunded in full.
+**Everyone starts with 3 free tries, on anything.** After that:
+
+| Plan | Price | What it covers |
+|---|---|---|
+| **Starter** | UGX 60,000 / 30 days | GRIOT on working days and the Rehearsal Room |
+| **Pro** | UGX 150,000 / 30 days | Heavier use, one Studio pack a month, 15% off the rest |
+
+Neither GRIOT nor the Rehearsal Room is ever priced per use: members see how much of their month is used, never a meter. Plans are paid by MTN MoMo, Airtel Money or card and renewed with one tap (mobile money cannot auto-debit, so nothing renews on its own). Studio packs are one-off purchases from a balance. A failed use never counts.
 
 ## How it fits together
 
@@ -38,7 +45,7 @@ It pairs a human practice (communication strategy, public speaking, brand narrat
 flowchart LR
   V([Visitor's phone or laptop]) -->|pages, styles, scripts| P[GitHub Pages<br/>the website]
   V -->|sign-in, uses, top-ups| W[Cloudflare Worker<br/>speakpower]
-  W --> D[(D1 database<br/>accounts, balance,<br/>uses, payments)]
+  W --> D[(D1 database<br/>accounts, plans,<br/>uses, payments)]
   W -->|checks the sign-in| G[Google]
   W -->|checkout and webhook| F[Flutterwave<br/>MoMo, Airtel, card]
   W -->|server to server,<br/>one tenant per customer| R[GRIOT OS<br/>FastAPI on Vercel]
@@ -55,7 +62,7 @@ flowchart LR
 ```
 
 - **The website is static.** Plain HTML, CSS and JavaScript on GitHub Pages: no build step, no framework, fast on mobile data.
-- **The Worker holds every secret.** Sign-in, balances, payments and the GRIOT key all live server-side. Nothing in the browser can spend money or read another customer's data.
+- **The Worker holds every secret.** Sign-in, plans, balances, payments and the GRIOT key all live server-side. Nothing in the browser can spend money or read another customer's data.
 - **GRIOT never meets the browser.** The Worker calls it server-to-server, under that customer's own tenant, so one client's memories never mix with another's.
 
 ## A customer's journey
@@ -75,10 +82,10 @@ sequenceDiagram
   rect rgba(201, 162, 39, 0.14)
   Note over C,W: After the third try
   C->>W: Uses a service again
-  W-->>C: Pay wall: price, balance, shortfall
-  C->>F: Tops up by MoMo, Airtel or card
-  F->>W: Confirms payment (checked, credited once)
-  W-->>C: Balance updated, carries on
+  W-->>C: Choose a plan (Starter or Pro)
+  C->>F: Pays by MoMo, Airtel or card
+  F->>W: Confirms payment (checked, settled once)
+  W-->>C: 30 days on, carries on
   end
 ```
 
@@ -90,8 +97,9 @@ sequenceDiagram
 ├── studio.html · studio-product.html/.js                                Studio catalogue and builders
 ├── rehearse.html · rehearse.js · rehearse.css                          the Rehearsal Room
 ├── studio-griot.html · griot-app.html/.js                               GRIOT page and chat
-├── account.html · account.js · account-page.js                          sign-up, balance, top-ups
-├── audit.html · audit.js                                                free Clarity Audit (runs in the browser)
+├── account.html · account.js · account-page.js                          sign-up, membership, balance
+├── plans.html · plans.js                                                Starter and Pro, 30 days each
+├── audit.html · audit.js                                                free Clarity Audit, a Studio tool (runs in the browser)
 ├── styles.css · home.css · commercial.css · *.css                       design system and page styles
 ├── script.js · site-config.js                                           shared behaviour; public settings
 ├── sitemap.xml · robots.txt · llms.txt                                   for search engines and AI assistants
@@ -166,11 +174,12 @@ GRIOT is named after West Africa's griot (*jeli*): the keeper of memory, adviser
 | Release | What ships | Status |
 |---|---|---|
 | 1 | Midnight & Gold on every page, new Home and Studio, this README | shipped |
-| 2 | Rehearsal Room with the live Speak Score | on the preview |
-| 3 | Sign-up profile (who you are, your challenge); GRIOT briefed from day one | planned |
-| 4 | GRIOT workspace: lenses, memory, conversations, decisions | planned |
-| 5 | Documents for GRIOT, cited by page | planned |
-| 6 | Monthly bundles; the animated GRIOT mark | planned |
+| 2 | Rehearsal Room with the live Speak Score | shipped |
+| 3 | Monthly plans in place of per-use prices; the Clarity Audit inside the Studio; POLSΘ | on the preview |
+| 4 | GRIOT workspace: lenses, the 9 steps, memory, conversations, decisions | on the preview (switches on with GRIOT PR #24) |
+| 5 | Sign-up profile (who you are, your challenge); GRIOT briefed from day one | planned |
+| 6 | Documents for GRIOT, cited by page | planned |
+| 7 | The animated GRIOT mark everywhere; proverbs while GRIOT thinks | planned |
 
 ## Principles
 

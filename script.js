@@ -115,19 +115,21 @@
       link.removeAttribute("title");
     } else {
       var free = Number(acct.trialsRemaining) || 0;
-      var balance = Number(acct.balance) || 0;
+      var plan = acct.membership && acct.membership.plan ? acct.membership.name : "";
       var label = document.createElement("span");
       label.textContent = "Account";
-      // The balance part hides on mid-width screens, where the header has
-      // no room for it; it always shows on wide screens and in the phone menu.
-      var extra = document.createElement("span");
-      extra.className = "nav-account-extra";
-      extra.textContent = " · " + (balance > 0 || !free
-        ? "UGX " + balance.toLocaleString("en-US")
-        : free + " free " + (free === 1 ? "try" : "tries"));
       link.appendChild(label);
-      link.appendChild(extra);
-      link.title = (acct.email || "") + extra.textContent;
+      // The plan, or the free tries left; never shillings. This part hides on
+      // mid-width screens, where the header has no room for it; it always
+      // shows on wide screens and in the phone menu.
+      var note = plan || (free ? free + " free " + (free === 1 ? "try" : "tries") : "");
+      if (note) {
+        var extra = document.createElement("span");
+        extra.className = "nav-account-extra";
+        extra.textContent = " · " + note;
+        link.appendChild(extra);
+      }
+      link.title = (acct.email || "") + (note ? " · " + note : "");
     }
     if (/\/account\.html$/.test(window.location.pathname)) link.setAttribute("aria-current", "page");
   }
