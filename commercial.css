@@ -389,3 +389,78 @@
 .builder-gate h2{margin-top:0;font-size:clamp(1.2rem,1.05rem + .5vw,1.45rem)}
 .builder-notice{margin:1rem 0 0}
 .output-paid{margin:.35rem 0 0;font-size:.82rem;color:var(--text-muted)}
+
+/* ==========================================================================
+   Studio bento (Midnight & Gold)
+   Cards keep their ids, classes and links: the sign-up routing and the
+   end-to-end tests depend on them. Each card shows a sketch of what you get;
+   GRIOT is the wide dark tile with its signature mark.
+   ========================================================================== */
+.product-catalog{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:1000px){.product-catalog{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){.product-catalog{grid-template-columns:1fr}}
+.studio-product{background:var(--bg-raised);box-shadow:var(--shadow-md);transition:transform .2s var(--ease),box-shadow .2s var(--ease)}
+.studio-product:hover{transform:translateY(-3px)}
+.studio-product[hidden]{display:none}
+.studio-status{background:var(--paper-2);border:0;font-size:.68rem;padding:.32rem .7rem}
+.studio-product--feature{border-color:var(--line)}
+
+/* the sketch of the output: a page with a title, lines and one gold idea */
+.sp-prev{
+  position:relative;display:grid;gap:7px;align-content:start;margin:.2rem 0 1rem;padding:16px 16px 18px;
+  height:128px;overflow:hidden;border-radius:14px;
+  background:linear-gradient(180deg,var(--paper-2),var(--paper));border:1px solid var(--line);
+}
+.sp-prev i{display:block;height:7px;border-radius:4px;background:#ddd5c4;width:86%}
+.sp-prev i:nth-of-type(2n){width:70%}
+.sp-prev i.t{height:11px;width:52%;background:var(--navy)}
+.sp-prev i.g{background:var(--gold);width:62%}
+.sp-prev i.s{width:40%}
+.sp-prev i.li{position:relative;margin-left:14px;width:72%}
+.sp-prev i.li::before{content:"";position:absolute;left:-14px;top:0;width:7px;height:7px;border-radius:2px;background:var(--gold)}
+.sp-prev .bars{display:flex;align-items:flex-end;gap:7px;height:52px}
+.sp-prev .bars u{display:block;width:16px;height:var(--h);border-radius:4px 4px 0 0;background:#cfc6b3;text-decoration:none}
+.sp-prev .bars u:nth-child(3),.sp-prev .bars u.hi{background:var(--gold)}
+.sp-prev .ring{position:absolute;right:16px;top:16px;width:58px;height:58px;border-radius:50%;
+  background:conic-gradient(var(--gold) calc(var(--v)*1%),#ddd5c4 0);-webkit-mask:radial-gradient(farthest-side,transparent 68%,#000 70%);mask:radial-gradient(farthest-side,transparent 68%,#000 70%)}
+
+/* GRIOT: the wide dark tile */
+.studio-product--griot{grid-column:1/-1;display:grid;grid-template-columns:minmax(150px,220px) minmax(0,1fr) minmax(0,1fr);
+  column-gap:clamp(1.25rem,1rem + 2vw,2.5rem);align-items:start;border-color:transparent}
+.studio-product--griot{background:radial-gradient(60% 70% at 85% 10%,rgba(201,162,39,.2),transparent 60%),radial-gradient(50% 60% at 10% 90%,rgba(46,74,140,.32),transparent 65%),var(--midnight)}
+.studio-product--griot>*{grid-column:2}
+.studio-product--griot .griot-tile-mark{grid-column:1;grid-row:1/span 6;width:100%;height:auto;align-self:center}
+.studio-product--griot .studio-includes,.studio-product--griot .studio-delivery{grid-column:3}
+.studio-product--griot .studio-includes{grid-row:1/span 3;margin-top:.4rem}
+.studio-product--griot .studio-status{background:rgba(241,212,122,.12);color:var(--gold-hi)}
+.studio-product--griot h2{color:var(--ivory);font-size:clamp(1.8rem,1.4rem + 1.4vw,2.5rem);margin-bottom:.2rem}
+.studio-product--griot .griot-tile-line{font:italic 500 1.15rem/1.35 var(--font-display);color:var(--gold-hi)!important;margin:0 0 .6rem}
+.studio-product--griot .studio-price{color:var(--ivory)}
+.studio-product--griot :is(.studio-best,.studio-includes,.studio-delivery,.studio-price-unit){color:var(--mist)}
+.studio-product--griot .studio-delivery{border-top-color:var(--line-dark)}
+.studio-product--griot .studio-order{align-self:start;margin-top:.4rem}
+.studio-product--griot .studio-learn{color:var(--gold-hi)}
+@media(max-width:860px){
+  .studio-product--griot{grid-template-columns:1fr}
+  .studio-product--griot>*,.studio-product--griot .studio-includes,.studio-product--griot .studio-delivery{grid-column:1;grid-row:auto}
+  .studio-product--griot .griot-tile-mark{grid-row:auto;width:150px}
+}
+
+/* the problem filter, in the hero */
+.studio-filter{display:flex;flex-wrap:wrap;gap:.55rem;margin-top:1.6rem}
+.page-hero .chip{background:var(--glass);border-color:var(--line-dark);color:var(--ivory)}
+.page-hero .chip:hover{border-color:var(--gold)}
+.page-hero .chip[aria-pressed="true"]{background:var(--gold);border-color:var(--gold);color:var(--midnight)}
+.studio-filter-count{margin-top:.8rem!important;font-size:.85rem!important;min-height:1.3em}
+
+/* dark bands built from the shared components */
+.positioning-band.dark{background:radial-gradient(70% 120% at 88% 0%,rgba(201,162,39,.17),transparent 60%),var(--midnight);border-color:transparent}
+.cta-panel{background:radial-gradient(80% 140% at 90% 10%,rgba(201,162,39,.2),transparent 60%),var(--midnight)}
+.proof-band{background:var(--midnight)}
+
+/* GRIOT product page: the signature mark beside the headline */
+.page-hero--griot .wrap{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:clamp(1.5rem,1rem + 3vw,4rem)}
+.page-hero-mark{width:clamp(180px,120px + 14vw,340px);height:auto}
+.griot-hero-line{margin-top:1rem!important;font:italic 500 clamp(1.15rem,1rem + .6vw,1.45rem)/1.35 var(--font-display);color:var(--gold-hi)!important}
+.page-hero--griot .hero-actions{display:flex;flex-wrap:wrap;gap:.8rem;margin-top:1.6rem}
+@media(max-width:760px){.page-hero--griot .wrap{grid-template-columns:1fr}.page-hero-mark{grid-row:1;width:170px}}
