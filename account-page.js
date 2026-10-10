@@ -198,15 +198,111 @@
   }
 
   function load() {
-    return A.call("/account").then(function (data) {
-      A.setAccount(data.account);
-      drawSummary(data);
+    return Promise.all([A.call("/account"), A.call("/profile")]).then(function (both) {
+      A.setAccount(both[0].account);
+      drawSummary(both[0]);
+      drawProfile(both[1]);
       show("home");
     });
   }
 
+  /* -------------------------------------------------------------- profile */
+
+  // What you told SpeakPower at sign-up, and whether GRIOT knows it. Edited
+  // on the welcome page; deleted here.
+  function drawProfile(data) {
+    var host = $("acProfile");
+    var p = data && data.profile;
+    host.textContent = "";
+    var title = document.createElement("h2");
+    title.textContent = "Your profile";
+    host.appendChild(title);
+
+    var row = document.createElement("div");
+    row.className = "builder-actions";
+    function button(label, href, primary) {
+      var a = document.createElement("a");
+      a.className = "btn " + (primary ? "btn-primary" : "btn-ghost");
+      a.href = href;
+      a.textContent = label;
+      row.appendChild(a);
+    }
+
+    if (!p) {
+      var none = document.createElement("p");
+      none.textContent = "Not filled in yet. Two short steps, about a minute, and GRIOT can advise you from your first question.";
+      host.appendChild(none);
+      button("Fill it in", "welcome.html?next=account.html", true);
+      host.appendChild(row);
+      return;
+    }
+
+    var sectorName = "";
+    (data.sectors || []).forEach(function (s) { if (s.key === p.sector) sectorName = s.name; });
+    var focusNames = (data.focusAreas || []).filter(function (f) { return p.focus.indexOf(f.key) !== -1; })
+      .map(function (f) { return f.name; });
+    var lines = [
+      ["Who", p.name + ", " + p.position + " at " + p.company],
+      ["Expertise", p.expertise],
+      ["Sector", sectorName],
+      ["Based in", p.location],
+      ["WhatsApp", p.consentWhatsapp ? p.whatsapp : "Not shared"]
+    ];
+    if (p.step2) {
+      lines.push(["Challenge", p.problem]);
+      lines.push(["Goal", p.goal]);
+      lines.push(["Deadline", p.goalBy]);
+      lines.push(["Why now", p.whyNow]);
+      lines.push(["Focus", focusNames.join(", ")]);
+    }
+    var dl = document.createElement("dl");
+    dl.className = "account-profile";
+    lines.forEach(function (pair) {
+      if (!pair[1]) return;
+      var dt = document.createElement("dt");
+      dt.textContent = pair[0];
+      var dd = document.createElement("dd");
+      dd.textContent = pair[1];
+      dl.appendChild(dt);
+      dl.appendChild(dd);
+    });
+    host.appendChild(dl);
+
+    var griot = document.createElement("p");
+    griot.className = "account-profile-griot";
+    griot.textContent = !p.briefGriot ? "GRIOT has not been told any of this."
+      : p.griot.state === "sent" ? "GRIOT was told this" + (p.griot.sentAt ? " on " + A.dayMonth(p.griot.sentAt) : "") + ", and keeps it in mind in every answer."
+      : "GRIOT will be told this as soon as it can be reached.";
+    host.appendChild(griot);
+
+    if (!p.step2) button("Tell GRIOT what you are working on", "welcome.html?step=2&next=account.html", true);
+    button("Change my answers", "welcome.html?edit=1&next=account.html", false);
+    var del = document.createElement("button");
+    del.type = "button";
+    del.className = "btn btn-ghost account-profile-delete";
+    del.textContent = "Delete my profile";
+    del.addEventListener("click", function () {
+      if (!window.confirm("Delete your profile? It is removed here, and GRIOT forgets what it was told. " +
+        "You will be asked for the basics again before you next use a service.")) return;
+      del.disabled = true;
+      A.call("/profile/delete", {}).then(function (r) {
+        notice({ text: r.griotCleared ? "Your profile is deleted, here and in GRIOT."
+          : "Your profile is deleted here. GRIOT's copy will be removed as soon as GRIOT can be reached." });
+        drawProfile({ profile: null });
+        return A.refresh();
+      }, function (e) {
+        del.disabled = false;
+        notice({ text: e.message });
+      });
+    });
+    row.appendChild(del);
+    host.appendChild(row);
+  }
+
+  var ownTitle = $("acTitle").textContent;
+  var ownLead = $("acLead").textContent;
   function heading(signedIn) {
-    if (signedIn) return; // the page's own "Your account." stands
+    if (signedIn) { $("acTitle").textContent = ownTitle; $("acLead").textContent = ownLead; return; }
     $("acTitle").textContent = "Create your free account.";
     $("acLead").textContent = (nextName ? "Sign up to start " + nextName + ". " : "") +
       "One account for every Studio service and GRIOT, and your first 3 tries are free on any of them. No password, no card.";
@@ -219,8 +315,12 @@
     A.mountSignIn(panels.signIn, {
       title: next ? "Start " + nextName + " free" : "Sign up or sign in",
       lead: "Continue with Google. Your first 3 tries are free, on any service.",
-      onSignedIn: function () {
+      onSignedIn: function (acct) {
+        // A new account answers the two welcome steps first, then goes on.
+        var step = A.profileStepNeeded(acct, next);
+        if (step) { window.location.replace(A.welcomeUrl(next || "account.html", step)); return; }
         if (next) { window.location.replace(next); return; }
+        heading(true);
         start();
       }
     });
@@ -259,7 +359,8 @@
     if (A.hasReturn()) A.settleReturn().then(notice);
     return;
   }
-  // Already signed in and on the way to a service: go straight there.
-  if (next) { window.location.replace(next); return; }
+  // Already signed in and on the way to a service: go straight there (by
+  // way of the welcome steps if one is still to do).
+  if (next) { if (!A.requireAccount(next)) window.location.replace(next); return; }
   start();
 })();

@@ -286,6 +286,7 @@
     showStep("pick");
     $("rrRecordBtn").disabled = false;
     if (e.status === 401) { signedOut(); return; }
+    if (A.handleProfileRequired(e, "rehearse.html")) return;
     if (e.status === 402) {
       if (e.data && e.data.account) { A.setAccount(e.data.account); renderAccount(e.data.account); }
       openTopup(e.data);
@@ -640,6 +641,8 @@
   // This page explains itself to everyone (and to search engines); the
   // recorder is for signed-in visitors. Signing up comes straight back here.
   if (!A.session()) { panel("rrStart", true); return; }
+  // Signed in, with a sign-up step still to do: finish it first.
+  if (A.requireAccount("rehearse.html")) return;
 
   panel("rrStage", true);
   showStep("pick");
@@ -650,6 +653,7 @@
     if (result && !result.ok) showError(result.text);
     return A.refresh();
   }).then(function (acct) {
+    if (A.requireAccount("rehearse.html")) return;
     renderAccount(acct);
     if (settled && settled.ok) $("rrStatus").textContent += " · " + settled.text;
     if (cannotPay()) openTopup();

@@ -317,25 +317,36 @@
     $("gaMemEmpty").textContent = "Loading…";
     $("gaMemEmpty").hidden = false;
     A.call("/griot/memories").then(function (data) {
-      var memories = data.memories || [];
+      // What you told GRIOT at sign-up comes first: it is in every answer.
+      var memories = (data.memories || []).map(function (m, i) { return [m.kind === "profile" ? 0 : 1, i, m]; })
+        .sort(function (a, b) { return a[0] - b[0] || a[1] - b[1]; }).map(function (x) { return x[2]; });
       listState("gaMemEmpty", "gaMemList", memories, "Nothing yet. GRIOT remembers what matters from your conversations, or add a fact above.");
       memories.forEach(function (m) {
-        var li = el("li", "ga-item");
+        var fromProfile = m.kind === "profile";
+        var li = el("li", "ga-item" + (fromProfile ? " ga-item--profile" : ""));
         var head = el("div", "ga-item-head");
         head.appendChild(el("strong", null, m.title));
+        if (fromProfile) head.appendChild(el("span", "ga-from-profile", "From your profile"));
         var conf = String(m.confidence || "").toUpperCase();
         if (conf) head.appendChild(el("span", "griot-label griot-label--" + conf.toLowerCase(), conf));
         li.appendChild(head);
         li.appendChild(el("p", "ga-item-text", m.content));
         var foot = el("div", "ga-item-foot");
         foot.appendChild(el("span", "ga-item-meta", when(m.at)));
-        var del = el("button", "ga-link ga-forget", "Forget this");
-        del.type = "button";
-        del.addEventListener("click", function () {
-          if (!window.confirm("GRIOT will forget “" + m.title + "”. This cannot be undone.")) return;
-          A.call("/griot/memories/delete", { id: m.id }).then(loadMemory, function (e) { listError("gaMemEmpty", e); });
-        });
-        foot.appendChild(del);
+        if (fromProfile) {
+          // Changed or removed with the profile itself, so the two never disagree.
+          var edit = el("a", "ga-link", "Change it in your profile");
+          edit.href = "welcome.html?edit=1&next=griot-app.html";
+          foot.appendChild(edit);
+        } else {
+          var del = el("button", "ga-link ga-forget", "Forget this");
+          del.type = "button";
+          del.addEventListener("click", function () {
+            if (!window.confirm("GRIOT will forget “" + m.title + "”. This cannot be undone.")) return;
+            A.call("/griot/memories/delete", { id: m.id }).then(loadMemory, function (e) { listError("gaMemEmpty", e); });
+          });
+          foot.appendChild(del);
+        }
         li.appendChild(foot);
         $("gaMemList").appendChild(li);
       });
@@ -489,6 +500,7 @@
       box.value = message;
       mine.remove();
       if (e.status === 401) { signedOut(e.message); return; }
+      if (A.handleProfileRequired(e, "griot-app.html")) return;
       if (e.status === 402) {
         if (e.data && e.data.account) { A.setAccount(e.data.account); renderAccount(e.data.account); }
         openTopup(e.data);
@@ -524,6 +536,8 @@
     if (result) notice(result);
     return A.refresh();
   }).then(function (acct) {
+    // The confirmed account may say a sign-up step is still to do.
+    if (A.requireAccount("griot-app.html")) return;
     renderAccount(acct);
     if (cannotPay()) openTopup();
     else { panels.topup.hidden = true; $("gaSendBtn").disabled = false; }

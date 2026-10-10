@@ -3,8 +3,8 @@
    One account for every service: sign in with Google, keep one session,
    show the plan or the free tries, open a plan or a top-up, and settle it
    when the customer returns from Flutterwave. Used by account.html,
-   plans.html, studio-product.html, griot-app.html and rehearse.html; needs
-   script.js (window.SP) loaded first.
+   welcome.html, plans.html, studio-product.html, griot-app.html and
+   rehearse.html; needs script.js (window.SP) loaded first.
 
    GRIOT and the Rehearsal Room come with a plan and are never priced per
    use; Studio packs have a one-off price paid from the balance. Every number
@@ -558,12 +558,41 @@
     return m ? SERVICE_NAMES[m[1]] : "";
   }
 
+  // Which sign-up step a service still needs: 1 (who you are) before any
+  // service, 2 (your challenge) before GRIOT too, 0 when none. An account
+  // stored before profiles existed says nothing, so it is left to the Worker,
+  // which refuses with profile_required before anything is spent.
+  function profileStepNeeded(acct, next) {
+    var p = acct && acct.profile;
+    if (!p) return 0;
+    if (!p.step1) return 1;
+    return next === "griot-app.html" && !p.step2 ? 2 : 0;
+  }
+
+  function welcomeUrl(next, step) {
+    return "welcome.html?next=" + encodeURIComponent(next || "account.html") + (step === 2 ? "&step=2" : "");
+  }
+
   // Every service page calls this first. A visitor without an account goes to
   // the one sign-up page and comes straight back here once signed in, so
-  // every "Try" button means the same thing: sign up, then start.
+  // every "Try" button means the same thing: sign up, then start. A new
+  // account first passes through the two short welcome steps.
   function requireAccount(next) {
-    if (session()) return false;
-    window.location.replace("account.html?next=" + encodeURIComponent(next));
+    if (!session()) {
+      window.location.replace("account.html?next=" + encodeURIComponent(next));
+      return true;
+    }
+    var step = profileStepNeeded(account(), next);
+    if (!step) return false;
+    window.location.replace(welcomeUrl(next, step));
+    return true;
+  }
+
+  // The Worker's answer when a step is missing: go and finish it, then come
+  // straight back. True when it has taken the visitor there.
+  function handleProfileRequired(e, next) {
+    if (!e || e.code !== "profile_required") return false;
+    window.location.assign(welcomeUrl(next, e.data && e.data.step));
     return true;
   }
 
@@ -641,6 +670,9 @@
     safeNext: safeNext,
     nextServiceName: nextServiceName,
     requireAccount: requireAccount,
+    profileStepNeeded: profileStepNeeded,
+    welcomeUrl: welcomeUrl,
+    handleProfileRequired: handleProfileRequired,
     statusText: statusText,
     formatUgx: formatUgx,
     triesText: triesText

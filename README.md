@@ -97,7 +97,8 @@ sequenceDiagram
 ├── studio.html · studio-product.html/.js                                Studio catalogue and builders
 ├── rehearse.html · rehearse.js · rehearse.css                          the Rehearsal Room
 ├── studio-griot.html · griot-app.html/.js                               GRIOT page and chat
-├── account.html · account.js · account-page.js                          sign-up, membership, balance
+├── account.html · account.js · account-page.js                          sign-up, membership, balance, profile
+├── welcome.html · welcome.js                                            the two sign-up steps that brief GRIOT
 ├── plans.html · plans.js                                                Starter and Pro, 30 days each
 ├── audit.html · audit.js                                                free Clarity Audit, a Studio tool (runs in the browser)
 ├── styles.css · home.css · commercial.css · *.css                       design system and page styles
@@ -141,9 +142,9 @@ Full setup, step by step: [`worker/README.md`](worker/README.md).
 
 | Suite | What it proves |
 |---|---|
-| **Worker logic** (`worker/test/run-tests.mjs`, 103 checks) | prices match the site; free tries; exact charge and refund; parallel uses never overdraw; payments credited exactly once; sign-in; the SEO audit's address guard |
-| **Worker on workerd** (`worker/test/run-workerd-tests.mjs`, 14 checks) | the same Worker on Cloudflare's real runtime, with D1 and the HTML reader |
-| **Browser end to end** (69 checks) | Try → sign up → use → pay wall → top up → balance, on desktop and phone |
+| **Worker logic** (`worker/test/run-tests.mjs`, 148 checks) | prices match the site; free tries and plans; exact charge and refund; parallel uses never overdraw; payments settled exactly once; sign-in; the sign-up profile and GRIOT's briefing, account by account; the SEO audit's address guard |
+| **Worker on workerd** (`worker/test/run-workerd-tests.mjs`, 17 checks) | the same Worker on Cloudflare's real runtime, with D1 and the HTML reader |
+| **Browser end to end** (over 200 checks) | Try → sign up → welcome steps → use → plan wall → plan or top-up, the Rehearsal Room, the GRIOT workspace, on desktop and phone |
 | **Site structure** | every page parses, local links resolve, structured data is valid |
 
 ## Design system
@@ -177,7 +178,7 @@ GRIOT is named after West Africa's griot (*jeli*): the keeper of memory, adviser
 | 2 | Rehearsal Room with the live Speak Score | shipped |
 | 3 | Monthly plans in place of per-use prices; the Clarity Audit inside the Studio; POLSΘ | on the preview |
 | 4 | GRIOT workspace: lenses, the 9 steps, memory, conversations, decisions | on the preview (switches on with GRIOT PR #24) |
-| 5 | Sign-up profile (who you are, your challenge); GRIOT briefed from day one | planned |
+| 5 | Sign-up profile (who you are, your challenge); GRIOT briefed from day one | on the preview (briefing switches on with GRIOT PR #24) |
 | 6 | Documents for GRIOT, cited by page | planned |
 | 7 | The animated GRIOT mark everywhere; proverbs while GRIOT thinks | planned |
 

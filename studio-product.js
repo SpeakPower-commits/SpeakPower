@@ -455,6 +455,7 @@
       outputHost.scrollIntoView({ behavior: "smooth", block: "start" });
     }, function (e) {
       if (e.status === 401) { showSignIn("Your session ended."); return; }
+      if (A.handleProfileRequired(e, "studio-product.html?product=" + key)) return;
       if (e.status === 402) {
         if (e.data && e.data.account) A.setAccount(e.data.account);
         drawStatus();
@@ -496,6 +497,9 @@
     A.settleReturn().then(function (result) {
       if (result) notice(result.ok ? { text: result.text + " Press “Generate my pack” to continue." } : result);
       if (A.session()) return A.refresh();
-    }).then(drawStatus, drawStatus);
+    }).then(function () {
+      if (A.session() && A.requireAccount("studio-product.html?product=" + key)) return;
+      drawStatus();
+    }, drawStatus);
   }
 })();
