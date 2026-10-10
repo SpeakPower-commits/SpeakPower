@@ -155,7 +155,7 @@ Check: `https://<your-worker>/health` returns `{"ok":true}`.
 
 With your own Google account:
 
-1. Header → **Sign in** → you land on your account: **3 free tries**, and the plans.
+1. Header → **Sign in** → two short welcome steps (who you are; your challenge) → **Brief GRIOT** → the Ready screen lists exactly what GRIOT was told. Your account then shows **3 free tries**, the plans and your profile.
 2. Use one free try each on the Rehearsal Room, the SEO audit and GRIOT. The header counts down.
 3. Ask GRIOT again: the wall offers **Starter** and **Pro**, with no price per message. Choose Starter, pay with a Flutterwave **test** card or test mobile money, and come back to "your Starter plan runs until …".
 4. Ask GRIOT and rehearse: the usage bar moves; the header reads "Account · Starter".
@@ -199,6 +199,17 @@ The Worker also supports sign-in by a 6-digit emailed code. It stays off (`email
 - **Bounded turns:** every client question goes to GRIOT with `effort: "medium"` and an 8,000-token backstop (`GRIOT_CLIENT_EFFORT`, `GRIOT_CLIENT_MAX_TOKENS`). Effort shortens reasoning; the backstop only stops a runaway answer, and GRIOT says when one was cut short.
 - **Switching on:** this needs claude-central-agent PR #24 deployed, which reports `"workspace": true` on `/health`. Until then, the tabs and lens picker stay hidden and plain questions work as before.
 
+## Know the customer: the sign-up profile
+
+- **Two short steps after sign-in** (`welcome.html`): 1. who you are (name, position, organisation, expertise; sector, place and WhatsApp optional); 2. your challenge (the problem, the goal and its deadline, why now, focus areas).
+- **Enforced before anything is spent:** step 1 before any service, step 2 before GRIOT too. A page that skips them gets `409 profile_required` naming the step, and nothing is charged. A visitor heading for the Studio or the Rehearsal Room may skip step 2.
+- **Routes:** `GET /profile`, `POST /profile` (`step: 1` or `2`), `POST /profile/delete`. `/me` and `/account` carry `profile: {step1, step2}`.
+- **Briefing GRIOT needs a yes** ("Brief GRIOT"; "Save without telling GRIOT" keeps it here). With it, the Worker writes up to five memories of kind `profile` in the client's own GRIOT space: Profile, Challenge, Goal, Why now, Focus. GRIOT keeps `profile` memories in every turn (claude-central-agent PR #24). **Email and WhatsApp number never go to GRIOT**; the number is kept only with the say-so to use it.
+- **Edits replace, deletion removes.** The ids of what GRIOT was told are kept (`profiles.griot_memory_ids`). An edit deletes them and writes fresh ones; "Delete my profile" wipes every personal field at once, then removes GRIOT's copies.
+- **When GRIOT can't take it** (unreachable, or #24 not yet deployed) the profile still saves and the briefing waits as `pending`: it is sent before the client's next question, and the daily cron retries it, including copies a deleted profile left in GRIOT. One sync runs at a time per account (a one-minute lease); a save during a sync leaves it pending, so GRIOT never keeps an older version marked as current.
+- **The `profiles` table** is in `schema.sql`, already applied to the live D1.
+- **Yours to check before launch:** this collects personal data, so confirm registration with Uganda's Personal Data Protection Office under the Data Protection and Privacy Act 2019.
+
 ## The Rehearsal Room
 
 - **Speech to text** is Workers AI (`@cf/openai/whisper-large-v3-turbo`), through the `AI` binding in `wrangler.toml`: nothing to set up in the dashboard. It costs about $0.0005 an audio minute; the free 10,000 neurons a day cover roughly 214 minutes (about 70 three-minute rehearsals).
@@ -236,10 +247,10 @@ FROM payments WHERE status = 'paid' GROUP BY day ORDER BY day DESC;
 cd worker && npm install && cd .. && node --experimental-sqlite worker/test/run-tests.mjs
 ```
 
-The business rules, fast, in plain Node: the real `worker.js` against an in-memory D1, with Google, GRIOT, Flutterwave and audited sites faked at the network edge only. Google sign-in is tested with real RS256 signatures, so forged keys, `alg: none` and edited tokens are refused by actual cryptography rather than a stub. It also fails if any page quotes a different price from the Worker.
+The business rules, fast, in plain Node (148 tests): the real `worker.js` against an in-memory D1, with Google, GRIOT, Flutterwave and audited sites faked at the network edge only. Google sign-in is tested with real RS256 signatures, so forged keys, `alg: none` and edited tokens are refused by actual cryptography rather than a stub. It also fails if any page quotes a different price from the Worker.
 
 ```
 cd worker && npm install && npm install --no-save miniflare@4 wrangler@4 && node test/run-workerd-tests.mjs
 ```
 
-The Worker bundled exactly as Workers Builds deploys it (`wrangler deploy --dry-run`), on **workerd**, the engine Cloudflare runs Workers on: real D1, the real HTML parser for the SEO audit, WebCrypto sign-in, and the exactly-once top-up under truly concurrent notifications. It also audits this site's own pages.
+The Worker bundled exactly as Workers Builds deploys it (`wrangler deploy --dry-run`), on **workerd**, the engine Cloudflare runs Workers on (17 tests): real D1, the real HTML parser for the SEO audit, WebCrypto sign-in, the exactly-once top-up under truly concurrent notifications, and the sign-up profile briefing GRIOT. It also audits this site's own pages.

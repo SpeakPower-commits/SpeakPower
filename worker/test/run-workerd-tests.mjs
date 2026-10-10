@@ -113,6 +113,7 @@ async function googleToken(email) {
 const flw = { transactions: {}, verifies: 0, delayMs: 0 };
 const coachCalls = [];
 const pageFetches = [];
+const griotMemories = [];
 
 async function outbound(request) {
   const url = request.url;
@@ -129,6 +130,26 @@ async function outbound(request) {
     if (flw.delayMs) await new Promise((r) => setTimeout(r, flw.delayMs));
     const tx = flw.transactions[verify[1]];
     return tx ? Response.json({ status: "success", data: tx }) : Response.json({ status: "error" }, { status: 404 });
+  }
+  // GRIOT, as far as the sign-up briefing reaches it: health, memory writes
+  // and deletions, each kept per tenant.
+  if (url.startsWith("https://griot.test/")) {
+    const u = new URL(url);
+    const tenant = request.headers.get("X-Tenant-Id");
+    if (u.pathname === "/health") return Response.json({ status: "ok", tenancy: true, tenant_header: "X-Tenant-Id", workspace: true });
+    if (request.headers.get("X-API-Key") !== "griot-workerd-key") return Response.json({ detail: "bad key" }, { status: 401 });
+    if (u.pathname === "/memory" && request.method === "POST") {
+      const row = Object.assign({ id: crypto.randomUUID(), tenant_id: tenant }, await request.json());
+      griotMemories.push(row);
+      return Response.json(row);
+    }
+    const del = u.pathname.match(/^\/memories\/(.+)$/);
+    if (del && request.method === "DELETE") {
+      const i = griotMemories.findIndex((m) => m.id === del[1] && m.tenant_id === tenant);
+      if (i < 0) return Response.json({ detail: "No such memory" }, { status: 404 });
+      griotMemories.splice(i, 1);
+      return Response.json({ deleted: del[1] });
+    }
   }
   if (PAGES[url]) {
     pageFetches.push({ url, redirect: request.redirect });
@@ -185,7 +206,9 @@ const mf = new Miniflare({
     ENVIRONMENT: "production",
     FREE_TRIALS: "3",
     FLW_SECRET_KEY: "FLWSECK_TEST-secret",
-    FLW_SECRET_HASH: "flw-hash-secret"
+    FLW_SECRET_HASH: "flw-hash-secret",
+    GRIOT_API_BASE: "https://griot.test",
+    GRIOT_API_KEY: "griot-workerd-key"
   },
   outboundService: outbound
   }, {
@@ -224,9 +247,17 @@ function eq(actual, expected, label) {
 }
 function ok(cond, label) { if (!cond) throw new Error(label || "assertion failed"); }
 
-async function signIn(email) {
+const STEP1 = { step: 1, name: "Test", expertise: "Testing", position: "Tester", company: "Test Co" };
+const STEP2 = { step: 2, problem: "A problem", goal: "A goal", briefGriot: false };
+// Signs in and, unless told otherwise, finishes both sign-up steps the way
+// the welcome page does, so the older tests exercise the services as before.
+async function signIn(email, { profile = true } = {}) {
   const r = await call("POST", "/auth/google", { body: { credential: await googleToken(email) } });
   eq(r.status, 200, "sign-in status");
+  if (profile) {
+    eq((await call("POST", "/profile", { token: r.data.token, body: STEP1 })).status, 200, "step 1");
+    eq((await call("POST", "/profile", { token: r.data.token, body: STEP2 })).status, 200, "step 2");
+  }
   return r.data;
 }
 const user = (email) => db.prepare("SELECT * FROM users WHERE email_canonical = ?").bind(email).first();
@@ -426,6 +457,30 @@ await test("seo: this site's own pages, as committed, parse cleanly", async () =
     console.log("      " + (path || "index.html").padEnd(12) + section(r, "Summary") +
       "\n        fix: " + names(fix) + "\n        review: " + names(section(r, "Worth reviewing")));
   }
+});
+
+await test("real D1: the sign-up profile gates spending, briefs GRIOT under the account's tenant, and deletes cleanly", async () => {
+  const email = "d1.profile@example.com";
+  const s = await signIn(email, { profile: false });
+  eq(JSON.stringify(s.account.profile), '{"step1":false,"step2":false}');
+  const gated = await call("POST", "/studio/generate", { token: s.token, body: { product: "seo-audit", inputs: { url: "https://clean.test" } } });
+  eq(gated.status, 409); eq(gated.data.step, 1);
+  eq((await user(email)).trials_remaining, 3, "nothing spent");
+  eq((await call("POST", "/profile", { token: s.token, body: Object.assign({}, STEP1, { sector: "ngo" }) })).status, 200);
+  const two = await call("POST", "/profile", { token: s.token, body: Object.assign({}, STEP2, { focus: ["data"], briefGriot: true }) });
+  eq(two.status, 200); eq(two.data.profile.griot.state, "sent");
+  const id = (await user(email)).id;
+  const mine = griotMemories.filter((m) => m.tenant_id === id);
+  eq(mine.map((m) => m.title).join("|"), "Profile|Challenge|Goal|Focus");
+  ok(mine.every((m) => m.kind === "profile" && m.project === "global"), "filed as the client's profile");
+  const row = await db.prepare("SELECT griot_memory_ids, griot_lock_until, version FROM profiles WHERE user_id = ?").bind(id).first();
+  eq(JSON.parse(row.griot_memory_ids).length, 4); eq(row.griot_lock_until, null); eq(row.version, 2);
+  const again = await call("POST", "/profile", { token: s.token, body: Object.assign({}, STEP1, { position: "Director" }) });
+  eq(again.status, 200); eq(griotMemories.filter((m) => m.tenant_id === id).length, 4, "replaced on real D1");
+  const d = await call("POST", "/profile/delete", { token: s.token, body: {} });
+  eq(d.status, 200); eq(d.data.griotCleared, true);
+  eq(await db.prepare("SELECT 1 FROM profiles WHERE user_id = ?").bind(id).first(), null);
+  eq(griotMemories.filter((m) => m.tenant_id === id).length, 0);
 });
 
 await test("rehearse: the bundled Worker transcribes, scores and coaches on workerd, with real D1", async () => {

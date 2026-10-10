@@ -89,7 +89,7 @@ const griotWsCalls = [];
 const GRIOT_AGENTS = { story: "StoryAgent", market: "MarketAgent", data: "DataAgent", dev: "DevAgent", research: "ResearchAgent",
   growth: "GrowthAgent", operations: "OperationsAgent", brand: "BrandAgent", strategy: "StrategyAgent" };
 const GRIOT_STEPS = ["UNDERSTAND", "CONTEXT", "EVIDENCE", "DIAGNOSE", "OPTIONS", "RECOMMEND", "EXECUTE", "MEASURE", "LEARN"];
-function griotWorkspaceFake(url, init) {
+async function griotWorkspaceFake(url, init) {
   const u = new URL(url);
   const method = (init.method || "GET").toUpperCase();
   const headers = new Headers(init.headers);
@@ -97,11 +97,15 @@ function griotWorkspaceFake(url, init) {
   const out = (data, status = 200) => new Response(JSON.stringify(data), { status });
   griotWsCalls.push({ method, path: u.pathname + u.search, tenant, key: headers.get("X-API-Key") });
   if (headers.get("X-API-Key") !== "griot-server-key") return out({ detail: "bad key" }, 401);
+  if (net.griotMemory === "down" && (u.pathname === "/memory" || u.pathname.startsWith("/memories/"))) {
+    return out({ detail: "Traceback: internal" }, 500);
+  }
   if (u.pathname === "/agents") return out(GRIOT_AGENTS);
   if (u.pathname === "/protocol") return out({ steps: GRIOT_STEPS });
   if (u.pathname === "/projects") return out({ speakpower: { name: "SpeakPower" } });
   if (u.pathname === "/memories" && method === "GET") return out(griotStore.memories.filter((m) => m.tenant_id === tenant));
   if (u.pathname === "/memory" && method === "POST") {
+    if (net.griotMemoryDelay) await new Promise((r) => setTimeout(r, net.griotMemoryDelay));
     const row = Object.assign({ id: crypto.randomUUID(), tenant_id: tenant, created_at: new Date().toISOString() }, JSON.parse(init.body));
     griotStore.memories.push(row);
     return out(row);
@@ -279,6 +283,13 @@ const PAGES = {
 const ORIGIN = "https://speakpower-commits.github.io";
 const db = new FakeD1();
 db.db.exec(readFileSync(join(here, "..", "schema.sql"), "utf8"));
+// Every account in the older tests has finished both sign-up steps, without
+// briefing GRIOT, so they exercise exactly what they did before profiles
+// existed. The profile tests delete this row to start from a bare account.
+db.db.exec(`CREATE TRIGGER test_profile_for_every_account AFTER INSERT ON users BEGIN
+  INSERT INTO profiles (user_id, name, expertise, position, company, problem, goal, step1_at, step2_at, created_at, updated_at)
+  VALUES (NEW.id, 'Test', 'Testing', 'Tester', 'Test Co', 'A problem', 'A goal', NEW.created_at, NEW.created_at, NEW.created_at, NEW.created_at);
+END`);
 
 const mailbox = [];
 const env = {
@@ -2014,6 +2025,226 @@ await test("rehearse: Flutterwave can send a customer back to the Rehearsal Room
   const r = await call("POST", "/plans/checkout", { token: s.token, body: { plan: "starter", returnTo: "rehearse.html" } });
   eq(r.status, 200);
   ok(/rehearse\.html/.test(flw.checkouts[0].body.redirect_url), "redirects to rehearse.html");
+});
+
+/* ------------------------------------------- Know the customer: profiles */
+
+function bare(email) { db.db.prepare("DELETE FROM profiles WHERE user_id = ?").run(userId(email)); }
+function profileRow(email) { return db.one("SELECT * FROM profiles WHERE user_id = ?", userId(email)); }
+function profileMemories(email) {
+  return griotStore.memories.filter((m) => m.tenant_id === userId(email) && m.kind === "profile");
+}
+const STEP1 = { step: 1, name: "Grace Akello", expertise: "Fundraising", position: "Head of Partnerships",
+  company: "Kampala Schools Trust", sector: "ngo", location: "Kampala" };
+const STEP2 = { step: 2, problem: "Donors stop reading after page one.", goal: "Raise UGX 400m for 40 schools",
+  goalBy: "June 2027", whyNow: "The board meets in March.", focus: ["pitching", "data"], briefGriot: true };
+function saveProfile(token, body) { return call("POST", "/profile", { token, body }); }
+async function newcomer(email) {
+  const s = await signUp(email);
+  bare(email);
+  return s;
+}
+
+await test("profile: a new account finishes step 1 before any service, and a refusal costs nothing", async () => {
+  const email = "k-new@example.com";
+  const s = await newcomer(email);
+  eq(JSON.stringify((await call("GET", "/me", { token: s.token })).data.account.profile), '{"step1":false,"step2":false}');
+  griotCalls.length = 0;
+  for (const service of ["brand-story", "griot", "rehearsal"]) {
+    const r = await use(s.token, service);
+    eq(r.status, 409, service); eq(r.data.error, "profile_required"); eq(r.data.step, 1, service);
+    ok(/nothing was charged/i.test(r.data.message), r.data.message);
+  }
+  eq(userRow(email).trials_remaining, 3, "no free try spent");
+  eq(runsOf(email).length, 0, "no run recorded");
+  eq(griotCalls.length, 0, "GRIOT never asked");
+  const g = await call("GET", "/profile", { token: s.token });
+  eq(g.status, 200); eq(g.data.profile, null); eq(g.data.googleName, "Test");
+  eq(g.data.sectors.length, 12); eq(g.data.focusAreas.map((f) => f.key).join(","), "pitching,marketing,brand,data,speaking,strategy,digital");
+  eq((await call("GET", "/profile")).status, 401, "signed out");
+});
+
+await test("profile: step 1 opens the Studio and the Rehearsal Room; GRIOT also needs step 2", async () => {
+  const email = "k-steps@example.com";
+  const s = await newcomer(email);
+  const one = await saveProfile(s.token, STEP1);
+  eq(one.status, 200); eq(one.data.profile.step1, true); eq(one.data.profile.step2, false);
+  eq(one.data.profile.told.length, 0, "GRIOT is told nothing without a yes");
+  eq((await use(s.token, "brand-story")).status, 200);
+  eq((await use(s.token, "rehearsal")).status, 200);
+  const blocked = await chat(s.token, "First question");
+  eq(blocked.status, 409); eq(blocked.data.step, 2);
+  eq(userRow(email).trials_remaining, 1, "only the two uses were counted");
+  eq((await saveProfile(s.token, STEP2)).status, 200);
+  const asked = await chat(s.token, "First question");
+  eq(asked.status, 200); eq(asked.data.account.profile.step2, true);
+});
+
+await test("profile: steps arrive in order, required fields are named, and lists are checked", async () => {
+  const s = await newcomer("k-checks@example.com");
+  const early = await saveProfile(s.token, STEP2);
+  eq(early.status, 409); eq(early.data.step, 1);
+  for (const [over, field] of [[{ position: "  " }, "position"], [{ name: "" }, "name"], [{ company: undefined }, "company"],
+    [{ sector: "casino" }, "sector"], [{ consentWhatsapp: true, whatsapp: "call me" }, "whatsapp"]]) {
+    const r = await saveProfile(s.token, Object.assign({}, STEP1, over));
+    eq(r.status, 400, field); eq(r.data.error, "profile_incomplete"); eq(r.data.field, field, field);
+  }
+  eq((await saveProfile(s.token, Object.assign({}, STEP1, { step: 3 }))).status, 400, "unknown step");
+  eq(profileRow("k-checks@example.com"), undefined, "nothing saved by a refused form");
+  eq((await saveProfile(s.token, STEP1)).status, 200);
+  for (const [over, field] of [[{ problem: "" }, "problem"], [{ goal: " " }, "goal"], [{ focus: ["pitching", "gambling"] }, "focus"]]) {
+    const r = await saveProfile(s.token, Object.assign({}, STEP2, over));
+    eq(r.status, 400, field); eq(r.data.field, field, field);
+  }
+  // Text is kept as text: markup is stored and returned verbatim for the page
+  // to escape; control characters go.
+  const hostile = '<img src=x onerror="alert(1)">';
+  const h = await saveProfile(s.token, Object.assign({}, STEP1, { name: hostile + "\u0000\u0007", company: "A".repeat(500) }));
+  eq(h.status, 200); eq(h.data.profile.name, hostile); eq(h.data.profile.company.length, 120);
+});
+
+await test("profile: the WhatsApp number is kept only with the say-so, and normalised", async () => {
+  const s = await newcomer("k-wa@example.com");
+  const yes = await saveProfile(s.token, Object.assign({}, STEP1, { consentWhatsapp: true, whatsapp: "0772 123-456" }));
+  eq(yes.data.profile.whatsapp, "+256772123456"); eq(yes.data.profile.consentWhatsapp, true);
+  const no = await saveProfile(s.token, Object.assign({}, STEP1, { consentWhatsapp: false, whatsapp: "0772 123 456" }));
+  eq(no.data.profile.whatsapp, ""); eq(profileRow("k-wa@example.com").whatsapp, null, "dropped, not kept");
+});
+
+await test("profile: GRIOT is told who and what under the account's own tenant, never the email or phone", async () => {
+  const email = "k-brief@example.com";
+  const s = await newcomer(email);
+  await saveProfile(s.token, Object.assign({}, STEP1, { consentWhatsapp: true, whatsapp: "+256 772 123 456" }));
+  griotWsCalls.length = 0;
+  const r = await saveProfile(s.token, STEP2);
+  eq(r.status, 200); eq(r.data.profile.griot.state, "sent"); ok(r.data.profile.griot.sentAt, "time recorded");
+  const mems = profileMemories(email);
+  eq(mems.map((m) => m.title).join("|"), "Profile|Challenge|Goal|Why now|Focus");
+  eq(JSON.stringify(r.data.profile.told.map((t) => t.title)), JSON.stringify(mems.map((m) => m.title)), "the page shows exactly what GRIOT was told");
+  ok(mems.every((m) => m.project === "global" && m.confidence === "fact"), "filed as stated facts in the client's own space");
+  eq(mems[0].content, "Grace Akello, Head of Partnerships at Kampala Schools Trust (Non-profit or NGO). Expertise: Fundraising. Based in Kampala.");
+  eq(mems[2].content, "Raise UGX 400m for 40 schools. Deadline: June 2027.");
+  eq(mems[4].content, "Pitching and fundraising, Data");
+  const sent = JSON.stringify(griotStore.memories.filter((m) => m.tenant_id === userId(email)));
+  ok(!sent.includes(email) && !sent.includes("772") && !/whatsapp/i.test(sent), "no email or phone number reaches GRIOT");
+  ok(griotWsCalls.every((c) => c.tenant === userId(email)), "always this account's tenant");
+  eq(JSON.stringify(jsonIds(email).sort()), JSON.stringify(mems.map((m) => m.id).sort()), "ids kept to replace or remove them");
+});
+function jsonIds(email) { return JSON.parse(profileRow(email).griot_memory_ids); }
+
+await test("profile: an edit replaces GRIOT's copies, and saying no removes them", async () => {
+  const email = "k-edit@example.com";
+  const s = await newcomer(email);
+  await saveProfile(s.token, STEP1);
+  await saveProfile(s.token, STEP2);
+  const before = jsonIds(email);
+  await saveProfile(s.token, Object.assign({}, STEP1, { position: "Executive Director" }));
+  const after = profileMemories(email);
+  eq(after.length, 5, "replaced, not added to");
+  ok(after[0].content.startsWith("Grace Akello, Executive Director at"), after[0].content);
+  ok(!before.some((id) => griotStore.memories.some((m) => m.id === id)), "the old copies are gone");
+  const no = await saveProfile(s.token, Object.assign({}, STEP2, { briefGriot: false }));
+  eq(no.data.profile.griot.state, "none"); eq(no.data.profile.told.length, 0);
+  eq(profileMemories(email).length, 0, "GRIOT holds nothing once told no"); eq(jsonIds(email).length, 0);
+});
+
+await test("profile: delete removes it here and GRIOT's copies; the next service asks again", async () => {
+  const email = "k-delete@example.com";
+  const s = await newcomer(email);
+  await saveProfile(s.token, STEP1);
+  await saveProfile(s.token, STEP2);
+  const d = await call("POST", "/profile/delete", { token: s.token, body: {} });
+  eq(d.status, 200); eq(d.data.deleted, true); eq(d.data.griotCleared, true);
+  eq(profileRow(email), undefined, "no row left"); eq(profileMemories(email).length, 0, "no copy left in GRIOT");
+  eq((await call("GET", "/profile", { token: s.token })).data.profile, null);
+  const r = await chat(s.token, "after deleting");
+  eq(r.status, 409); eq(r.data.step, 1);
+});
+
+await test("profile: when GRIOT cannot take the briefing it waits, then goes before the next question", async () => {
+  const email = "k-pending@example.com";
+  const s = await newcomer(email);
+  await saveProfile(s.token, STEP1);
+  net.griotMemory = "down";
+  const r = await saveProfile(s.token, STEP2);
+  net.griotMemory = undefined;
+  eq(r.status, 200, "the profile itself is saved"); eq(r.data.profile.griot.state, "pending");
+  eq(profileRow(email).griot_lock_until, null, "no lease left behind");
+  const before = userRow(email).trials_remaining;
+  const c = await chat(s.token, "Where do I start?");
+  eq(c.status, 200); eq(userRow(email).trials_remaining, before - 1);
+  eq(profileMemories(email).length, 5, "briefed before the question"); eq(profileRow(email).griot_state, "sent");
+});
+
+await test("profile: a deletion GRIOT cannot finish keeps no personal data, and the daily run completes it", async () => {
+  const email = "k-cron@example.com";
+  const s = await newcomer(email);
+  await saveProfile(s.token, Object.assign({}, STEP1, { consentWhatsapp: true, whatsapp: "0772123456" }));
+  await saveProfile(s.token, STEP2);
+  net.griotMemory = "down";
+  const d = await call("POST", "/profile/delete", { token: s.token, body: {} });
+  net.griotMemory = undefined;
+  eq(d.status, 200); eq(d.data.griotCleared, false);
+  const left = profileRow(email);
+  for (const col of ["name", "expertise", "position", "company", "location", "whatsapp", "problem", "goal", "goal_by", "why_now"]) {
+    eq(left[col], null, col + " wiped at once");
+  }
+  eq(left.focus, "[]"); eq(left.griot_state, "pending"); eq(jsonIds(email).length, 5, "only the ids to remove remain");
+  const pending = [];
+  await worker.scheduled({}, env, { waitUntil: (p) => pending.push(p) });
+  await Promise.all(pending);
+  eq(profileRow(email), undefined, "row gone"); eq(profileMemories(email).length, 0, "GRIOT's copies gone");
+});
+
+await test("profile: a GRIOT without the workspace is never sent what it could not delete", async () => {
+  const email = "k-plain@example.com";
+  const s = await newcomer(email);
+  await saveProfile(s.token, STEP1);
+  env.GRIOT_API_BASE = "https://griot-plain.test";
+  griotCalls.length = 0;
+  const r = await saveProfile(s.token, STEP2);
+  const c = await chat(s.token, "still works");
+  env.GRIOT_API_BASE = "https://griot.test/";
+  eq(r.data.profile.griot.state, "pending"); eq(c.status, 200, "asking still works");
+  ok(!griotCalls.some((x) => /\/memory/.test(x.url)), "no memory written to it");
+  eq(profileRow(email).griot_state, "pending", "sent once the workspace is live");
+});
+
+await test("profile: a save during a briefing leaves it pending, and the next question brings GRIOT up to date", async () => {
+  const email = "k-race@example.com";
+  const s = await newcomer(email);
+  await saveProfile(s.token, STEP1);
+  net.griotMemoryDelay = 25;
+  const first = saveProfile(s.token, STEP2);            // takes the lease, writes slowly
+  await new Promise((r) => setTimeout(r, 10));
+  const second = await saveProfile(s.token, Object.assign({}, STEP2, { goal: "Raise UGX 500m" }));
+  await first;
+  net.griotMemoryDelay = 0;
+  eq(second.status, 200, "the second save is kept");
+  eq(profileRow(email).griot_state, "pending", "GRIOT holds the older version, so it is not marked sent");
+  ok(profileMemories(email).length <= 5, "never doubled: " + profileMemories(email).length);
+  await chat(s.token, "settle it");
+  const mems = profileMemories(email);
+  eq(mems.length, 5); eq(profileRow(email).griot_state, "sent");
+  eq(mems.find((m) => m.title === "Goal").content, "Raise UGX 500m. Deadline: June 2027.", "GRIOT holds the latest goal");
+});
+
+await test("profile: one account can neither read, change nor delete another's, nor brief GRIOT as them", async () => {
+  const a = await newcomer("k-own-a@example.com");
+  const b = await newcomer("k-own-b@example.com");
+  await saveProfile(a.token, STEP1);
+  await saveProfile(a.token, STEP2);
+  eq((await call("GET", "/profile", { token: b.token })).data.profile, null, "B sees only their own (none)");
+  await call("POST", "/profile/delete", { token: b.token, body: { userId: userId("k-own-a@example.com") } });
+  ok(profileRow("k-own-a@example.com").step2_at, "A's profile untouched"); eq(profileMemories("k-own-a@example.com").length, 5);
+  const res = await worker.fetch(new Request("https://api.test/profile", {
+    method: "POST",
+    headers: { Origin: ORIGIN, "Content-Type": "application/json", Authorization: "Bearer " + b.token, "X-Tenant-Id": userId("k-own-a@example.com") },
+    body: JSON.stringify(Object.assign({}, STEP1, { userId: userId("k-own-a@example.com") }))
+  }), env, { waitUntil() {} });
+  eq(res.status, 200);
+  eq(profileRow("k-own-a@example.com").name, "Grace Akello", "A's row unchanged");
+  ok(profileRow("k-own-b@example.com").step1_at, "B's own row written");
 });
 
 console.log("\n" + passed + " passed, " + failures.length + " failed\n");

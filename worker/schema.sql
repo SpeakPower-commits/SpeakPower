@@ -151,3 +151,41 @@ CREATE TABLE IF NOT EXISTS rehearsals (
   created_at    INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_rehearsals_user ON rehearsals (user_id, id);
+
+-- Know the customer: one profile per account, filled in two short steps
+-- after sign-in. Step 1 (who you are) is required before any service; step 2
+-- (your challenge) before the first GRIOT question. GRIOT is briefed only
+-- with the person's say-so (consent_griot), and never with their email or
+-- WhatsApp number. The ids of the memories GRIOT was given are kept, so an
+-- edit replaces them and "Delete my profile" removes them. A briefing GRIOT
+-- could not take yet waits as 'pending' and is retried before the next
+-- question and by the daily cron. A deleted profile keeps no personal field;
+-- its row lingers only until GRIOT's copies are gone.
+CREATE TABLE IF NOT EXISTS profiles (
+  user_id          TEXT PRIMARY KEY,
+  name             TEXT,
+  expertise        TEXT,
+  position         TEXT,
+  company          TEXT,
+  sector           TEXT,
+  location         TEXT,
+  whatsapp         TEXT,
+  consent_whatsapp INTEGER NOT NULL DEFAULT 0,
+  problem          TEXT,
+  goal             TEXT,
+  goal_by          TEXT,
+  why_now          TEXT,
+  focus            TEXT NOT NULL DEFAULT '[]',
+  consent_griot    INTEGER NOT NULL DEFAULT 0,
+  -- 'none' (nothing with GRIOT), 'pending' (to send or remove), 'sent'.
+  griot_state      TEXT NOT NULL DEFAULT 'none',
+  griot_memory_ids TEXT NOT NULL DEFAULT '[]',
+  griot_sent_at    INTEGER,
+  griot_lock_until INTEGER,
+  version          INTEGER NOT NULL DEFAULT 1,
+  step1_at         INTEGER,
+  step2_at         INTEGER,
+  created_at       INTEGER NOT NULL,
+  updated_at       INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_profiles_griot_state ON profiles (griot_state);

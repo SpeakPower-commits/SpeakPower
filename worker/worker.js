@@ -5,7 +5,8 @@
    Setup steps live in worker/README.md.
 
    What it does
-   - One account per person: Sign in with Google (email codes optional).
+   - One account per person: Sign in with Google (email codes optional),
+     then two short steps (who you are, your challenge) that brief GRIOT.
    - 3 free tries in total, usable on any service, granted once per account.
    - After that, GRIOT and the Rehearsal Room come with a monthly plan
      (PLANS below): 30 days, renewed with one tap, never priced per use.
@@ -66,6 +67,9 @@ export default {
       env.DB.prepare("DELETE FROM rate_log WHERE created_at < ?").bind(now - 86400),
       env.DB.prepare("DELETE FROM otp_codes WHERE expires_at < ?").bind(now - 3600)
     ]));
+    // Profile briefings GRIOT could not take, or copies it still holds from
+    // a deleted profile.
+    ctx.waitUntil(retryProfileBriefings(env));
   }
 };
 
@@ -91,6 +95,7 @@ async function route(request, env, ctx) {
     if (path === "/me") return me(request, env);
     if (path === "/account") return accountSummary(request, env);
     if (path === "/rehearsals") return rehearsalHistory(request, env);
+    if (path === "/profile") return getProfile(request, env);
     if (path === "/plans") return json(request, env, { plans: publicPlans(), currency: CURRENCY, canBuy: paymentsEnabled(env) });
     if (path === "/griot/workspace") return griotWorkspace(request, env);
     if (path === "/griot/threads") return griotThreads(request, env);
@@ -109,6 +114,8 @@ async function route(request, env, ctx) {
     if (path === "/griot/memories/delete") return griotDeleteMemory(request, env);
     if (path === "/rehearse") return rehearse(request, env);
     if (path === "/rehearsals/delete") return deleteRehearsals(request, env);
+    if (path === "/profile") return saveProfile(request, env);
+    if (path === "/profile/delete") return deleteProfile(request, env);
     if (path === "/wallet/checkout") return walletCheckout(request, env);
     if (path === "/wallet/confirm") return walletConfirm(request, env);
     if (path === "/plans/checkout") return planCheckout(request, env);
@@ -279,7 +286,13 @@ function publicAccount(user, env) {
 // already paid for.
 async function accountView(env, user, now) {
   const account = publicAccount(user, env);
-  account.membership = await membership(env, user.id, now);
+  const [m, p] = await Promise.all([
+    membership(env, user.id, now),
+    env.DB.prepare("SELECT step1_at, step2_at FROM profiles WHERE user_id = ?").bind(user.id).first()
+  ]);
+  account.membership = m;
+  // Which sign-up steps are done, so a page can route without another call.
+  account.profile = { step1: Boolean(p && p.step1_at), step2: Boolean(p && p.step2_at) };
   return account;
 }
 
@@ -523,6 +536,7 @@ async function generate(request, env) {
 
   // Validate before spending anything.
   const inputs = product.validate(body.inputs && typeof body.inputs === "object" ? body.inputs : {});
+  await requireProfile(env, user, key);
 
   const reserved = await reserveRun(env, user, key);
   if (!reserved) return paymentRequired(request, env, user, key, product.title, body);
@@ -1534,6 +1548,7 @@ async function griotChat(request, env) {
   if (!message) {
     throw new HttpError(400, "message_required", "Type a question for GRIOT first.");
   }
+  const profile = await requireProfile(env, user, "griot");
 
   // Never forward a client's message to a GRIOT that cannot keep clients
   // apart. Checked before anything is spent, so a refusal costs nothing.
@@ -1559,6 +1574,11 @@ async function griotChat(request, env) {
       throw new HttpError(400, "unknown_lens", "Choose up to three of GRIOT's lenses.");
     }
   }
+
+  // A briefing GRIOT could not take earlier goes first, before anything is
+  // spent, so this answer is already about the person. Its failure never
+  // blocks the question.
+  if (profile.griot_state === "pending") await syncGriotProfile(env, user.id);
 
   // One question: the plan's allowance, otherwise a free try. GRIOT is never
   // priced per message.
@@ -1810,7 +1830,7 @@ function publicMemory(m) {
 
 async function griotMemories(request, env) {
   const { user } = await griotWorkspaceUser(request, env);
-  const rows = await griotJson(env, user.id, "GET", "/memories");
+  const rows = await griotJson(env, user.id, "GET", "/memories?limit=100");
   return json(request, env, { memories: (Array.isArray(rows) ? rows : []).map(publicMemory) });
 }
 
@@ -1845,6 +1865,296 @@ async function griotDecisions(request, env) {
       recommendation: str(d.recommendation, 600), at: str(d.created_at, 40)
     }))
   });
+}
+
+/* --------------------------------------------------------------------------
+   Know the customer: the sign-up profile
+
+   Two short steps after sign-in. Step 1, who you are, is required before
+   any service; step 2, your challenge, before the first GRIOT question.
+   Both are checked here before anything is spent, so a page that skips them
+   gets a 409 and nothing is charged.
+
+   With the person's say-so, GRIOT is briefed: a few memories of kind
+   'profile', which GRIOT keeps in every turn. Email and WhatsApp number
+   never go to GRIOT. The ids of those memories are kept in D1, so an edit
+   replaces them and a deletion removes them. A briefing GRIOT cannot take
+   yet waits as 'pending' and is retried before the person's next question
+   and by the daily cron. Only syncGriotProfile writes the ids, under a
+   one-minute lease, so two syncs never interleave.
+   ------------------------------------------------------------------------ */
+
+const SECTORS = Object.freeze({
+  ngo: "Non-profit or NGO",
+  development: "Development partner or donor",
+  startup: "Startup or tech",
+  sme: "Small or growing business",
+  corporate: "Corporate",
+  government: "Government or public sector",
+  finance: "Finance or banking",
+  agriculture: "Agriculture or food",
+  health: "Health",
+  education: "Education or research",
+  media: "Media or creative",
+  other: "Other"
+});
+
+const FOCUS_AREAS = Object.freeze({
+  pitching: "Pitching and fundraising",
+  marketing: "Marketing",
+  brand: "Brand",
+  data: "Data",
+  speaking: "Speaking",
+  strategy: "Strategy",
+  digital: "Digital"
+});
+
+// Each step's free-text fields: [column, longest accepted, what to say when
+// a required one is missing (null when optional)].
+const PROFILE_STEPS = Object.freeze({
+  1: {
+    name: ["name", 120, "Add your name."],
+    expertise: ["expertise", 80, "Add your area of expertise."],
+    position: ["position", 80, "Add your position or role."],
+    company: ["company", 120, "Add your company or organisation."],
+    location: ["location", 80, null]
+  },
+  2: {
+    problem: ["problem", 600, "Say what problem you are facing."],
+    goal: ["goal", 400, "Say what you want to achieve."],
+    goalBy: ["goal_by", 60, null],
+    whyNow: ["why_now", 400, null]
+  }
+});
+
+const PROFILE_NEEDED = Object.freeze({
+  1: "Tell us a little about yourself first. It takes a minute, and nothing was charged.",
+  2: "Tell GRIOT what you are working on first, so its first answer is about you. Nothing was charged."
+});
+
+const GRIOT_ID_RE = /^[A-Za-z0-9-]{1,64}$/;
+
+// Step 1 before any service; step 2 before GRIOT too. Returns the row's
+// briefing state so GRIOT's caller can send a pending briefing first.
+async function requireProfile(env, user, service) {
+  const p = await env.DB.prepare("SELECT step1_at, step2_at, griot_state FROM profiles WHERE user_id = ?")
+    .bind(user.id).first();
+  const step = !p || !p.step1_at ? 1 : (service === "griot" && !p.step2_at ? 2 : 0);
+  if (step) throw new HttpError(409, "profile_required", PROFILE_NEEDED[step], { step });
+  return p;
+}
+
+function cleanText(value, max) {
+  // Newlines stay (the challenge is a paragraph); other control characters go.
+  return String(value == null ? "" : value).replace(/[\u0000-\u0009\u000B-\u001F\u007F]/g, " ").trim().slice(0, max);
+}
+
+// A number as written in Uganda (0772…) or internationally; null when it is
+// not a phone number at all.
+function normaliseWhatsapp(raw) {
+  let s = String(raw || "").replace(/[\s().-]/g, "");
+  if (/^0\d{9}$/.test(s)) s = "+256" + s.slice(1);
+  if (/^256\d{9}$/.test(s)) s = "+" + s;
+  return /^\+\d{9,15}$/.test(s) ? s : null;
+}
+
+// "Raise UGX 400m for 40 schools. Deadline: June 2027."
+function withDeadline(goal, by) {
+  if (!by) return goal;
+  return goal + (/[.!?]$/.test(goal) ? " " : ". ") + "Deadline: " + by + (/[.!?]$/.test(by) ? "" : ".");
+}
+
+function jsonList(text) {
+  try { const v = JSON.parse(text || "[]"); return Array.isArray(v) ? v : []; } catch (e) { return []; }
+}
+
+// Exactly what GRIOT is told, and the same list the Welcome screen shows.
+// No email, no phone number.
+function profileMemories(p) {
+  if (!p || !p.step1_at) return [];
+  const who = p.name + ", " + p.position + " at " + p.company +
+    (SECTORS[p.sector] ? " (" + SECTORS[p.sector] + ")" : "") + ". Expertise: " + p.expertise + "." +
+    (p.location ? " Based in " + p.location + "." : "");
+  const out = [{ title: "Profile", content: who }];
+  if (p.step2_at) {
+    out.push({ title: "Challenge", content: p.problem });
+    out.push({ title: "Goal", content: withDeadline(p.goal, p.goal_by) });
+    if (p.why_now) out.push({ title: "Why now", content: p.why_now });
+    const focus = jsonList(p.focus).filter((k) => FOCUS_AREAS[k]).map((k) => FOCUS_AREAS[k]);
+    if (focus.length) out.push({ title: "Focus", content: focus.join(", ") });
+  }
+  return out;
+}
+
+function publicProfile(p) {
+  if (!p || !p.step1_at) return null;
+  return {
+    name: p.name || "", expertise: p.expertise || "", position: p.position || "", company: p.company || "",
+    sector: SECTORS[p.sector] ? p.sector : "", location: p.location || "",
+    whatsapp: p.whatsapp || "", consentWhatsapp: Boolean(p.consent_whatsapp),
+    problem: p.problem || "", goal: p.goal || "", goalBy: p.goal_by || "", whyNow: p.why_now || "",
+    focus: jsonList(p.focus).filter((k) => FOCUS_AREAS[k]),
+    step1: true, step2: Boolean(p.step2_at),
+    briefGriot: Boolean(p.consent_griot),
+    griot: { state: p.griot_state, sentAt: p.griot_sent_at || null },
+    told: p.consent_griot ? profileMemories(p) : []
+  };
+}
+
+function profileChoices() {
+  return {
+    sectors: Object.keys(SECTORS).map((key) => ({ key, name: SECTORS[key] })),
+    focusAreas: Object.keys(FOCUS_AREAS).map((key) => ({ key, name: FOCUS_AREAS[key] }))
+  };
+}
+
+async function getProfile(request, env) {
+  const user = await authenticate(request, env);
+  const row = await env.DB.prepare("SELECT * FROM profiles WHERE user_id = ?").bind(user.id).first();
+  return json(request, env, Object.assign({ profile: publicProfile(row), googleName: user.name || "" }, profileChoices()));
+}
+
+async function saveProfile(request, env) {
+  const user = await authenticate(request, env);
+  if (!(await rateLimit(env, "profile:" + user.id, 30, 3600))) {
+    throw new HttpError(429, "rate_limited", "That is a lot of changes for one hour. Please wait a little.");
+  }
+  const body = await readJson(request, 16384);
+  const step = body.step === 1 || body.step === 2 ? body.step : 0;
+  if (!step) throw new HttpError(400, "bad_request", "The form could not be read.");
+
+  const existing = await env.DB.prepare("SELECT step1_at FROM profiles WHERE user_id = ?").bind(user.id).first();
+  if (step === 2 && !(existing && existing.step1_at)) {
+    throw new HttpError(409, "profile_required", PROFILE_NEEDED[1], { step: 1 });
+  }
+
+  const values = {};
+  for (const [field, [column, max, missing]] of Object.entries(PROFILE_STEPS[step])) {
+    const v = cleanText(body[field], max);
+    if (!v && missing) throw new HttpError(400, "profile_incomplete", missing, { field });
+    values[column] = v || null;
+  }
+
+  if (step === 1) {
+    const sector = str(body.sector, 20);
+    if (sector && !SECTORS[sector]) throw new HttpError(400, "profile_incomplete", "Choose a sector from the list.", { field: "sector" });
+    values.sector = sector || null;
+    // The number is kept only with the say-so to use it.
+    const consent = body.consentWhatsapp === true;
+    const number = consent ? normaliseWhatsapp(body.whatsapp) : null;
+    if (consent && !number) {
+      throw new HttpError(400, "profile_incomplete", "Check your WhatsApp number, for example +256 772 123456.", { field: "whatsapp" });
+    }
+    values.whatsapp = number;
+    values.consent_whatsapp = consent ? 1 : 0;
+  } else {
+    const chosen = Array.isArray(body.focus) ? body.focus.slice(0, 20) : [];
+    if (!chosen.every((k) => typeof k === "string" && FOCUS_AREAS[k])) {
+      throw new HttpError(400, "profile_incomplete", "Choose focus areas from the list.", { field: "focus" });
+    }
+    values.focus = JSON.stringify([...new Set(chosen)]);
+    values.consent_griot = body.briefGriot === true ? 1 : 0;
+  }
+
+  const now = nowSec();
+  const stamp = step === 1 ? "step1_at" : "step2_at";
+  const columns = Object.keys(values);
+  // GRIOT has something to receive or to remove whenever the person has said
+  // yes, or it still holds copies from before.
+  const consentAfter = step === 2 ? "excluded.consent_griot" : "profiles.consent_griot";
+  await env.DB.prepare(
+    "INSERT INTO profiles (user_id, " + columns.join(", ") + ", " + stamp + ", griot_state, created_at, updated_at) " +
+    "VALUES (?, " + columns.map(() => "?").join(", ") + ", ?, ?, ?, ?) " +
+    "ON CONFLICT(user_id) DO UPDATE SET " + columns.map((c) => c + " = excluded." + c).join(", ") +
+    ", " + stamp + " = COALESCE(profiles." + stamp + ", excluded." + stamp + "), " +
+    "griot_state = CASE WHEN " + consentAfter + " = 1 OR profiles.griot_memory_ids <> '[]' THEN 'pending' ELSE 'none' END, " +
+    "version = profiles.version + 1, updated_at = excluded.updated_at"
+  ).bind(user.id, ...columns.map((c) => values[c]), now, values.consent_griot ? "pending" : "none", now, now).run();
+
+  await syncGriotProfile(env, user.id);
+  const row = await env.DB.prepare("SELECT * FROM profiles WHERE user_id = ?").bind(user.id).first();
+  await logEvent(env, step === 1 ? "profile_step1" : "profile_step2", { userId: user.id, anonId: body.anonId, page: body.page });
+  return json(request, env, { profile: publicProfile(row) });
+}
+
+async function deleteProfile(request, env) {
+  const user = await authenticate(request, env);
+  // Every personal field goes at once. The row lingers only while GRIOT still
+  // holds copies, and the sync below (or a later one) removes those.
+  await env.DB.prepare(
+    "UPDATE profiles SET name = NULL, expertise = NULL, position = NULL, company = NULL, sector = NULL, " +
+    "location = NULL, whatsapp = NULL, consent_whatsapp = 0, problem = NULL, goal = NULL, goal_by = NULL, " +
+    "why_now = NULL, focus = '[]', consent_griot = 0, step1_at = NULL, step2_at = NULL, " +
+    "griot_state = CASE WHEN griot_memory_ids <> '[]' THEN 'pending' ELSE 'none' END, " +
+    "version = version + 1, updated_at = ? WHERE user_id = ?"
+  ).bind(nowSec(), user.id).run();
+  await syncGriotProfile(env, user.id);
+  await env.DB.prepare("DELETE FROM profiles WHERE user_id = ? AND step1_at IS NULL AND griot_memory_ids = '[]'")
+    .bind(user.id).run();
+  const left = await env.DB.prepare("SELECT 1 AS x FROM profiles WHERE user_id = ?").bind(user.id).first();
+  return json(request, env, { deleted: true, griotCleared: !left });
+}
+
+// Brings GRIOT in line with the profile: removes what it was told before,
+// then (with consent) tells it the current profile. Never throws for
+// GRIOT's sake; whatever is not done stays 'pending' for the next try.
+async function syncGriotProfile(env, userId) {
+  if (!env.GRIOT_API_BASE || !env.GRIOT_API_KEY) return false;
+  const now = nowSec();
+  const row = await env.DB.prepare(
+    "UPDATE profiles SET griot_lock_until = ? WHERE user_id = ? AND griot_state = 'pending' " +
+    "AND (griot_lock_until IS NULL OR griot_lock_until < ?) RETURNING *"
+  ).bind(now + 60, userId, now).first();
+  if (!row) return false;
+
+  const ids = jsonList(row.griot_memory_ids).filter((id) => typeof id === "string" && GRIOT_ID_RE.test(id));
+  let done = false;
+  let told = false;
+  try {
+    const health = await griotHealth(env);
+    // Deleting needs the workspace; without it nothing is sent that could
+    // not be taken back.
+    if (health.workspace) {
+      while (ids.length) {
+        try {
+          await griotJson(env, userId, "DELETE", "/memories/" + ids[0]);
+        } catch (e) {
+          if (!(e instanceof HttpError && e.status === 404)) throw e;
+        }
+        ids.shift();
+      }
+      if (row.consent_griot && row.step1_at) {
+        for (const m of profileMemories(row)) {
+          const created = await griotJson(env, userId, "POST", "/memory",
+            { project: "global", kind: "profile", title: m.title, content: m.content, confidence: "fact" });
+          if (created && typeof created.id === "string" && GRIOT_ID_RE.test(created.id)) ids.push(created.id);
+        }
+        told = true;
+      }
+      done = true;
+    }
+  } catch (e) {
+    console.error("GRIOT profile briefing incomplete", e && e.code ? e.code : e);
+  } finally {
+    const state = done ? (told ? "sent" : "none") : "pending";
+    await env.DB.prepare(
+      "UPDATE profiles SET griot_memory_ids = ?, griot_lock_until = NULL, " +
+      "griot_state = CASE WHEN version = ? THEN ? ELSE 'pending' END, " +
+      "griot_sent_at = CASE WHEN version = ? AND ? = 'sent' THEN ? ELSE griot_sent_at END WHERE user_id = ?"
+    ).bind(JSON.stringify(ids), row.version, state, row.version, state, nowSec(), userId).run();
+    // A deleted profile's row goes once GRIOT holds nothing more from it.
+    await env.DB.prepare(
+      "DELETE FROM profiles WHERE user_id = ? AND step1_at IS NULL AND griot_memory_ids = '[]' AND griot_state = 'none'"
+    ).bind(userId).run();
+  }
+  return done;
+}
+
+async function retryProfileBriefings(env) {
+  const rows = (await env.DB.prepare(
+    "SELECT user_id FROM profiles WHERE griot_state = 'pending' ORDER BY updated_at LIMIT 25"
+  ).all()).results || [];
+  for (const r of rows) await syncGriotProfile(env, r.user_id);
 }
 
 /* --------------------------------------------------------------------------
@@ -2094,6 +2404,7 @@ async function rehearse(request, env) {
     throw new HttpError(429, "rate_limited", "That is a lot of rehearsing for one hour. Take a break and try again soon.");
   }
 
+  await requireProfile(env, user, "rehearsal");
   const coached = Boolean(env.ANTHROPIC_API_KEY);
   const reserved = await reserveRun(env, user, "rehearsal");
   if (!reserved) return paymentRequired(request, env, user, "rehearsal", "A rehearsal", body);
