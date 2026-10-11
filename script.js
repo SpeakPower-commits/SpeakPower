@@ -52,13 +52,16 @@
       return Promise.reject(off);
     }
     var headers = {};
-    if (options.body) headers["Content-Type"] = "application/json";
+    // options.file: a File or Blob sent as it is (a document for GRIOT);
+    // the Worker decides what it is from its bytes, never from this header.
+    if (options.file) headers["Content-Type"] = "application/octet-stream";
+    else if (options.body) headers["Content-Type"] = "application/json";
     if (options.token) headers.Authorization = "Bearer " + options.token;
 
     return fetch(API_BASE + path, {
-      method: options.body ? "POST" : "GET",
+      method: options.body || options.file ? "POST" : "GET",
       headers: headers,
-      body: options.body ? JSON.stringify(options.body) : undefined
+      body: options.file || (options.body ? JSON.stringify(options.body) : undefined)
     }).then(function (res) {
       return res.json().catch(function () { return {}; }).then(function (data) {
         if (res.ok) return data;
@@ -115,19 +118,21 @@
       link.removeAttribute("title");
     } else {
       var free = Number(acct.trialsRemaining) || 0;
-      var balance = Number(acct.balance) || 0;
+      var plan = acct.membership && acct.membership.plan ? acct.membership.name : "";
       var label = document.createElement("span");
       label.textContent = "Account";
-      // The balance part hides on mid-width screens, where the header has
-      // no room for it; it always shows on wide screens and in the phone menu.
-      var extra = document.createElement("span");
-      extra.className = "nav-account-extra";
-      extra.textContent = " · " + (balance > 0 || !free
-        ? "UGX " + balance.toLocaleString("en-US")
-        : free + " free " + (free === 1 ? "try" : "tries"));
       link.appendChild(label);
-      link.appendChild(extra);
-      link.title = (acct.email || "") + extra.textContent;
+      // The plan, or the free tries left; never shillings. This part hides on
+      // mid-width screens, where the header has no room for it; it always
+      // shows on wide screens and in the phone menu.
+      var note = plan || (free ? free + " free " + (free === 1 ? "try" : "tries") : "");
+      if (note) {
+        var extra = document.createElement("span");
+        extra.className = "nav-account-extra";
+        extra.textContent = " · " + note;
+        link.appendChild(extra);
+      }
+      link.title = (acct.email || "") + (note ? " · " + note : "");
     }
     if (/\/account\.html$/.test(window.location.pathname)) link.setAttribute("aria-current", "page");
   }

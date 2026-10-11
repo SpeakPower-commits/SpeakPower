@@ -15,8 +15,8 @@ CREATE TABLE IF NOT EXISTS users (
   verified         INTEGER NOT NULL DEFAULT 0,
   -- Free tries, shared across every service: 3 in total, granted once.
   trials_remaining INTEGER NOT NULL DEFAULT 3,
-  -- Prepaid balance in Uganda shillings, like airtime. Top-ups add to it;
-  -- each paid use deducts that service's price. Never negative.
+  -- Prepaid balance in Uganda shillings for Studio packs. Top-ups add to it;
+  -- each pack bought deducts its price. Never negative.
   balance          INTEGER NOT NULL DEFAULT 0 CHECK (balance >= 0),
   plan             TEXT NOT NULL DEFAULT 'trial',
   -- Bump this to sign a user out of every device (invalidates old tokens).
@@ -100,10 +100,36 @@ CREATE TABLE IF NOT EXISTS payments (
   provider     TEXT NOT NULL DEFAULT 'flutterwave',
   status       TEXT NOT NULL DEFAULT 'pending',
   provider_ref TEXT UNIQUE,
+  -- 'topup' adds to the balance; 'plan:starter' or 'plan:pro' opens 30 days.
+  -- Added 9 Oct 2026; on an older database run:
+  --   ALTER TABLE payments ADD COLUMN purpose TEXT NOT NULL DEFAULT 'topup';
+  purpose      TEXT NOT NULL DEFAULT 'topup',
   created_at   INTEGER NOT NULL,
   paid_at      INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_payments_user ON payments (user_id, created_at);
+
+-- Plans: one row per paid 30-day period. A renewal of the same plan starts
+-- when the last one ends; switching plan ends the old one at once. Each row
+-- keeps the limits it was bought with. Usage is counted here and shown to the
+-- customer only as a share of the month, never as a number.
+CREATE TABLE IF NOT EXISTS subscriptions (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id         TEXT NOT NULL,
+  plan            TEXT NOT NULL,
+  starts_at       INTEGER NOT NULL,
+  ends_at         INTEGER NOT NULL,
+  griot_limit     INTEGER NOT NULL,
+  rehearsal_limit INTEGER NOT NULL,
+  pack_limit      INTEGER NOT NULL DEFAULT 0,
+  pack_discount   INTEGER NOT NULL DEFAULT 0,
+  griot_used      INTEGER NOT NULL DEFAULT 0 CHECK (griot_used >= 0),
+  rehearsal_used  INTEGER NOT NULL DEFAULT 0 CHECK (rehearsal_used >= 0),
+  packs_used      INTEGER NOT NULL DEFAULT 0 CHECK (packs_used >= 0),
+  tx_ref          TEXT NOT NULL UNIQUE,
+  created_at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions (user_id, ends_at);
 
 -- The Rehearsal Room: one row per scored recording. The audio itself is never
 -- stored, nor is the transcript; only what the customer needs to see their
@@ -125,3 +151,62 @@ CREATE TABLE IF NOT EXISTS rehearsals (
   created_at    INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_rehearsals_user ON rehearsals (user_id, id);
+
+-- Know the customer: one profile per account, filled in two short steps
+-- after sign-in. Step 1 (who you are) is required before any service; step 2
+-- (your challenge) before the first GRIOT question. GRIOT is briefed only
+-- with the person's say-so (consent_griot), and never with their email or
+-- WhatsApp number. The ids of the memories GRIOT was given are kept, so an
+-- edit replaces them and "Delete my profile" removes them. A briefing GRIOT
+-- could not take yet waits as 'pending' and is retried before the next
+-- question and by the daily cron. A deleted profile keeps no personal field;
+-- its row lingers only until GRIOT's copies are gone.
+CREATE TABLE IF NOT EXISTS profiles (
+  user_id          TEXT PRIMARY KEY,
+  name             TEXT,
+  expertise        TEXT,
+  position         TEXT,
+  company          TEXT,
+  sector           TEXT,
+  location         TEXT,
+  whatsapp         TEXT,
+  consent_whatsapp INTEGER NOT NULL DEFAULT 0,
+  problem          TEXT,
+  goal             TEXT,
+  goal_by          TEXT,
+  why_now          TEXT,
+  focus            TEXT NOT NULL DEFAULT '[]',
+  consent_griot    INTEGER NOT NULL DEFAULT 0,
+  -- 'none' (nothing with GRIOT), 'pending' (to send or remove), 'sent'.
+  griot_state      TEXT NOT NULL DEFAULT 'none',
+  griot_memory_ids TEXT NOT NULL DEFAULT '[]',
+  griot_sent_at    INTEGER,
+  griot_lock_until INTEGER,
+  version          INTEGER NOT NULL DEFAULT 1,
+  step1_at         INTEGER,
+  step2_at         INTEGER,
+  created_at       INTEGER NOT NULL,
+  updated_at       INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_profiles_griot_state ON profiles (griot_state);
+
+-- Documents a client has given GRIOT. Each is read once: Workers AI turns it
+-- into text, Claude writes a brief and the key facts with their pages, and
+-- only those are kept. The file itself is never stored. Facts from switched-on
+-- documents are chosen per question and sent to GRIOT, which cites them.
+-- Plans hold 1 (free), 10 (Starter) or 50 (Pro); deleting one frees a place.
+CREATE TABLE IF NOT EXISTS documents (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     TEXT NOT NULL,
+  name        TEXT NOT NULL,
+  kind        TEXT NOT NULL,
+  bytes       INTEGER NOT NULL,
+  pages       INTEGER,
+  enabled     INTEGER NOT NULL DEFAULT 1,
+  brief       TEXT NOT NULL,
+  facts       TEXT NOT NULL,
+  truncated   INTEGER NOT NULL DEFAULT 0,
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_documents_user ON documents (user_id, id);

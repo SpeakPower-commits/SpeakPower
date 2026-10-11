@@ -6,14 +6,16 @@ Open this file on the live site to see which build GitHub Pages is serving:
     https://speakpower-commits.github.io/SpeakPower/version.txt
 
 branch:   claude/studio-griot-live
-build:    release 2, the Rehearsal Room (2026-10-09)
-expects:  every page — the first nav link is "Rehearse"
-          rehearse.html — "Practise out loud. Get a Speak Score." with
-                       "Your first rehearsal is free." when signed out
-          index.html — the Speak Score card (78) in the hero and the gold
-                       button "Get my Speak Score, free"
-          studio.html — the Rehearsal Room is the first, wide dark card,
-                        UGX 5,000 per rehearsal
+build:    releases 6 and 7: documents GRIOT reads and cites; GRIOT's mark,
+          tab icon and proverbs while it thinks (2026-10-11), on top of
+          releases 3 to 5
+expects:  griot-app.html — five tabs: Ask · Conversations · Memory ·
+                       Decisions · Documents; the browser tab shows
+                       GRIOT's G; while GRIOT thinks, nine dots light up
+                       with a proverb at each step
+          welcome.html — "Tell us who you are." (step 1 of 2)
+          plans.html — the plan details list documents: 10 (Starter),
+                       50 (Pro), 1 on a free account
 
 If this file still shows an older build, Pages has not rebuilt yet: wait a
 minute and reload. If it 404s, Pages is serving a different branch.

@@ -57,14 +57,109 @@
     $(emptyId).hidden = !!rows.length;
   }
 
+  // The membership card: the plan, when it renews, and how much of the month
+  // each allowance has used. Without a plan, the plans themselves.
+  function drawPlan(acct) {
+    var host = $("acPlan");
+    var m = acct.membership;
+    host.textContent = "";
+    if (!m || !m.plan) {
+      A.renderPlanWall(host, {
+        heading: m && m.next ? "Your " + m.next.name + " plan starts " + A.dayMonth(m.next.startsAt) : "Choose a plan",
+        message: Number(acct.trialsRemaining) > 0
+          ? "You still have " + A.triesText(acct.trialsRemaining) + ". When they are used, a plan keeps GRIOT and the Rehearsal Room going."
+          : "Your free tries are used.",
+        account: acct,
+        returnTo: "account.html",
+        onSignedOut: signedOut
+      });
+      return;
+    }
+    var head = document.createElement("div");
+    head.className = "account-plan-head";
+    var title = document.createElement("h2");
+    title.textContent = m.name + " plan";
+    var when = document.createElement("p");
+    when.className = "builder-note";
+    when.textContent = m.next
+      ? "Paid until " + A.dayMonth(m.paidUntil) + " (renewal already paid)."
+      : "Runs until " + A.dayMonth(m.endsAt) + ". Renew any time; early renewals add 30 days after that date.";
+    head.appendChild(title);
+    head.appendChild(when);
+    host.appendChild(head);
+    [["griot", "GRIOT"], ["rehearsal", "Rehearsal Room"]].forEach(function (pair) {
+      var box = document.createElement("div");
+      box.className = "usage";
+      var name = document.createElement("p");
+      name.className = "usage-name";
+      name.textContent = pair[1];
+      host.appendChild(name);
+      A.renderUsage(box, acct, pair[0]);
+      var renew = box.querySelector(".usage-renew");
+      if (renew) renew.parentNode.removeChild(renew); // one renew button below, not two
+      host.appendChild(box);
+    });
+    if (m.plan === "pro") {
+      var pack = document.createElement("p");
+      pack.className = "builder-note";
+      pack.textContent = m.packsLeft > 0
+        ? "Your Studio pack for this month is ready to use, and every other pack is 15% off."
+        : "This month's included Studio pack is used. Every other pack is 15% off.";
+      host.appendChild(pack);
+    }
+    var row = document.createElement("div");
+    row.className = "builder-actions";
+    var renewBtn = document.createElement("button");
+    renewBtn.type = "button";
+    renewBtn.className = m.renewSoon ? "btn btn-primary" : "btn btn-ghost";
+    renewBtn.textContent = "Renew " + m.name + " for 30 days";
+    renewBtn.addEventListener("click", function () { checkoutPlan(m.plan, renewBtn); });
+    row.appendChild(renewBtn);
+    if (m.plan !== "pro") {
+      var up = document.createElement("button");
+      up.type = "button";
+      up.className = "btn btn-ghost";
+      up.textContent = "Switch to Pro";
+      up.addEventListener("click", function () { checkoutPlan("pro", up); });
+      row.appendChild(up);
+    }
+    var compare = document.createElement("a");
+    compare.className = "btn btn-ghost";
+    compare.href = "plans.html";
+    compare.textContent = "Compare plans";
+    row.appendChild(compare);
+    if (!acct.canBuyPlans) { renewBtn.hidden = true; if (up) up.hidden = true; }
+    host.appendChild(row);
+    var err = document.createElement("p");
+    err.className = "builder-error";
+    err.setAttribute("role", "alert");
+    err.hidden = true;
+    host.appendChild(err);
+    function checkoutPlan(plan, btn) {
+      if (row.getAttribute("aria-busy") === "true") return;
+      row.setAttribute("aria-busy", "true");
+      var label = btn.textContent;
+      btn.textContent = "Opening secure checkout…";
+      err.hidden = true;
+      A.startPlan(plan, "account.html").then(null, function (e) {
+        row.removeAttribute("aria-busy");
+        btn.textContent = label;
+        err.textContent = e.message;
+        err.hidden = false;
+        if (e.status === 401) signedOut();
+      });
+    }
+  }
+
   function drawAccount(acct) {
     if (!acct) return;
+    drawPlan(acct);
     $("acBalance").textContent = A.formatUgx(acct.balance);
     $("acTries").textContent = (Number(acct.trialsRemaining) || 0) + " of " + (acct.freeTrials || 3);
     $("acName").textContent = acct.name || acct.email || "";
     $("acEmail").textContent = acct.name ? acct.email : "";
     A.renderPayWall($("acTopup"), {
-      heading: "Top up your balance",
+      heading: "Top up for Studio packs",
       intro: true,
       account: acct,
       returnTo: "account.html",
@@ -79,33 +174,135 @@
     body.textContent = "";
     Object.keys(A.SERVICE_NAMES).forEach(function (key) {
       if (prices[key] == null) return;
-      body.appendChild(row([
-        key === "griot" ? "GRIOT" : A.SERVICE_NAMES[key],
-        A.formatUgx(prices[key]) + (key === "griot" ? " per message" : key === "rehearsal" ? " per rehearsal" : "")
-      ]));
+      body.appendChild(row([A.SERVICE_NAMES[key], A.formatUgx(prices[key])]));
     });
+    var m = data.account && data.account.membership;
+    if (m && m.packDiscount) {
+      $("acPriceNote").textContent = "GRIOT and the Rehearsal Room come with your plan. As a " + m.name +
+        " member you pay " + (100 - m.packDiscount) + "% of these prices.";
+    }
 
     fillTable("acUses", "acUsesEmpty", (data.uses || []).map(function (u) {
-      var paid = u.paidWith === "trial" ? "Free try" : A.formatUgx(u.amount);
-      if (u.status === "refunded") paid += " — failed, not charged";
+      var paid = u.paidWith === "trial" ? "Free try"
+        : u.paidWith === "plan" ? "Included in your plan"
+        : A.formatUgx(u.amount) + " from your balance";
+      if (u.status === "refunded") paid += " — did not count";
       return [A.SERVICE_NAMES[u.service] || u.service, paid, when(u.at)];
     }));
 
     fillTable("acPayments", "acPaymentsEmpty", (data.payments || []).map(function (p) {
-      return [A.formatUgx(p.amount), p.status === "paid" ? "Added to balance" : "Started, not paid", when(p.paidAt || p.at)];
+      var plan = /^plan:/.test(p.purpose || "") ? p.purpose.slice(5) : "";
+      var what = plan ? (plan.charAt(0).toUpperCase() + plan.slice(1)) + " plan, 30 days" : "Studio balance";
+      return [A.formatUgx(p.amount), p.status === "paid" ? what : what + " — started, not paid", when(p.paidAt || p.at)];
     }));
   }
 
   function load() {
-    return A.call("/account").then(function (data) {
-      A.setAccount(data.account);
-      drawSummary(data);
+    return Promise.all([A.call("/account"), A.call("/profile")]).then(function (both) {
+      A.setAccount(both[0].account);
+      drawSummary(both[0]);
+      drawProfile(both[1]);
       show("home");
     });
   }
 
+  /* -------------------------------------------------------------- profile */
+
+  // What you told SpeakPower at sign-up, and whether GRIOT knows it. Edited
+  // on the welcome page; deleted here.
+  function drawProfile(data) {
+    var host = $("acProfile");
+    var p = data && data.profile;
+    host.textContent = "";
+    var title = document.createElement("h2");
+    title.textContent = "Your profile";
+    host.appendChild(title);
+
+    var row = document.createElement("div");
+    row.className = "builder-actions";
+    function button(label, href, primary) {
+      var a = document.createElement("a");
+      a.className = "btn " + (primary ? "btn-primary" : "btn-ghost");
+      a.href = href;
+      a.textContent = label;
+      row.appendChild(a);
+    }
+
+    if (!p) {
+      var none = document.createElement("p");
+      none.textContent = "Not filled in yet. Two short steps, about a minute, and GRIOT can advise you from your first question.";
+      host.appendChild(none);
+      button("Fill it in", "welcome.html?next=account.html", true);
+      host.appendChild(row);
+      return;
+    }
+
+    var sectorName = "";
+    (data.sectors || []).forEach(function (s) { if (s.key === p.sector) sectorName = s.name; });
+    var focusNames = (data.focusAreas || []).filter(function (f) { return p.focus.indexOf(f.key) !== -1; })
+      .map(function (f) { return f.name; });
+    var lines = [
+      ["Who", p.name + ", " + p.position + " at " + p.company],
+      ["Expertise", p.expertise],
+      ["Sector", sectorName],
+      ["Based in", p.location],
+      ["WhatsApp", p.consentWhatsapp ? p.whatsapp : "Not shared"]
+    ];
+    if (p.step2) {
+      lines.push(["Challenge", p.problem]);
+      lines.push(["Goal", p.goal]);
+      lines.push(["Deadline", p.goalBy]);
+      lines.push(["Why now", p.whyNow]);
+      lines.push(["Focus", focusNames.join(", ")]);
+    }
+    var dl = document.createElement("dl");
+    dl.className = "account-profile";
+    lines.forEach(function (pair) {
+      if (!pair[1]) return;
+      var dt = document.createElement("dt");
+      dt.textContent = pair[0];
+      var dd = document.createElement("dd");
+      dd.textContent = pair[1];
+      dl.appendChild(dt);
+      dl.appendChild(dd);
+    });
+    host.appendChild(dl);
+
+    var griot = document.createElement("p");
+    griot.className = "account-profile-griot";
+    griot.textContent = !p.briefGriot ? "GRIOT has not been told any of this."
+      : p.griot.state === "sent" ? "GRIOT was told this" + (p.griot.sentAt ? " on " + A.dayMonth(p.griot.sentAt) : "") + ", and keeps it in mind in every answer."
+      : "GRIOT will be told this as soon as it can be reached.";
+    host.appendChild(griot);
+
+    if (!p.step2) button("Tell GRIOT what you are working on", "welcome.html?step=2&next=account.html", true);
+    button("Change my answers", "welcome.html?edit=1&next=account.html", false);
+    var del = document.createElement("button");
+    del.type = "button";
+    del.className = "btn btn-ghost account-profile-delete";
+    del.textContent = "Delete my profile";
+    del.addEventListener("click", function () {
+      if (!window.confirm("Delete your profile? It is removed here, and GRIOT forgets what it was told. " +
+        "You will be asked for the basics again before you next use a service.")) return;
+      del.disabled = true;
+      A.call("/profile/delete", {}).then(function (r) {
+        notice({ text: r.griotCleared ? "Your profile is deleted, here and in GRIOT."
+          : "Your profile is deleted here. GRIOT's copy will be removed as soon as GRIOT can be reached." });
+        drawProfile({ profile: null });
+        return A.refresh();
+      }, function (e) {
+        del.disabled = false;
+        notice({ text: e.message });
+      });
+    });
+    row.appendChild(del);
+    host.appendChild(row);
+  }
+
+  var ownTitle = $("acTitle").textContent;
+  var ownLead = $("acLead").textContent;
   function heading(signedIn) {
-    if (signedIn) return; // the page's own "Your account." stands
+    if (signedIn) { $("acTitle").textContent = ownTitle; $("acLead").textContent = ownLead; return; }
     $("acTitle").textContent = "Create your free account.";
     $("acLead").textContent = (nextName ? "Sign up to start " + nextName + ". " : "") +
       "One account for every Studio service and GRIOT, and your first 3 tries are free on any of them. No password, no card.";
@@ -118,8 +315,12 @@
     A.mountSignIn(panels.signIn, {
       title: next ? "Start " + nextName + " free" : "Sign up or sign in",
       lead: "Continue with Google. Your first 3 tries are free, on any service.",
-      onSignedIn: function () {
+      onSignedIn: function (acct) {
+        // A new account answers the two welcome steps first, then goes on.
+        var step = A.profileStepNeeded(acct, next);
+        if (step) { window.location.replace(A.welcomeUrl(next || "account.html", step)); return; }
         if (next) { window.location.replace(next); return; }
+        heading(true);
         start();
       }
     });
@@ -158,7 +359,8 @@
     if (A.hasReturn()) A.settleReturn().then(notice);
     return;
   }
-  // Already signed in and on the way to a service: go straight there.
-  if (next) { window.location.replace(next); return; }
+  // Already signed in and on the way to a service: go straight there (by
+  // way of the welcome steps if one is still to do).
+  if (next) { if (!A.requireAccount(next)) window.location.replace(next); return; }
   start();
 })();

@@ -113,6 +113,7 @@ async function googleToken(email) {
 const flw = { transactions: {}, verifies: 0, delayMs: 0 };
 const coachCalls = [];
 const pageFetches = [];
+const griotMemories = [];
 
 async function outbound(request) {
   const url = request.url;
@@ -130,6 +131,26 @@ async function outbound(request) {
     const tx = flw.transactions[verify[1]];
     return tx ? Response.json({ status: "success", data: tx }) : Response.json({ status: "error" }, { status: 404 });
   }
+  // GRIOT, as far as the sign-up briefing reaches it: health, memory writes
+  // and deletions, each kept per tenant.
+  if (url.startsWith("https://griot.test/")) {
+    const u = new URL(url);
+    const tenant = request.headers.get("X-Tenant-Id");
+    if (u.pathname === "/health") return Response.json({ status: "ok", tenancy: true, tenant_header: "X-Tenant-Id", workspace: true });
+    if (request.headers.get("X-API-Key") !== "griot-workerd-key") return Response.json({ detail: "bad key" }, { status: 401 });
+    if (u.pathname === "/memory" && request.method === "POST") {
+      const row = Object.assign({ id: crypto.randomUUID(), tenant_id: tenant }, await request.json());
+      griotMemories.push(row);
+      return Response.json(row);
+    }
+    const del = u.pathname.match(/^\/memories\/(.+)$/);
+    if (del && request.method === "DELETE") {
+      const i = griotMemories.findIndex((m) => m.id === del[1] && m.tenant_id === tenant);
+      if (i < 0) return Response.json({ detail: "No such memory" }, { status: 404 });
+      griotMemories.splice(i, 1);
+      return Response.json({ deleted: del[1] });
+    }
+  }
   if (PAGES[url]) {
     pageFetches.push({ url, redirect: request.redirect });
     return PAGES[url]();
@@ -138,6 +159,14 @@ async function outbound(request) {
   if (url.startsWith("https://api.anthropic.com/v1/messages")) {
     const body = await request.json();
     coachCalls.push({ key: request.headers.get("x-api-key"), beta: request.headers.get("anthropic-beta"), body });
+    if (/You read one document/.test(JSON.stringify(body.system || ""))) {
+      return Response.json({
+        id: "msg_doc", type: "message", role: "assistant", model: body.model, stop_reason: "end_turn", stop_sequence: null,
+        content: [{ type: "text", text: JSON.stringify({ brief: "A two-page plan.", facts: [
+          { text: "Enrolment rose 18% in 2025.", page: 2 }, { text: "The plan runs to 2027.", page: 1 }] }) }],
+        usage: { input_tokens: 800, output_tokens: 200 }
+      });
+    }
     const lenses = ["Politics", "Organizations", "Law", "Security", "Socioeconomics"].map((lens) => ({ lens, score: 4, note: "Clear." }));
     return Response.json({
       id: "msg_wd", type: "message", role: "assistant", model: body.model, stop_reason: "end_turn", stop_sequence: null,
@@ -161,7 +190,13 @@ execFileSync("npx", ["wrangler", "deploy", "--dry-run", "--outdir", bundleDir], 
 // A stand-in Workers AI binding with Whisper's output shape: 120 words over
 // 50 seconds, one long pause.
 const FAKE_AI = `export default function () {
-  return { async run(model, input) {
+  return {
+  async toMarkdown(doc) {
+    const raw = new TextDecoder().decode(new Uint8Array(await doc.blob.arrayBuffer())).replace(/^%PDF-1\\.4\\n/, "");
+    return { name: doc.name, format: "markdown", tokens: 0,
+      data: raw.split("\\f").map((p, i) => "### Page " + (i + 1) + "\\n" + p).join("\\n\\n") };
+  },
+  async run(model, input) {
     if (!input || typeof input.audio !== "string") throw new Error("no audio");
     const words = []; let t = 0.4;
     for (let i = 0; i < 120; i++) { if (i === 60) t += 3; words.push({ word: " " + (i === 5 ? "um" : "word"), start: t, end: t + 0.35 }); t += 0.4; }
@@ -185,7 +220,9 @@ const mf = new Miniflare({
     ENVIRONMENT: "production",
     FREE_TRIALS: "3",
     FLW_SECRET_KEY: "FLWSECK_TEST-secret",
-    FLW_SECRET_HASH: "flw-hash-secret"
+    FLW_SECRET_HASH: "flw-hash-secret",
+    GRIOT_API_BASE: "https://griot.test",
+    GRIOT_API_KEY: "griot-workerd-key"
   },
   outboundService: outbound
   }, {
@@ -224,9 +261,17 @@ function eq(actual, expected, label) {
 }
 function ok(cond, label) { if (!cond) throw new Error(label || "assertion failed"); }
 
-async function signIn(email) {
+const STEP1 = { step: 1, name: "Test", expertise: "Testing", position: "Tester", company: "Test Co" };
+const STEP2 = { step: 2, problem: "A problem", goal: "A goal", briefGriot: false };
+// Signs in and, unless told otherwise, finishes both sign-up steps the way
+// the welcome page does, so the older tests exercise the services as before.
+async function signIn(email, { profile = true } = {}) {
   const r = await call("POST", "/auth/google", { body: { credential: await googleToken(email) } });
   eq(r.status, 200, "sign-in status");
+  if (profile) {
+    eq((await call("POST", "/profile", { token: r.data.token, body: STEP1 })).status, 200, "step 1");
+    eq((await call("POST", "/profile", { token: r.data.token, body: STEP2 })).status, 200, "step 2");
+  }
   return r.data;
 }
 const user = (email) => db.prepare("SELECT * FROM users WHERE email_canonical = ?").bind(email).first();
@@ -311,6 +356,34 @@ await test("real D1: a burst of payment notifications plus the return page credi
   eq((await user("d1.topup@example.com")).balance, 50000, "credited once, not seven times");
   const p = await db.prepare("SELECT status, provider_ref FROM payments WHERE tx_ref = ?").bind(c.data.txRef).first();
   eq(p.status, "paid"); eq(p.provider_ref, "777001");
+});
+
+await test("real D1: a plan payment opens 30 days once; rehearsals then draw on it, never on the balance", async () => {
+  const email = "d1.member@example.com";
+  const s = await signIn(email);
+  await db.prepare("UPDATE users SET trials_remaining = 0, balance = 900000 WHERE email_canonical = ?").bind(email).run();
+  const audio = Buffer.from("x".repeat(3000)).toString("base64");
+  const wall = await call("POST", "/rehearse", { token: s.token, body: { moment: "intro-60", audio, seconds: 40 } });
+  eq(wall.status, 402); eq(wall.data.error, "plan_required"); ok(!("price" in wall.data), "no per-rehearsal price");
+  const c = await call("POST", "/plans/checkout", { token: s.token, body: { plan: "starter", amount: 1 } });
+  eq(c.status, 200); eq(c.data.amount, 60000, "the plan's price, not the browser's");
+  flw.transactions["777101"] = { id: 777101, tx_ref: c.data.txRef, status: "successful", amount: 60000, currency: "UGX" };
+  flw.delayMs = 40;
+  const hook = () => mf.dispatchFetch("https://api.test/webhooks/flutterwave", {
+    method: "POST", headers: { "Content-Type": "application/json", "verif-hash": "flw-hash-secret" },
+    body: JSON.stringify({ event: "charge.completed", data: { id: 777101, tx_ref: c.data.txRef } })
+  });
+  await Promise.all([hook(), hook(), hook(),
+    call("POST", "/wallet/confirm", { token: s.token, body: { txRef: c.data.txRef, transactionId: "777101" } })]);
+  flw.delayMs = 0;
+  const u = await user(email);
+  const rows = (await db.prepare("SELECT plan, starts_at, ends_at FROM subscriptions WHERE user_id = ?").bind(u.id).all()).results;
+  eq(rows.length, 1, "one period, not four"); eq(rows[0].ends_at - rows[0].starts_at, 30 * 86400);
+  eq(u.balance, 900000, "a plan payment never lands on the balance");
+  const r = await call("POST", "/rehearse", { token: s.token, body: { moment: "intro-60", audio, seconds: 40 } });
+  eq(r.status, 200); eq(r.data.paidWith, "plan");
+  eq(r.data.account.membership.plan, "starter"); eq(r.data.account.membership.usage.rehearsal, 5);
+  eq((await user(email)).balance, 900000);
 });
 
 await test("seo: a clean page — every check passes, SVG titles ignored, entities decoded", async () => {
@@ -400,9 +473,52 @@ await test("seo: this site's own pages, as committed, parse cleanly", async () =
   }
 });
 
+await test("real D1: the sign-up profile gates spending, briefs GRIOT under the account's tenant, and deletes cleanly", async () => {
+  const email = "d1.profile@example.com";
+  const s = await signIn(email, { profile: false });
+  eq(JSON.stringify(s.account.profile), '{"step1":false,"step2":false}');
+  const gated = await call("POST", "/studio/generate", { token: s.token, body: { product: "seo-audit", inputs: { url: "https://clean.test" } } });
+  eq(gated.status, 409); eq(gated.data.step, 1);
+  eq((await user(email)).trials_remaining, 3, "nothing spent");
+  eq((await call("POST", "/profile", { token: s.token, body: Object.assign({}, STEP1, { sector: "ngo" }) })).status, 200);
+  const two = await call("POST", "/profile", { token: s.token, body: Object.assign({}, STEP2, { focus: ["data"], briefGriot: true }) });
+  eq(two.status, 200); eq(two.data.profile.griot.state, "sent");
+  const id = (await user(email)).id;
+  const mine = griotMemories.filter((m) => m.tenant_id === id);
+  eq(mine.map((m) => m.title).join("|"), "Profile|Challenge|Goal|Focus");
+  ok(mine.every((m) => m.kind === "profile" && m.project === "global"), "filed as the client's profile");
+  const row = await db.prepare("SELECT griot_memory_ids, griot_lock_until, version FROM profiles WHERE user_id = ?").bind(id).first();
+  eq(JSON.parse(row.griot_memory_ids).length, 4); eq(row.griot_lock_until, null); eq(row.version, 2);
+  const again = await call("POST", "/profile", { token: s.token, body: Object.assign({}, STEP1, { position: "Director" }) });
+  eq(again.status, 200); eq(griotMemories.filter((m) => m.tenant_id === id).length, 4, "replaced on real D1");
+  const d = await call("POST", "/profile/delete", { token: s.token, body: {} });
+  eq(d.status, 200); eq(d.data.griotCleared, true);
+  eq(await db.prepare("SELECT 1 FROM profiles WHERE user_id = ?").bind(id).first(), null);
+  eq(griotMemories.filter((m) => m.tenant_id === id).length, 0);
+});
+
+await test("real D1: a document is read once, kept as facts with pages, limited by plan, and deleted", async () => {
+  const s = await signIn("d1.docs@example.com");
+  const pdf = new TextEncoder().encode("%PDF-1.4\nOur plan for 2025 to 2027, for the board, in two pages of detail.\fEnrolment rose 18% in 2025 across our schools.");
+  const up = (name) => mf.dispatchFetch("https://api.test/griot/documents?name=" + encodeURIComponent(name), {
+    method: "POST", headers: { Origin: ORIGIN, Authorization: "Bearer " + s.token, "Content-Type": "application/pdf" }, body: pdf
+  }).then(async (r) => ({ status: r.status, data: await r.json() }));
+  const r = await up("Plan.pdf");
+  eq(r.status, 200, JSON.stringify(r.data).slice(0, 200));
+  eq(r.data.document.pages, 2); eq(r.data.document.facts[0].page, 2);
+  eq((await up("Second.pdf")).status, 402, "a free account holds one");
+  const id = (await user("d1.docs@example.com")).id;
+  const row = await db.prepare("SELECT kind, bytes, enabled FROM documents WHERE user_id = ?").bind(id).first();
+  eq(row.kind, "pdf"); eq(row.bytes, pdf.length); eq(row.enabled, 1);
+  eq((await call("POST", "/griot/documents/toggle", { token: s.token, body: { id: r.data.document.id, enabled: false } })).data.document.enabled, false);
+  eq((await call("POST", "/griot/documents/delete", { token: s.token, body: { id: r.data.document.id } })).status, 200);
+  eq(await db.prepare("SELECT 1 FROM documents WHERE user_id = ?").bind(id).first(), null);
+});
+
 await test("rehearse: the bundled Worker transcribes, scores and coaches on workerd, with real D1", async () => {
   const s = await signIn("rehearser@example.com");
   const audio = Buffer.from("x".repeat(3000)).toString("base64");
+  coachCalls.length = 0;
   const r = await call("POST", "/rehearse", { token: s.token, body: { moment: "donor-presentation", audio, seconds: 52 } });
   eq(r.status, 200, "status " + JSON.stringify(r.data).slice(0, 200));
   eq(r.data.kind, "speak", "coached");
@@ -411,7 +527,7 @@ await test("rehearse: the bundled Worker transcribes, scores and coaches on work
   eq(coachCalls.length, 1, "one call through the Anthropic SDK");
   eq(coachCalls[0].key, "sk-ant-workerd-test"); eq(coachCalls[0].body.model, "claude-opus-5-5");
   eq(coachCalls[0].body.fallbacks, "default");
-  const row = await db.prepare("SELECT moment, kind, score FROM rehearsals").first();
+  const row = await db.prepare("SELECT moment, kind, score FROM rehearsals WHERE moment = 'donor-presentation'").first();
   eq(row.moment, "donor-presentation"); eq(row.score, r.data.score);
   const h = await call("GET", "/rehearsals", { token: s.token });
   eq(h.data.rehearsals.length, 1);

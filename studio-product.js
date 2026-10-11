@@ -312,7 +312,9 @@
     var acct = data.account || {};
     var text = data.paidWith === "trial"
       ? "Free try — " + A.triesText(acct.trialsRemaining) + " left."
-      : ugx(data.amount) + " from your balance — " + ugx(acct.balance) + " left.";
+      : data.paidWith === "plan"
+        ? "Included in your plan — this month's Studio pack."
+        : ugx(data.amount) + " from your balance — " + ugx(acct.balance) + " left.";
     $("outputPaid").textContent = text;
     $("outputPaid").hidden = false;
   }
@@ -394,7 +396,7 @@
 
   function drawStatus() {
     var acct = A && A.account();
-    $("builderMode").textContent = acct ? A.statusText(acct)
+    $("builderMode").textContent = acct ? A.statusText(acct, { balance: true })
       : (SP && SP.connected ? "3 free tries with an account" : "Automated output");
   }
 
@@ -453,6 +455,7 @@
       outputHost.scrollIntoView({ behavior: "smooth", block: "start" });
     }, function (e) {
       if (e.status === 401) { showSignIn("Your session ended."); return; }
+      if (A.handleProfileRequired(e, "studio-product.html?product=" + key)) return;
       if (e.status === 402) {
         if (e.data && e.data.account) A.setAccount(e.data.account);
         drawStatus();
@@ -494,6 +497,9 @@
     A.settleReturn().then(function (result) {
       if (result) notice(result.ok ? { text: result.text + " Press “Generate my pack” to continue." } : result);
       if (A.session()) return A.refresh();
-    }).then(drawStatus, drawStatus);
+    }).then(function () {
+      if (A.session() && A.requireAccount("studio-product.html?product=" + key)) return;
+      drawStatus();
+    }, drawStatus);
   }
 })();

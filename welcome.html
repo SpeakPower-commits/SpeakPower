@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Welcome — SpeakPower</title>
+<meta name="description" content="Two short steps after signing up: who you are and what you are working on, so GRIOT advises you from the first question.">
+<meta name="robots" content="noindex, follow">
+<meta name="theme-color" content="#16233f">
+<link rel="icon" type="image/png" href="assets/logo-mark.png?v=4" sizes="160x160">
+<link rel="shortcut icon" type="image/png" href="assets/logo-mark.png?v=4">
+<link rel="apple-touch-icon" href="assets/logo-mark.png?v=4">
+<link rel="manifest" href="site.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="commercial.css">
+<script>document.documentElement.classList.add("js");</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><div class="wrap">
+<a href="index.html" class="logo" aria-label="SpeakPower — home"><img class="logo-mark" src="assets/logo-mark.png" alt="" width="160" height="160"><span class="logo-text">Speak<span>Power</span></span></a>
+<nav class="nav-links" id="navLinks" aria-label="Primary">
+<a href="rehearse.html">Rehearse</a><a href="services.html">Services</a><a href="studio.html">Studio</a><a href="plans.html">Plans</a><a href="work.html">Work</a><a href="about.html">About</a><a href="https://speakpower1.blogspot.com" target="_blank" rel="noopener">Insights</a><a href="contact.html" class="nav-cta">Book a discovery call</a>
+</nav>
+<button class="nav-toggle" id="navToggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">&#9776;</button>
+</div></header>
+
+<main id="main">
+<div class="page-hero"><div class="wrap">
+<span class="eyebrow" id="wEyebrow">Welcome</span>
+<h1 id="wTitle">Tell us who you are.</h1>
+<p id="wLead">Two short steps, about a minute. Your answers let GRIOT advise you from the very first question.</p>
+</div></div>
+
+<section style="padding-top:0"><div class="wrap welcome-app">
+
+<p class="griot-notice" id="wNotice" role="status" hidden></p>
+
+<ol class="welcome-progress" id="wProgress" aria-label="Sign-up steps">
+<li id="wProg1"><span class="welcome-progress-n">1</span><span class="welcome-progress-label">About you</span></li>
+<li id="wProg2"><span class="welcome-progress-n">2</span><span class="welcome-progress-label">Your challenge</span></li>
+<li id="wProg3"><span class="welcome-progress-n">3</span><span class="welcome-progress-label">Ready</span></li>
+</ol>
+
+<div class="studio-builder-panel" id="wLoading"><p class="output-empty">Loading…</p></div>
+
+<form class="studio-builder-panel welcome-form" id="wStep1" hidden novalidate>
+<h2 tabindex="-1">About you</h2>
+<div class="welcome-grid">
+<div class="builder-field"><label for="wName">Name</label><input id="wName" name="name" required maxlength="120" autocomplete="name"></div>
+<div class="builder-field"><label for="wPosition">Position or role</label><input id="wPosition" name="position" required maxlength="80" autocomplete="organization-title" placeholder="e.g. Head of Partnerships"></div>
+<div class="builder-field"><label for="wCompany">Company or organisation</label><input id="wCompany" name="company" required maxlength="120" autocomplete="organization"></div>
+<div class="builder-field"><label for="wExpertise">Area of expertise</label><input id="wExpertise" name="expertise" required maxlength="80" list="wExpertiseList" placeholder="e.g. Fundraising">
+<datalist id="wExpertiseList"><option value="Communications"><option value="Fundraising"><option value="Marketing"><option value="Sales"><option value="Finance"><option value="Programmes"><option value="Policy"><option value="Research"><option value="Engineering"><option value="Operations"><option value="Law"><option value="Leadership"></datalist></div>
+<div class="builder-field"><label for="wSector">Sector <span class="welcome-optional">optional</span></label><select id="wSector" name="sector"><option value="">Choose one</option></select></div>
+<div class="builder-field"><label for="wLocation">City or country <span class="welcome-optional">optional</span></label><input id="wLocation" name="location" maxlength="80" autocomplete="address-level2" placeholder="e.g. Kampala, Uganda"></div>
+</div>
+<div class="welcome-consent">
+<label class="welcome-check"><input type="checkbox" id="wWaConsent" name="consentWhatsapp"><span>Message me on WhatsApp about my account and new tools</span></label>
+<div class="builder-field" id="wWaField" hidden><label for="wWhatsapp">WhatsApp number</label><input id="wWhatsapp" name="whatsapp" type="tel" inputmode="tel" autocomplete="tel" maxlength="24" placeholder="+256 772 123456"></div>
+</div>
+<p class="builder-error" id="wError1" role="alert" hidden></p>
+<div class="builder-actions"><button class="btn btn-primary" type="submit" id="wSave1">Continue</button></div>
+<p class="builder-note">Only you and SpeakPower see this. GRIOT is told nothing until you say so in the next step.</p>
+</form>
+
+<form class="studio-builder-panel welcome-form" id="wStep2" hidden novalidate>
+<h2 tabindex="-1">Your challenge</h2>
+<p class="welcome-intro">What GRIOT should know before your first question.</p>
+<div class="builder-field"><label for="wProblem">The problem you are facing</label><textarea id="wProblem" name="problem" required maxlength="600" rows="3" placeholder="e.g. Donors stop reading our proposals after page one."></textarea></div>
+<div class="welcome-grid">
+<div class="builder-field"><label for="wGoal">What you want to achieve</label><textarea id="wGoal" name="goal" required maxlength="400" rows="2" placeholder="e.g. Raise UGX 400 million for 40 schools"></textarea></div>
+<div class="builder-field"><label for="wGoalBy">By when <span class="welcome-optional">optional</span></label><input id="wGoalBy" name="goalBy" maxlength="60" placeholder="e.g. before the March board meeting"></div>
+</div>
+<div class="builder-field"><label for="wWhyNow">Why it matters now <span class="welcome-optional">optional</span></label><textarea id="wWhyNow" name="whyNow" maxlength="400" rows="2"></textarea></div>
+<fieldset class="welcome-focus" id="wFocusSet">
+<legend>Where you want help <span class="welcome-optional">optional, choose any</span></legend>
+<div class="welcome-chips" id="wFocus"></div>
+</fieldset>
+<p class="welcome-privacy">GRIOT uses this to advise you. It is never used to train AI. Change it or delete it any time on your Account page.</p>
+<p class="builder-error" id="wError2" role="alert" hidden></p>
+<div class="builder-actions">
+<button class="btn btn-primary" type="submit" id="wBrief">Brief GRIOT</button>
+<button class="btn btn-ghost" type="submit" id="wKeep">Save without telling GRIOT</button>
+<a class="btn btn-ghost" id="wSkip" href="account.html" hidden>Skip for now</a>
+</div>
+<p class="builder-note"><button class="welcome-back" type="button" id="wBack">Back to step 1</button></p>
+</form>
+
+<div class="studio-builder-panel welcome-done" id="wDone" hidden>
+<img class="welcome-mark" id="wMark" src="assets/brand/griot/griot-mark-c.svg" width="56" height="56" alt="" hidden>
+<h2 id="wDoneTitle" tabindex="-1">GRIOT now knows you.</h2>
+<p id="wDoneLead"></p>
+<ul class="welcome-told" id="wTold"></ul>
+<div class="welcome-rec" id="wRec" hidden>
+<span class="eyebrow">A good place to start</span>
+<p><a id="wRecLink" href="studio.html"></a><span id="wRecWhy"></span></p>
+</div>
+<div class="builder-actions"><a class="btn btn-primary" id="wContinue" href="account.html">Continue</a><a class="btn btn-ghost" id="wEdit" href="welcome.html?edit=1">Change my answers</a></div>
+</div>
+
+</div></section>
+</main>
+
+<footer class="site-footer"><div class="wrap"><div class="footer-grid">
+<div><h4>SpeakPower</h4><p class="footer-tagline">Articulate is key.</p><p>Brand storytelling and market development, backed by SEO, writing, design, data, programming and public speaking. Kampala, Uganda.</p></div>
+<div><h4>Explore</h4><div class="footer-links"><a href="rehearse.html">Rehearsal Room</a><a href="services.html">Services</a><a href="studio.html">Studio</a><a href="plans.html">Plans</a><a href="work.html">Work</a><a href="about.html">About</a></div></div>
+<div><h4>Contact</h4><div class="footer-links"><a href="tel:+256743482588">+256 743 482 588</a><a href="mailto:thomasotieno583@gmail.com">thomasotieno583@gmail.com</a><a href="https://wa.me/256743482588" target="_blank" rel="noopener">WhatsApp</a></div></div>
+<div><h4>Follow</h4><div class="footer-links"><a href="https://www.linkedin.com/in/otieno-thomas-a39b1b21b/" target="_blank" rel="noopener">LinkedIn</a><a href="https://www.instagram.com/otienothomas8/" target="_blank" rel="noopener">Instagram</a><a href="https://www.tiktok.com/@otom323" target="_blank" rel="noopener">TikTok</a></div></div>
+</div><div class="footer-bottom">&copy; 2026 SpeakPower. All rights reserved.</div></div></footer>
+<script src="site-config.js"></script>
+<script src="script.js"></script>
+<script src="account.js"></script>
+<script src="welcome.js"></script>
+</body>
+</html>
