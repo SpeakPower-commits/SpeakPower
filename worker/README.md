@@ -26,8 +26,10 @@ The browser never sees GRIOT's address or key, never chooses its own tenant, and
 
 | Plan | Price | Fair use in 30 days (shown only in plan details) |
 |---|---|---|
-| Starter | UGX 60,000 | 120 GRIOT questions, 20 rehearsals |
-| Pro | UGX 150,000 | 300 GRIOT questions, 60 rehearsals, 1 Studio pack, 15% off other packs |
+| Starter | UGX 60,000 | 120 GRIOT questions, 20 rehearsals; keeps 10 documents for GRIOT |
+| Pro | UGX 150,000 | 300 GRIOT questions, 60 rehearsals, 1 Studio pack, 15% off other packs; keeps 50 documents |
+
+A free account keeps 1 document. Documents are a number held, not a monthly allowance: deleting one frees its place.
 
 - **Spending order,** each step one atomic `UPDATE`: the plan's allowance → a free try → (Studio packs only) the balance.
 - **Pages show a share of the month, never a count.** The Worker sends percentages; 100% only when nothing is left.
@@ -210,6 +212,22 @@ The Worker also supports sign-in by a 6-digit emailed code. It stays off (`email
 - **The `profiles` table** is in `schema.sql`, already applied to the live D1.
 - **Yours to check before launch:** this collects personal data, so confirm registration with Uganda's Personal Data Protection Office under the Data Protection and Privacy Act 2019.
 
+## Documents for GRIOT
+
+- **What a client sees:** GRIOT → **Documents**. Add a PDF, Word, Excel, CSV or text file (or a JPG/PNG/WebP image), up to 10 MB. GRIOT reads it once and keeps a short summary and 8–20 key facts, with their pages. Each document can be switched off or deleted.
+- **Reading:** Workers AI `toMarkdown` turns the file into text; PDFs come with "### Page N" headings, so facts keep their page. Text and CSV files are decoded in the Worker. Claude (`claude-opus-5-5`, effort `low`, structured output) then writes the summary and facts. The document is treated as data, never instructions.
+- **The file is never stored.** Only the summary and facts are kept, in D1 (`documents`). Nothing is used to train AI.
+- **What's checked before anything is read:**
+  - the type, from the file's own first bytes (a renamed executable is refused);
+  - the size: up to 10 MB;
+  - sign-up step 1;
+  - the plan's number of documents: 1 free, 10 on Starter, 50 on Pro. A second, exact check when the document is saved stops two uploads at once from overfilling it.
+- **Using them:** for each GRIOT question the Worker picks up to 10 facts from the client's own switched-on documents that share the most meaningful words with the question. A word-overlap score, light on CPU. It also includes a document's summary when the question names it. They go to GRIOT as `context`, and GRIOT cites them, e.g. "[Annual report 2025, p. 4]". The answer says which documents it drew on.
+- **Needs GRIOT's document support** (`/health` reports `"documents": true`, from claude-central-agent PR #25). Until then, documents are read and kept, but no `context` is sent and no answer claims to use them.
+- **Routes:** `GET /griot/documents`, `GET /griot/document?id=`, `POST /griot/documents?name=` (the file as the body), `POST /griot/documents/toggle`, `POST /griot/documents/delete`. Every route is scoped to the signed-in account.
+- **The `documents` table** is in `schema.sql`, already created on the live D1.
+- **Cost:** converting a document is free; images use Workers AI's vision models. Claude's reading costs about US$0.05–0.15 a document.
+
 ## The Rehearsal Room
 
 - **Speech to text** is Workers AI (`@cf/openai/whisper-large-v3-turbo`), through the `AI` binding in `wrangler.toml`: nothing to set up in the dashboard. It costs about $0.0005 an audio minute; the free 10,000 neurons a day cover roughly 214 minutes (about 70 three-minute rehearsals).
@@ -247,10 +265,10 @@ FROM payments WHERE status = 'paid' GROUP BY day ORDER BY day DESC;
 cd worker && npm install && cd .. && node --experimental-sqlite worker/test/run-tests.mjs
 ```
 
-The business rules, fast, in plain Node (148 tests): the real `worker.js` against an in-memory D1, with Google, GRIOT, Flutterwave and audited sites faked at the network edge only. Google sign-in is tested with real RS256 signatures, so forged keys, `alg: none` and edited tokens are refused by actual cryptography rather than a stub. It also fails if any page quotes a different price from the Worker.
+The business rules, fast, in plain Node (157 tests): the real `worker.js` against an in-memory D1, with Google, GRIOT, Flutterwave and audited sites faked at the network edge only. Google sign-in is tested with real RS256 signatures, so forged keys, `alg: none` and edited tokens are refused by actual cryptography rather than a stub. It also fails if any page quotes a different price from the Worker.
 
 ```
 cd worker && npm install && npm install --no-save miniflare@4 wrangler@4 && node test/run-workerd-tests.mjs
 ```
 
-The Worker bundled exactly as Workers Builds deploys it (`wrangler deploy --dry-run`), on **workerd**, the engine Cloudflare runs Workers on (17 tests): real D1, the real HTML parser for the SEO audit, WebCrypto sign-in, the exactly-once top-up under truly concurrent notifications, and the sign-up profile briefing GRIOT. It also audits this site's own pages.
+The Worker bundled exactly as Workers Builds deploys it (`wrangler deploy --dry-run`), on **workerd**, the engine Cloudflare runs Workers on (18 tests): real D1, the real HTML parser for the SEO audit, WebCrypto sign-in, the exactly-once top-up under truly concurrent notifications, the sign-up profile briefing GRIOT, and a document read and kept as facts. It also audits this site's own pages.

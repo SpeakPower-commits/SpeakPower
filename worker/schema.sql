@@ -189,3 +189,24 @@ CREATE TABLE IF NOT EXISTS profiles (
   updated_at       INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_profiles_griot_state ON profiles (griot_state);
+
+-- Documents a client has given GRIOT. Each is read once: Workers AI turns it
+-- into text, Claude writes a brief and the key facts with their pages, and
+-- only those are kept. The file itself is never stored. Facts from switched-on
+-- documents are chosen per question and sent to GRIOT, which cites them.
+-- Plans hold 1 (free), 10 (Starter) or 50 (Pro); deleting one frees a place.
+CREATE TABLE IF NOT EXISTS documents (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     TEXT NOT NULL,
+  name        TEXT NOT NULL,
+  kind        TEXT NOT NULL,
+  bytes       INTEGER NOT NULL,
+  pages       INTEGER,
+  enabled     INTEGER NOT NULL DEFAULT 1,
+  brief       TEXT NOT NULL,
+  facts       TEXT NOT NULL,
+  truncated   INTEGER NOT NULL DEFAULT 0,
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_documents_user ON documents (user_id, id);

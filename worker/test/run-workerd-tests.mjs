@@ -159,6 +159,14 @@ async function outbound(request) {
   if (url.startsWith("https://api.anthropic.com/v1/messages")) {
     const body = await request.json();
     coachCalls.push({ key: request.headers.get("x-api-key"), beta: request.headers.get("anthropic-beta"), body });
+    if (/You read one document/.test(JSON.stringify(body.system || ""))) {
+      return Response.json({
+        id: "msg_doc", type: "message", role: "assistant", model: body.model, stop_reason: "end_turn", stop_sequence: null,
+        content: [{ type: "text", text: JSON.stringify({ brief: "A two-page plan.", facts: [
+          { text: "Enrolment rose 18% in 2025.", page: 2 }, { text: "The plan runs to 2027.", page: 1 }] }) }],
+        usage: { input_tokens: 800, output_tokens: 200 }
+      });
+    }
     const lenses = ["Politics", "Organizations", "Law", "Security", "Socioeconomics"].map((lens) => ({ lens, score: 4, note: "Clear." }));
     return Response.json({
       id: "msg_wd", type: "message", role: "assistant", model: body.model, stop_reason: "end_turn", stop_sequence: null,
@@ -182,7 +190,13 @@ execFileSync("npx", ["wrangler", "deploy", "--dry-run", "--outdir", bundleDir], 
 // A stand-in Workers AI binding with Whisper's output shape: 120 words over
 // 50 seconds, one long pause.
 const FAKE_AI = `export default function () {
-  return { async run(model, input) {
+  return {
+  async toMarkdown(doc) {
+    const raw = new TextDecoder().decode(new Uint8Array(await doc.blob.arrayBuffer())).replace(/^%PDF-1\\.4\\n/, "");
+    return { name: doc.name, format: "markdown", tokens: 0,
+      data: raw.split("\\f").map((p, i) => "### Page " + (i + 1) + "\\n" + p).join("\\n\\n") };
+  },
+  async run(model, input) {
     if (!input || typeof input.audio !== "string") throw new Error("no audio");
     const words = []; let t = 0.4;
     for (let i = 0; i < 120; i++) { if (i === 60) t += 3; words.push({ word: " " + (i === 5 ? "um" : "word"), start: t, end: t + 0.35 }); t += 0.4; }
@@ -481,6 +495,24 @@ await test("real D1: the sign-up profile gates spending, briefs GRIOT under the 
   eq(d.status, 200); eq(d.data.griotCleared, true);
   eq(await db.prepare("SELECT 1 FROM profiles WHERE user_id = ?").bind(id).first(), null);
   eq(griotMemories.filter((m) => m.tenant_id === id).length, 0);
+});
+
+await test("real D1: a document is read once, kept as facts with pages, limited by plan, and deleted", async () => {
+  const s = await signIn("d1.docs@example.com");
+  const pdf = new TextEncoder().encode("%PDF-1.4\nOur plan for 2025 to 2027, for the board, in two pages of detail.\fEnrolment rose 18% in 2025 across our schools.");
+  const up = (name) => mf.dispatchFetch("https://api.test/griot/documents?name=" + encodeURIComponent(name), {
+    method: "POST", headers: { Origin: ORIGIN, Authorization: "Bearer " + s.token, "Content-Type": "application/pdf" }, body: pdf
+  }).then(async (r) => ({ status: r.status, data: await r.json() }));
+  const r = await up("Plan.pdf");
+  eq(r.status, 200, JSON.stringify(r.data).slice(0, 200));
+  eq(r.data.document.pages, 2); eq(r.data.document.facts[0].page, 2);
+  eq((await up("Second.pdf")).status, 402, "a free account holds one");
+  const id = (await user("d1.docs@example.com")).id;
+  const row = await db.prepare("SELECT kind, bytes, enabled FROM documents WHERE user_id = ?").bind(id).first();
+  eq(row.kind, "pdf"); eq(row.bytes, pdf.length); eq(row.enabled, 1);
+  eq((await call("POST", "/griot/documents/toggle", { token: s.token, body: { id: r.data.document.id, enabled: false } })).data.document.enabled, false);
+  eq((await call("POST", "/griot/documents/delete", { token: s.token, body: { id: r.data.document.id } })).status, 200);
+  eq(await db.prepare("SELECT 1 FROM documents WHERE user_id = ?").bind(id).first(), null);
 });
 
 await test("rehearse: the bundled Worker transcribes, scores and coaches on workerd, with real D1", async () => {

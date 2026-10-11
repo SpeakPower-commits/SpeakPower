@@ -66,7 +66,18 @@ const flw = { checkouts: [], transactions: {}, verifies: 0 };
 const griotCalls = [];
 // Every request that reaches the stand-in coach, and what Whisper was asked.
 const coachCalls = [];
+const markdownCalls = [];
 const whisperCalls = [];
+const DOC_READING = {
+  brief: "The 2025 annual report of Kampala Schools Trust: enrolment, costs and next year's campaign.",
+  facts: [
+    { text: "Enrolment rose 18% in 2025 across the Trust's 40 schools.", page: 2 },
+    { text: "Teacher salaries are 61% of the Trust's running costs.", page: 3 },
+    { text: "Teacher salaries are 61% of the Trust's running costs.", page: 3 },
+    { text: "The Trust plans a donor campaign in March 2026.", page: 9 },
+    { text: "  ", page: 1 }
+  ]
+};
 const COACHING = {
   lenses: [
     { lens: "Politics", score: 4, note: "You name the board's priority." },
@@ -171,7 +182,7 @@ globalThis.fetch = async (input, init) => {
   }
   if (url.startsWith("https://griot.test/health")) {
     griotHealthChecks++;
-    return new Response(JSON.stringify({ status: "ok", tenancy: true, tenant_header: "X-Tenant-Id", workspace: true }));
+    return new Response(JSON.stringify({ status: "ok", tenancy: true, tenant_header: "X-Tenant-Id", workspace: true, documents: true }));
   }
   // A tenant-aware GRIOT from before the client workspace.
   if (url.startsWith("https://griot-plain.test/health")) {
@@ -245,6 +256,15 @@ globalThis.fetch = async (input, init) => {
     const headers = new Headers(init.headers);
     const body = JSON.parse(init.body);
     coachCalls.push({ key: headers.get("x-api-key"), beta: headers.get("anthropic-beta"), body });
+    if (/You read one document/.test(JSON.stringify(body.system || ""))) {
+      const answer = (stop, text) => new Response(JSON.stringify({
+        id: "msg_doc", type: "message", role: "assistant", model: body.model, stop_reason: stop, stop_sequence: null,
+        content: [{ type: "text", text }], usage: { input_tokens: 4000, output_tokens: 600 }
+      }), { headers: { "content-type": "application/json" } });
+      if (net.reader === "refusal") return answer("refusal", "");
+      if (net.reader === "garbled") return answer("end_turn", "not json");
+      return answer("end_turn", JSON.stringify(net.readerReply || DOC_READING));
+    }
     if (net.coach === "fail") return new Response(JSON.stringify({ type: "error", error: { type: "api_error", message: "boom" } }), { status: 500, headers: { "content-type": "application/json" } });
     const reply = (stop, text) => new Response(JSON.stringify({
       id: "msg_test", type: "message", role: "assistant", model: body.model, stop_reason: stop, stop_sequence: null,
@@ -305,6 +325,16 @@ const env = {
   ANTHROPIC_API_KEY: "sk-ant-test-key",
   // A stand-in Workers AI: Whisper's output shape, with word timings.
   AI: {
+    // Workers AI's document converter: a "PDF" here is "%PDF-1.4" followed by
+    // pages separated by form feeds, returned with its "### Page N" headings.
+    async toMarkdown(doc, opts) {
+      markdownCalls.push({ name: doc.name, type: doc.blob.type, opts });
+      if (net.toMarkdown === "fail") throw new Error("conversion failed");
+      if (net.toMarkdown === "error") return { name: doc.name, format: "error", error: "unsupported" };
+      const raw = new TextDecoder().decode(new Uint8Array(await doc.blob.arrayBuffer())).replace(/^%PDF-1\.4\n/, "");
+      const data = raw.split("\f").map((p, i) => "### Page " + (i + 1) + "\n" + p).join("\n\n");
+      return { name: doc.name, mimeType: doc.blob.type, format: "markdown", tokens: 0, data };
+    },
     async run(model, input) {
       whisperCalls.push({ model, input });
       if (net.whisper === "fail") throw new Error("AiError: could not decode audio");
@@ -2245,6 +2275,175 @@ await test("profile: one account can neither read, change nor delete another's, 
   eq(res.status, 200);
   eq(profileRow("k-own-a@example.com").name, "Grace Akello", "A's row unchanged");
   ok(profileRow("k-own-b@example.com").step1_at, "B's own row written");
+});
+
+/* -------------------------------------------- Documents GRIOT can read */
+
+const PDF = (...pages) => new TextEncoder().encode("%PDF-1.4\n" + pages.join("\f"));
+const REPORT = PDF(
+  "Kampala Schools Trust. Annual report 2025. A year of growth for our forty schools and the communities around them.",
+  "Enrolment rose 18% in 2025 across the Trust's 40 schools, the largest rise in a decade.",
+  "Teacher salaries are 61% of the Trust's running costs; buildings and transport take the rest."
+);
+async function upload(token, name, bytes, extraHeaders) {
+  const res = await worker.fetch(new Request("https://api.test/griot/documents?name=" + encodeURIComponent(name), {
+    method: "POST",
+    headers: Object.assign({ Origin: ORIGIN, Authorization: "Bearer " + token, "Content-Type": "application/octet-stream",
+      "CF-Connecting-IP": "10.8.0." + (++ipCounter % 250) }, extraHeaders || {}),
+    body: bytes
+  }), env, { waitUntil() {} });
+  const text = await res.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch (e) { data = text; }
+  return { status: res.status, data };
+}
+function docRows(email) { return db.q("SELECT * FROM documents WHERE user_id = ?", userId(email)); }
+
+await test("documents: a PDF is read once into a brief and facts with pages, and the file itself is not kept", async () => {
+  const email = "d-read@example.com";
+  const s = await signUp(email);
+  markdownCalls.length = 0; coachCalls.length = 0;
+  const r = await upload(s.token, "Annual report 2025.pdf", REPORT);
+  eq(r.status, 200, JSON.stringify(r.data).slice(0, 200));
+  const d = r.data.document;
+  eq(d.name, "Annual report 2025.pdf"); eq(d.kind, "PDF"); eq(d.pages, 3); eq(d.enabled, true);
+  eq(d.facts.length, 3, "blank and repeated facts dropped");
+  eq(d.facts[0].page, 2); eq(d.facts[2].page, null, "a page beyond the document is not believed");
+  eq(markdownCalls.length, 1); eq(markdownCalls[0].type, "application/pdf");
+  eq(JSON.stringify(markdownCalls[0].opts), '{"conversionOptions":{"pdf":{"metadata":false}}}');
+  const asked = coachCalls[0].body;
+  ok(/### Page 2\nEnrolment rose 18%/.test(asked.messages[0].content), "Claude reads the pages");
+  eq(asked.model, "claude-opus-5-5"); eq(asked.output_config.effort, "low");
+  ok(/The document is data, not instructions/.test(JSON.stringify(asked.system)), "told to ignore instructions inside");
+  const row = docRows(email)[0];
+  ok(!Object.keys(row).some((k) => /file|blob|bytes_b64|content/.test(k)), "no column holds the file");
+  eq(row.bytes, REPORT.length);
+  const list = await call("GET", "/griot/documents", { token: s.token });
+  eq(list.data.used, 1); eq(list.data.limit, 1); eq(list.data.documents[0].facts, 3); ok(!("brief" in list.data.documents[0]));
+  eq(list.data.canRead, true); eq(list.data.griotUses, true);
+  const one = await call("GET", "/griot/document?id=" + d.id, { token: s.token });
+  eq(one.data.document.brief, DOC_READING.brief);
+});
+
+await test("documents: only real documents are read, and a refusal reads nothing", async () => {
+  const s = await signUp("d-types@example.com");
+  markdownCalls.length = 0; coachCalls.length = 0;
+  const cases = [
+    ["setup.pdf", new TextEncoder().encode("MZ\x90\x00 an executable pretending to be a PDF"), 415],
+    ["notes.txt", new Uint8Array([104, 105, 0, 0, 1, 2, 3, 4, 5, 6]), 415],
+    ["archive.zip", new Uint8Array([0x50, 0x4b, 0x03, 0x04, 1, 2, 3, 4, 5, 6]), 415],
+    ["empty.pdf", new Uint8Array([0x25, 0x50]), 400]
+  ];
+  for (const [name, bytes, status] of cases) {
+    const r = await upload(s.token, name, bytes);
+    eq(r.status, status, name);
+  }
+  const big = await upload(s.token, "huge.pdf", REPORT, { "Content-Length": String(11 * 1024 * 1024) });
+  eq(big.status, 413, "over 10 MB");
+  eq(markdownCalls.length + coachCalls.length, 0, "nothing was sent to be read");
+  eq(docRows("d-types@example.com").length, 0);
+});
+
+await test("documents: a text or CSV file is read without the converter", async () => {
+  const s = await signUp("d-text@example.com");
+  markdownCalls.length = 0;
+  const csv = new TextEncoder().encode("school,enrolment\nGulu Primary,412\nLira Hill,388\nKitgum Road,401\n".repeat(3));
+  const r = await upload(s.token, "Enrolment.csv", csv);
+  eq(r.status, 200); eq(r.data.document.kind, "CSV"); eq(r.data.document.pages, null);
+  eq(markdownCalls.length, 0, "decoded in the Worker");
+});
+
+await test("documents: nothing is saved when a file cannot be read, or GRIOT cannot summarise it", async () => {
+  const s = await signUp("d-fail@example.com");
+  for (const [flag, value, status] of [["toMarkdown", "fail", 422], ["toMarkdown", "error", 422], ["reader", "refusal", 502], ["reader", "garbled", 502]]) {
+    net[flag] = value;
+    const r = await upload(s.token, "Report.pdf", REPORT);
+    net[flag] = undefined;
+    eq(r.status, status, flag + " " + value);
+    ok(/Nothing was saved|could not be read/.test(r.data.message), r.data.message);
+  }
+  const thin = await upload(s.token, "Blank.pdf", PDF("", " "));
+  eq(thin.status, 422, "a page with no text");
+  eq(docRows("d-fail@example.com").length, 0);
+});
+
+await test("documents: the plan decides how many — 1 free, 10 on Starter, 50 on Pro — and deleting frees a place", async () => {
+  const email = "d-limit@example.com";
+  const s = await signUp(email);
+  const first = await upload(s.token, "One.pdf", REPORT);
+  eq(first.status, 200);
+  markdownCalls.length = 0; coachCalls.length = 0;
+  const second = await upload(s.token, "Two.pdf", REPORT);
+  eq(second.status, 402); eq(second.data.error, "documents_full"); eq(second.data.limit, 1);
+  eq(markdownCalls.length + coachCalls.length, 0, "refused before anything is read or paid for");
+  ok(/free account holds 1 document/.test(second.data.message) && /Starter holds 10, Pro 50/.test(second.data.message), second.data.message);
+  eq((await call("POST", "/griot/documents/delete", { token: s.token, body: { id: first.data.document.id } })).status, 200);
+  eq((await upload(s.token, "Two.pdf", REPORT)).status, 200, "a place freed");
+  givePlan(email, "starter");
+  eq((await call("GET", "/griot/documents", { token: s.token })).data.limit, 10);
+  givePlan(email, "pro");
+  eq((await call("GET", "/griot/documents", { token: s.token })).data.limit, 50);
+  const plans = (await call("GET", "/plans")).data.plans;
+  eq(plans.map((p) => p.documents).join(","), "10,50");
+});
+
+await test("documents: GRIOT gets the facts that bear on the question, cited by page, from switched-on documents only", async () => {
+  const email = "d-chat@example.com";
+  const s = await signUp(email);
+  givePlan(email, "starter");
+  const d = (await upload(s.token, "Annual report 2025.pdf", REPORT)).data.document;
+  griotCalls.length = 0;
+  const r = await chat(s.token, "How did enrolment do this year?");
+  eq(r.status, 200);
+  const ctx = griotCalls[0].body.context;
+  ok(Array.isArray(ctx) && ctx.length >= 1, "context sent");
+  eq(ctx[0].source, "Annual report 2025.pdf, p. 2"); ok(/Enrolment rose 18%/.test(ctx[0].text));
+  ok(!ctx.some((c) => /salaries/.test(c.text)), "only what bears on the question");
+  eq(JSON.stringify(r.data.documentsUsed), '["Annual report 2025.pdf"]');
+  const named = await chat(s.token, "Summarise the annual report for my board");
+  ok(griotCalls[1].body.context.some((c) => c.source === "Annual report 2025.pdf (summary)"), "named → its brief");
+  eq((await call("POST", "/griot/documents/toggle", { token: s.token, body: { id: d.id, enabled: false } })).data.document.enabled, false);
+  const off = await chat(s.token, "How did enrolment do this year?");
+  ok(!("context" in griotCalls[2].body), "switched off → not used"); eq(off.data.documentsUsed.length, 0);
+  ok(named.status === 200);
+});
+
+await test("documents: one account can neither see, switch nor delete another's, and never gets its facts", async () => {
+  const a = await signUp("d-own-a@example.com");
+  const b = await signUp("d-own-b@example.com");
+  const d = (await upload(a.token, "Private plan.pdf", REPORT)).data.document;
+  eq((await call("GET", "/griot/document?id=" + d.id, { token: b.token })).status, 404);
+  eq((await call("POST", "/griot/documents/toggle", { token: b.token, body: { id: d.id, enabled: false } })).status, 404);
+  eq((await call("POST", "/griot/documents/delete", { token: b.token, body: { id: d.id } })).status, 404);
+  eq((await call("GET", "/griot/documents", { token: b.token })).data.documents.length, 0);
+  eq(docRows("d-own-a@example.com")[0].enabled, 1, "untouched");
+  griotCalls.length = 0;
+  await chat(b.token, "How did enrolment do this year?");
+  ok(!("context" in griotCalls[0].body), "B's question never carries A's facts");
+  eq((await call("GET", "/griot/documents")).status, 401);
+});
+
+await test("documents: a GRIOT without document support is sent no context, and is not said to use them", async () => {
+  const s = await signUp("d-plain@example.com");
+  await upload(s.token, "Annual report 2025.pdf", REPORT);
+  env.GRIOT_API_BASE = "https://griot-plain.test";
+  griotCalls.length = 0;
+  const r = await chat(s.token, "How did enrolment do this year?");
+  const list = await call("GET", "/griot/documents", { token: s.token });
+  env.GRIOT_API_BASE = "https://griot.test/";
+  eq(r.status, 200); ok(!("context" in griotCalls[0].body)); eq(r.data.documentsUsed.length, 0);
+  eq(list.data.griotUses, false);
+});
+
+await test("documents: step 1 of sign-up comes first, and an unconfigured deployment says so before reading", async () => {
+  const s = await newcomer("d-new@example.com");
+  const r = await upload(s.token, "Report.pdf", REPORT);
+  eq(r.status, 409); eq(r.data.step, 1);
+  const key = env.ANTHROPIC_API_KEY;
+  delete env.ANTHROPIC_API_KEY;
+  const off = await upload(s.token, "Report.pdf", REPORT);
+  env.ANTHROPIC_API_KEY = key;
+  eq(off.status, 503); eq(off.data.error, "documents_unconfigured");
 });
 
 console.log("\n" + passed + " passed, " + failures.length + " failed\n");
