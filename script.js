@@ -231,7 +231,7 @@
     });
 
     // Returning to desktop width must not leave a hidden panel marked open.
-    var desktop = window.matchMedia("(min-width: 881px)");
+    var desktop = window.matchMedia("(min-width: 1101px)");
     var onBreakpoint = function (e) { if (e.matches) setNav(false); };
     if (desktop.addEventListener) desktop.addEventListener("change", onBreakpoint);
     else desktop.addListener(onBreakpoint); // Safari < 14

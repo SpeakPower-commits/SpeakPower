@@ -401,7 +401,7 @@ p:last-child { margin-bottom: 0; }
 .nav-links {
   display: flex;
   align-items: center;
-  gap: 1.75rem;
+  gap: 1.3rem;
 }
 .nav-links > a {
   position: relative;
@@ -424,7 +424,9 @@ p:last-child { margin-bottom: 0; }
   transition: transform .22s var(--ease);
 }
 .nav-links > a:hover { color: var(--ivory); }
-.nav-links > a[aria-current="page"] { color: var(--ivory); font-weight: 600; }
+/* The current page shows by colour and its gold underline, not by weight, so
+   every link keeps the same width and the bar is spaced alike on every page. */
+.nav-links > a[aria-current="page"] { color: var(--ivory); }
 .nav-links > a:hover::after,
 .nav-links > a[aria-current="page"]::after { transform: scaleX(1); }
 
@@ -450,19 +452,15 @@ p:last-child { margin-bottom: 0; }
 }
 .nav-links > a.nav-account:hover { border-color: var(--gold); }
 .nav-links > a.nav-account::after { display: none; }
-/* Between the phone menu and a wide screen, nine links only fit tighter, and
-   the account link drops its balance (still on account.html and in its title). */
-@media (min-width: 881px) and (max-width: 1180px) {
-  .nav-links { gap: 1.2rem; }
-  .nav-account-extra { display: none; }
-}
-@media (min-width: 881px) and (max-width: 980px) {
-  .site-header .wrap { gap: 1rem; }
-  .nav-links { gap: .7rem; }
-  .nav-links > a { font-size: .86rem; }
-  .nav-links > a.nav-cta { padding: .55rem .85rem; }
-  .nav-links > a.nav-account { padding: .4rem .7rem; }
-}
+/* Two groups: the page links, then Account and the gold button, set apart by
+   their own gap. Whichever action comes first after the links carries it. */
+.nav-links > a.nav-account,
+.nav-links > a:not(.nav-account) + a.nav-cta { margin-left: clamp(.5rem, 1.6vw, 1.5rem); }
+/* In the bar the account link reads "Account" alone (the plan is on
+   account.html, in the link's title and in the phone menu), so the logo keeps
+   the same clear space signed in or out. Narrower than 1101px the menu button
+   takes over rather than squeeze the bar. */
+.nav-account-extra { display: none; }
 
 .nav-toggle {
   display: none;
@@ -899,9 +897,9 @@ textarea { resize: vertical; min-height: 120px; }
 }
 .js [data-reveal].is-visible { opacity: 1; transform: none; }
 
-/* --- Mobile navigation -------------------------------------------------- */
+/* --- Phone and tablet navigation ---------------------------------------- */
 
-@media (max-width: 880px) {
+@media (max-width: 1100px) {
   .nav-toggle { display: inline-flex; }
 
   .nav-links {
@@ -934,6 +932,9 @@ textarea { resize: vertical; min-height: 120px; }
     border-radius: 0;
     font-size: 1.04rem;
   }
+  .nav-links > a.nav-account,
+  .nav-links > a:not(.nav-account) + a.nav-cta { margin-left: 0; }
+  .nav-account-extra { display: inline; }
   .nav-links > a.nav-cta {
     margin-top: 1.1rem;
     padding: .9rem 1.2rem;
