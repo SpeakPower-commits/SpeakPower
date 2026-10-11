@@ -114,6 +114,8 @@
   function prefill(data) {
     var p = data.profile;
     $("wName").value = (p && p.name) || data.googleName || "";
+    // What to greet them by: theirs if they said, else a first guess they can change.
+    $("wCallMe").value = (p && p.callMe) || String($("wName").value).trim().split(/\s+/)[0] || "";
     if (!p) return;
     $("wExpertise").value = p.expertise;
     $("wPosition").value = p.position;
@@ -141,7 +143,7 @@
 
   // The field the Worker (or the browser) named, marked and focused, with
   // the reason said once, above the buttons.
-  var FIELD_IDS = { name: "wName", expertise: "wExpertise", position: "wPosition", company: "wCompany",
+  var FIELD_IDS = { name: "wName", callMe: "wCallMe", expertise: "wExpertise", position: "wPosition", company: "wCompany",
     sector: "wSector", location: "wLocation", whatsapp: "wWhatsapp", problem: "wProblem", goal: "wGoal",
     goalBy: "wGoalBy", whyNow: "wWhyNow", focus: "wFocusSet" };
   function fail(errorId, message, field) {
@@ -200,7 +202,7 @@
     }
     busy(form, true);
     A.call("/profile", {
-      step: 1, name: val("wName"), expertise: val("wExpertise"), position: val("wPosition"), company: val("wCompany"),
+      step: 1, name: val("wName"), callMe: val("wCallMe"), expertise: val("wExpertise"), position: val("wPosition"), company: val("wCompany"),
       sector: $("wSector").value, location: val("wLocation"),
       consentWhatsapp: $("wWaConsent").checked, whatsapp: $("wWaConsent").checked ? val("wWhatsapp") : "",
       anonId: SP.anonId, page: location.pathname

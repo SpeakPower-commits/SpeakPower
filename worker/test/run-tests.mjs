@@ -2209,14 +2209,14 @@ await test("profile: when GRIOT cannot take the briefing it waits, then goes bef
 await test("profile: a deletion GRIOT cannot finish keeps no personal data, and the daily run completes it", async () => {
   const email = "k-cron@example.com";
   const s = await newcomer(email);
-  await saveProfile(s.token, Object.assign({}, STEP1, { consentWhatsapp: true, whatsapp: "0772123456" }));
+  await saveProfile(s.token, Object.assign({}, STEP1, { callMe: "Gee", consentWhatsapp: true, whatsapp: "0772123456" }));
   await saveProfile(s.token, STEP2);
   net.griotMemory = "down";
   const d = await call("POST", "/profile/delete", { token: s.token, body: {} });
   net.griotMemory = undefined;
   eq(d.status, 200); eq(d.data.griotCleared, false);
   const left = profileRow(email);
-  for (const col of ["name", "expertise", "position", "company", "location", "whatsapp", "problem", "goal", "goal_by", "why_now"]) {
+  for (const col of ["name", "call_me", "expertise", "position", "company", "location", "whatsapp", "problem", "goal", "goal_by", "why_now"]) {
     eq(left[col], null, col + " wiped at once");
   }
   eq(left.focus, "[]"); eq(left.griot_state, "pending"); eq(jsonIds(email).length, 5, "only the ids to remove remain");
@@ -2275,6 +2275,26 @@ await test("profile: one account can neither read, change nor delete another's, 
   eq(res.status, 200);
   eq(profileRow("k-own-a@example.com").name, "Grace Akello", "A's row unchanged");
   ok(profileRow("k-own-b@example.com").step1_at, "B's own row written");
+});
+
+await test("profile: the greeting uses what the person asked to be called, else the first word of their name", async () => {
+  const email = "k-greet@example.com";
+  const s = await newcomer(email);
+  eq((await call("GET", "/me", { token: s.token })).data.account.greetName, "Test", "before a profile: the account's name");
+  await saveProfile(s.token, Object.assign({}, STEP1, { name: "Otieno Thomas" }));
+  eq((await call("GET", "/me", { token: s.token })).data.account.greetName, "Otieno", "no call-me: the first word");
+  const r = await saveProfile(s.token, Object.assign({}, STEP1, { name: "Otieno Thomas", callMe: "  Thomas  " }));
+  eq(r.data.profile.callMe, "Thomas");
+  eq((await call("GET", "/me", { token: s.token })).data.account.greetName, "Thomas");
+  await saveProfile(s.token, STEP2);
+  const prof = profileMemories(email).find((m) => m.title === "Profile");
+  ok(prof.content.startsWith("Otieno Thomas (goes by Thomas), Head of Partnerships"), prof.content);
+  const long = await saveProfile(s.token, Object.assign({}, STEP1, { name: "Otieno Thomas", callMe: "<b>" + "x".repeat(80) }));
+  eq(long.data.profile.callMe.length, 40, "kept to 40 characters"); ok(long.data.profile.callMe.startsWith("<b>"), "text, escaped by the page");
+  const other = await newcomer("k-greet-other@example.com");
+  eq((await call("GET", "/me", { token: other.token })).data.account.greetName, "Test", "never another account's name");
+  eq((await call("POST", "/profile/delete", { token: s.token, body: {} })).status, 200);
+  eq((await call("GET", "/me", { token: s.token })).data.account.greetName, "Test", "after deleting: the account's own name again");
 });
 
 /* -------------------------------------------- Documents GRIOT can read */

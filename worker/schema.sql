@@ -164,6 +164,10 @@ CREATE INDEX IF NOT EXISTS idx_rehearsals_user ON rehearsals (user_id, id);
 CREATE TABLE IF NOT EXISTS profiles (
   user_id          TEXT PRIMARY KEY,
   name             TEXT,
+  -- What the person wants to be called ("Thomas" for "Otieno Thomas"); the
+  -- site greets them with it. On an existing database:
+  --   ALTER TABLE profiles ADD COLUMN call_me TEXT;
+  call_me          TEXT,
   expertise        TEXT,
   position         TEXT,
   company          TEXT,

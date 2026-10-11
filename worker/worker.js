@@ -295,11 +295,14 @@ async function accountView(env, user, now) {
   const account = publicAccount(user, env);
   const [m, p] = await Promise.all([
     membership(env, user.id, now),
-    env.DB.prepare("SELECT step1_at, step2_at FROM profiles WHERE user_id = ?").bind(user.id).first()
+    env.DB.prepare("SELECT step1_at, step2_at, call_me, name FROM profiles WHERE user_id = ?").bind(user.id).first()
   ]);
   account.membership = m;
   // Which sign-up steps are done, so a page can route without another call.
   account.profile = { step1: Boolean(p && p.step1_at), step2: Boolean(p && p.step2_at) };
+  // The name pages greet the person by: what they asked to be called, else
+  // the first word of their name.
+  account.greetName = (p && p.call_me) || firstWord((p && p.name) || user.name);
   return account;
 }
 
@@ -1929,6 +1932,7 @@ const FOCUS_AREAS = Object.freeze({
 const PROFILE_STEPS = Object.freeze({
   1: {
     name: ["name", 120, "Add your name."],
+    callMe: ["call_me", 40, null],
     expertise: ["expertise", 80, "Add your area of expertise."],
     position: ["position", 80, "Add your position or role."],
     company: ["company", 120, "Add your company or organisation."],
@@ -1979,6 +1983,10 @@ function withDeadline(goal, by) {
   return goal + (/[.!?]$/.test(goal) ? " " : ". ") + "Deadline: " + by + (/[.!?]$/.test(by) ? "" : ".");
 }
 
+function firstWord(name) {
+  return String(name || "").trim().split(/\s+/)[0].slice(0, 40);
+}
+
 function jsonList(text) {
   try { const v = JSON.parse(text || "[]"); return Array.isArray(v) ? v : []; } catch (e) { return []; }
 }
@@ -1987,7 +1995,8 @@ function jsonList(text) {
 // No email, no phone number.
 function profileMemories(p) {
   if (!p || !p.step1_at) return [];
-  const who = p.name + ", " + p.position + " at " + p.company +
+  const goesBy = p.call_me && p.call_me !== firstWord(p.name) ? " (goes by " + p.call_me + ")" : "";
+  const who = p.name + goesBy + ", " + p.position + " at " + p.company +
     (SECTORS[p.sector] ? " (" + SECTORS[p.sector] + ")" : "") + ". Expertise: " + p.expertise + "." +
     (p.location ? " Based in " + p.location + "." : "");
   const out = [{ title: "Profile", content: who }];
@@ -2004,7 +2013,7 @@ function profileMemories(p) {
 function publicProfile(p) {
   if (!p || !p.step1_at) return null;
   return {
-    name: p.name || "", expertise: p.expertise || "", position: p.position || "", company: p.company || "",
+    name: p.name || "", callMe: p.call_me || "", expertise: p.expertise || "", position: p.position || "", company: p.company || "",
     sector: SECTORS[p.sector] ? p.sector : "", location: p.location || "",
     whatsapp: p.whatsapp || "", consentWhatsapp: Boolean(p.consent_whatsapp),
     problem: p.problem || "", goal: p.goal || "", goalBy: p.goal_by || "", whyNow: p.why_now || "",
@@ -2097,7 +2106,7 @@ async function deleteProfile(request, env) {
   // Every personal field goes at once. The row lingers only while GRIOT still
   // holds copies, and the sync below (or a later one) removes those.
   await env.DB.prepare(
-    "UPDATE profiles SET name = NULL, expertise = NULL, position = NULL, company = NULL, sector = NULL, " +
+    "UPDATE profiles SET name = NULL, call_me = NULL, expertise = NULL, position = NULL, company = NULL, sector = NULL, " +
     "location = NULL, whatsapp = NULL, consent_whatsapp = 0, problem = NULL, goal = NULL, goal_by = NULL, " +
     "why_now = NULL, focus = '[]', consent_griot = 0, step1_at = NULL, step2_at = NULL, " +
     "griot_state = CASE WHEN griot_memory_ids <> '[]' THEN 'pending' ELSE 'none' END, " +
