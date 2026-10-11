@@ -6,16 +6,17 @@ Open this file on the live site to see which build GitHub Pages is serving:
     https://speakpower-commits.github.io/SpeakPower/version.txt
 
 branch:   claude/studio-griot-live
-build:    releases 6 and 7: documents GRIOT reads and cites; GRIOT's mark,
-          tab icon and proverbs while it thinks (2026-10-11), on top of
-          releases 3 to 5
-expects:  griot-app.html — five tabs: Ask · Conversations · Memory ·
-                       Decisions · Documents; the browser tab shows
-                       GRIOT's G; while GRIOT thinks, nine dots light up
-                       with a proverb at each step
-          welcome.html — "Tell us who you are." (step 1 of 2)
-          plans.html — the plan details list documents: 10 (Starter),
-                       50 (Pro), 1 on a free account
+build:    polish (2026-10-11): "Hi Thomas, welcome back" when signed in;
+          an evenly spaced header; icons in the footer, on Services and
+          on Contact; on top of releases 3 to 7
+expects:  index.html — signed in, a gold "Hi <name>, welcome back" above
+                       the headline; the header shows the ☰ menu at
+                       1100 px and narrower
+          footer (every page) — an icon beside every link: Explore,
+                       Contact (phone, email, WhatsApp) and Follow
+                       (LinkedIn, Instagram, TikTok)
+          services.html — an icon tile on each of the six services
+          welcome.html — step 1 asks "What should we call you?"
 
 If this file still shows an older build, Pages has not rebuilt yet: wait a
 minute and reload. If it 404s, Pages is serving a different branch.

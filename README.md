@@ -154,6 +154,8 @@ Full setup, step by step: [`worker/README.md`](worker/README.md).
 
 **Midnight & Gold.** SpeakPower's navy, gold and Fraunces, given more depth: midnight for the moments that sell, warm ivory for reading, gold for what matters. Barkcloth brown is the one accent from home, used at most once per screen. Signal colours appear only inside scores. Every text colour pair meets WCAG AA contrast. Tokens live in `styles.css`.
 
+**Icons.** Line icons from [Lucide](https://lucide.dev) (ISC licence) and the WhatsApp, LinkedIn, Instagram and TikTok marks from [Simple Icons](https://simpleicons.org) (CC0), inlined in `styles.css` (section 8c) as CSS masks so they take the colour of their text. They are decorative: the words beside them carry the meaning.
+
 ### GRIOT's marks
 
 <p align="center">

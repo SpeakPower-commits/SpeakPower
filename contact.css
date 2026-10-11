@@ -38,20 +38,36 @@
 
 .contact-channel {
   display: grid;
-  grid-template-columns: minmax(0, 150px) minmax(0, 1fr);
-  align-items: baseline;
+  grid-template-columns: minmax(0, 190px) minmax(0, 1fr);
+  align-items: center;
   gap: .35rem 1rem;
   padding-block: 1.1rem;
   border-bottom: 1px solid var(--line);
 }
 
 .contact-channel .label {
+  display: inline-flex;
+  align-items: center;
+  gap: .55rem;
   font-family: var(--font-mono);
   font-size: .71rem;
   letter-spacing: .1em;
   text-transform: uppercase;
   color: var(--text-faint);
 }
+/* Each channel's icon, named by its class (icons in styles.css, 8c). */
+.contact-channel .label::before {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  background: var(--gold-text);
+  -webkit-mask: var(--icon) center / contain no-repeat;
+          mask: var(--icon) center / contain no-repeat;
+}
+.contact-channel--whatsapp .label::before { content: ""; --icon: var(--i-whatsapp); }
+.contact-channel--mail .label::before     { content: ""; --icon: var(--i-mail); }
+.contact-channel--linkedin .label::before { content: ""; --icon: var(--i-linkedin); }
+.contact-channel--place .label::before    { content: ""; --icon: var(--i-map-pin); }
 
 .contact-channel a {
   font-size: 1.05rem;
