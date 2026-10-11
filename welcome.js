@@ -248,6 +248,7 @@
     var told = (p && p.told) || [];
     var list = $("wTold");
     list.textContent = "";
+    $("wMark").hidden = !(p && p.briefGriot);
     if (p && p.briefGriot) {
       $("wDoneTitle").textContent = "GRIOT now knows you.";
       $("wDoneLead").textContent = p.griot && p.griot.state === "sent"

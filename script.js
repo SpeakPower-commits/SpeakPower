@@ -52,13 +52,16 @@
       return Promise.reject(off);
     }
     var headers = {};
-    if (options.body) headers["Content-Type"] = "application/json";
+    // options.file: a File or Blob sent as it is (a document for GRIOT);
+    // the Worker decides what it is from its bytes, never from this header.
+    if (options.file) headers["Content-Type"] = "application/octet-stream";
+    else if (options.body) headers["Content-Type"] = "application/json";
     if (options.token) headers.Authorization = "Bearer " + options.token;
 
     return fetch(API_BASE + path, {
-      method: options.body ? "POST" : "GET",
+      method: options.body || options.file ? "POST" : "GET",
       headers: headers,
-      body: options.body ? JSON.stringify(options.body) : undefined
+      body: options.file || (options.body ? JSON.stringify(options.body) : undefined)
     }).then(function (res) {
       return res.json().catch(function () { return {}; }).then(function (data) {
         if (res.ok) return data;

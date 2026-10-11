@@ -115,6 +115,21 @@
     });
   }
 
+  // A file sent as it is, with the session: a document for GRIOT to read.
+  function upload(path, file) {
+    var s = session();
+    if (!s) {
+      var out = new Error("Please sign in first.");
+      out.status = 401;
+      out.code = "signed_out";
+      return Promise.reject(out);
+    }
+    return SP.api(path, { token: s.token, file: file }).then(null, function (e) {
+      if (e.status === 401) signOut();
+      throw e;
+    });
+  }
+
   function refresh() {
     return call("/me").then(function (data) {
       setAccount(data.account);
@@ -654,6 +669,7 @@
     signOut: signOut,
     onChange: onChange,
     call: call,
+    upload: upload,
     refresh: refresh,
     signInAvailable: signInAvailable,
     mountSignIn: mountSignIn,

@@ -663,3 +663,53 @@
 
 /* GRIOT's Memory tab: what you said at sign-up */
 .ga-from-profile{padding:.15rem .5rem;border:1px solid var(--gold-lo);border-radius:999px;font-size:.72rem;color:var(--gold-text)}
+
+/* GRIOT's Documents tab */
+.ga-doc-form{display:grid;gap:.6rem;margin:1rem 0}
+.ga-doc-form input[type=file]{padding:.6rem;border:1px dashed var(--line-strong);border-radius:var(--radius);background:var(--paper);font:inherit;color:var(--ink);width:100%}
+.ga-doc-meta{margin:0}
+.ga-doc-reading{margin:0 0 1rem;padding:.8rem 1rem;border:1px solid var(--gold-lo);border-radius:var(--radius);background:var(--paper)}
+.ga-doc-reading p{margin:0}
+.ga-doc-reading[hidden]{display:none}
+.ga-doc--off strong{color:var(--text-muted)}
+.ga-doc--off .ga-item-meta::after{content:" · not used for now"}
+.ga-doc-switch{display:inline-flex;align-items:center;gap:.45rem;font-size:.86rem;cursor:pointer}
+.ga-doc-switch input{width:1.05rem;height:1.05rem;margin:0;accent-color:var(--navy)}
+.ga-doc-detail{margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--line)}
+.ga-doc-detail[hidden]{display:none}
+.ga-doc-brief{margin:0 0 .6rem}
+.ga-doc-facts{margin:0;padding-left:1.1rem;display:grid;gap:.35rem}
+.ga-doc-facts li{overflow-wrap:anywhere}
+.ga-doc-page{margin-left:.45rem;font:600 .72rem/1 var(--font-mono);color:var(--gold-text);white-space:nowrap}
+.ga-doc .ga-item-meta{margin:0}
+.ga-doc .ga-item-foot{flex-wrap:wrap;justify-content:flex-start;gap:.5rem 1.25rem}
+
+/* GRIOT's mark and proverbs: the "G" in a ring of nine dots, one per step of
+   its method; while it thinks the dots light in turn, each with a proverb. */
+.ga-think{display:grid;grid-template-columns:auto minmax(0,1fr);gap:1rem;align-items:start;font-style:normal}
+.ga-mark{position:relative;width:78px;height:78px}
+.ga-mark svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.ga-mark img{position:absolute;left:10px;top:10px;width:58px;height:58px;border-radius:50%}
+.ga-mark-dot{fill:var(--bg-raised);stroke:var(--line-strong);stroke-width:1.4;transition:fill .3s var(--ease),stroke .3s var(--ease)}
+.ga-mark-dot.is-done{fill:var(--gold);stroke:var(--gold-lo)}
+.ga-mark-dot.is-current{fill:var(--gold-lo);stroke:var(--gold-lo);animation:ga-dot .9s ease-in-out infinite alternate}
+@keyframes ga-dot{from{fill:var(--gold-lo)}to{fill:var(--gold-hi)}}
+.ga-proverb{margin:.8rem 0 0;padding:.65rem .85rem;border-left:3px solid var(--bark);border-radius:var(--radius);background:var(--paper)}
+.ga-proverb[hidden]{display:none}
+.ga-proverb blockquote{margin:0;font-family:var(--font-display);font-style:italic;font-size:1.04rem;line-height:1.45;color:var(--ink)}
+.ga-proverb figcaption{margin-top:.3rem;font-size:.8rem;line-height:1.45;color:var(--text-muted);font-style:normal}
+.ga-proverb.is-in{animation:ga-fade .5s var(--ease)}
+@keyframes ga-fade{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+.griot-face{display:inline-block;width:22px;height:22px;margin-right:.45rem;vertical-align:-7px;border-radius:50%}
+.griot-msg--pending .griot-face{display:none}
+.griot-msg--new .griot-face{animation:ga-glint 1.4s var(--ease) 1}
+@keyframes ga-glint{0%{box-shadow:0 0 0 0 rgba(201,162,39,.75)}100%{box-shadow:0 0 0 11px rgba(201,162,39,0)}}
+.ga-hero-mark{width:64px;height:64px;margin-bottom:.9rem}
+@media (prefers-reduced-motion: reduce){.ga-mark-dot.is-current,.ga-proverb.is-in,.griot-msg--new .griot-face{animation:none}}
+@media (max-width:520px){
+  .ga-think{grid-template-columns:1fr;gap:.6rem}
+  .ga-mark{width:62px;height:62px}
+  .ga-mark img{left:8px;top:8px;width:46px;height:46px}
+}
+.welcome-mark{width:56px;height:56px;margin-bottom:.6rem}
+.welcome-mark[hidden]{display:none}

@@ -6,18 +6,16 @@ Open this file on the live site to see which build GitHub Pages is serving:
     https://speakpower-commits.github.io/SpeakPower/version.txt
 
 branch:   claude/studio-griot-live
-build:    release 5: know the customer — two sign-up steps that brief
-          GRIOT (2026-10-10), on top of releases 3 and 4
-expects:  welcome.html — "Tell us who you are." (step 1 of 2), then
-                       "What are you working on?" and the Ready screen
-          account.html — a "Your profile" card with Change my answers and
-                       Delete my profile
-          every page — the menu reads Rehearse · Services · Studio · Plans
-          plans.html — Free, Starter (UGX 60,000 / 30 days) and Pro
-                       (UGX 150,000 / 30 days)
-          griot-app.html — Ask · Conversations · Memory · Decisions tabs,
-                       once GRIOT reports its workspace; profile memories
-                       first, marked "From your profile"
+build:    releases 6 and 7: documents GRIOT reads and cites; GRIOT's mark,
+          tab icon and proverbs while it thinks (2026-10-11), on top of
+          releases 3 to 5
+expects:  griot-app.html — five tabs: Ask · Conversations · Memory ·
+                       Decisions · Documents; the browser tab shows
+                       GRIOT's G; while GRIOT thinks, nine dots light up
+                       with a proverb at each step
+          welcome.html — "Tell us who you are." (step 1 of 2)
+          plans.html — the plan details list documents: 10 (Starter),
+                       50 (Pro), 1 on a free account
 
 If this file still shows an older build, Pages has not rebuilt yet: wait a
 minute and reload. If it 404s, Pages is serving a different branch.

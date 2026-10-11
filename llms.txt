@@ -66,6 +66,7 @@ SpeakPower starts with audience and context rather than generic communication fo
 ## Plans
 
 - **SpeakPower plans** — https://speakpower-commits.github.io/SpeakPower/plans.html
+  GRIOT reads the documents a client adds (strategy papers, proposals, reports, spreadsheets) once, keeps the key facts with their pages, and cites them in its answers; the files themselves are not kept.
   The first 3 tries are free on any service. After that, GRIOT (the AI strategy advisor that remembers each client's business) and the Rehearsal Room come with a 30-day plan: Starter UGX 60,000 or Pro UGX 150,000, paid by MTN MoMo, Airtel Money or card and renewed with one tap. Pro adds one Studio pack a month and 15% off the others. Neither GRIOT nor the Rehearsal Room is priced per use.
 
 ## SpeakPower Studio

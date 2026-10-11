@@ -124,7 +124,16 @@
     item.className = "griot-msg griot-msg--" + role;
     var who = document.createElement("span");
     who.className = "griot-who";
-    who.textContent = role === "user" ? "You" : "GRIOT";
+    if (role === "griot") {
+      var face = document.createElement("img");
+      face.className = "griot-face";
+      face.src = "assets/brand/griot/griot-mark-c.svg";
+      face.alt = "";
+      face.width = 22;
+      face.height = 22;
+      who.appendChild(face);
+    }
+    who.appendChild(document.createTextNode(role === "user" ? "You" : "GRIOT"));
     item.appendChild(who);
     var body = document.createElement("div");
     body.className = "griot-body";
@@ -214,35 +223,87 @@
       : "Auto lets GRIOT pick the specialists your question needs. Hover a lens to see what it covers.";
   }
 
-  // While GRIOT works, its nine steps light up in turn: the method made
-  // visible. Under reduced motion they show as a still list.
+  // GRIOT's mark: the "G" inside a ring of nine dots, one for each step of
+  // its method. While it thinks the dots light up in turn, each step with a
+  // proverb (griot-proverbs.js). Under reduced motion it all stays still.
+  var SVG_NS = "http://www.w3.org/2000/svg";
+  function griotMark(className) {
+    var wrap = el("div", "ga-mark " + (className || ""));
+    wrap.setAttribute("aria-hidden", "true");
+    var svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("viewBox", "0 0 100 100");
+    for (var k = 0; k < 9; k++) {
+      var a = (-90 + k * 40) * Math.PI / 180;
+      var dot = document.createElementNS(SVG_NS, "circle");
+      dot.setAttribute("cx", String(50 + 45 * Math.cos(a)));
+      dot.setAttribute("cy", String(50 + 45 * Math.sin(a)));
+      dot.setAttribute("r", "4.2");
+      dot.setAttribute("class", "ga-mark-dot");
+      svg.appendChild(dot);
+    }
+    wrap.appendChild(svg);
+    var img = el("img");
+    img.src = "assets/brand/griot/griot-mark-c.svg";
+    img.alt = "";
+    img.width = 64;
+    img.height = 64;
+    wrap.appendChild(img);
+    return wrap;
+  }
+
+  var PROVERBS = Array.isArray(window.GRIOT_PROVERBS) ? window.GRIOT_PROVERBS : [];
+
   function thinking() {
     var item = addMessage("griot", "");
     item.classList.add("griot-msg--pending");
     var body = item.querySelector(".griot-body");
     body.textContent = "";
-    if (!ws.ready || !ws.steps.length) { body.textContent = "Working through it…"; return { item: item, stop: function () {} }; }
-    body.appendChild(el("p", "ga-steps-lead", "Working through GRIOT's " + ws.steps.length + " steps"));
+    var steps = ws.ready && ws.steps.length ? ws.steps : PROVERBS.map(function (p) { return p.step; });
+    var box = el("div", "ga-think");
+    var mark = griotMark("ga-mark--thinking");
+    box.appendChild(mark);
+    var side = el("div", "ga-think-body");
+    side.appendChild(el("p", "ga-steps-lead", steps.length ? "Working through GRIOT's " + steps.length + " steps" : "Working through it…"));
     var list = el("ol", "ga-steps");
-    ws.steps.forEach(function (step) { list.appendChild(el("li", null, step.charAt(0) + step.slice(1).toLowerCase())); });
-    body.appendChild(list);
+    steps.forEach(function (step) { list.appendChild(el("li", null, step.charAt(0) + step.slice(1).toLowerCase())); });
+    side.appendChild(list);
+    var proverb = el("figure", "ga-proverb");
+    var said = el("blockquote");
+    var means = el("figcaption");
+    proverb.appendChild(said);
+    proverb.appendChild(means);
+    side.appendChild(proverb);
+    box.appendChild(side);
+    body.appendChild(box);
+    proverb.hidden = !PROVERBS.length;
+
     var i = 0;
     var items = list.children;
-    function mark() {
-      for (var k = 0; k < items.length; k++) {
-        items[k].className = k < i ? "is-done" : k === i ? "is-current" : "";
+    var dots = mark.querySelectorAll(".ga-mark-dot");
+    function show() {
+      for (var k = 0; k < items.length; k++) items[k].className = k < i ? "is-done" : k === i ? "is-current" : "";
+      for (var d = 0; d < dots.length; d++) {
+        dots[d].setAttribute("class", "ga-mark-dot" + (reduceMotion ? "" : d < i ? " is-done" : d === i ? " is-current" : ""));
       }
+      var p = PROVERBS[i % (PROVERBS.length || 1)];
+      if (!p) return;
+      said.textContent = p.said;
+      said.setAttribute("lang", p.lang || "en");
+      means.textContent = p.means + " · " + p.language;
+      proverb.classList.remove("is-in");
+      void proverb.offsetWidth; // restart the fade
+      proverb.classList.add("is-in");
     }
-    mark();
+    show();
     var timer = reduceMotion ? null : window.setInterval(function () {
-      if (i < items.length - 1) { i++; mark(); }
-    }, 1600);
+      if (i < items.length - 1) { i++; show(); }
+    }, 2600);
     return { item: item, stop: function () { if (timer) window.clearInterval(timer); } };
   }
 
   /* ----------------------------------------------------------------- tabs */
 
-  var TABS = ["ask", "conversations", "memory", "decisions"];
+  var TABS = ["ask", "conversations", "memory", "decisions", "documents"];
   function openTab(name, focus) {
     TABS.forEach(function (t) {
       var on = t === name;
@@ -255,6 +316,7 @@
     if (name === "conversations") loadConversations();
     if (name === "memory") loadMemory();
     if (name === "decisions") loadDecisions();
+    if (name === "documents") loadDocuments();
   }
   TABS.forEach(function (t, i) {
     $("gaTab-" + t).addEventListener("click", function () { openTab(t); });
@@ -400,6 +462,143 @@
     $("ga-message").focus({ preventScroll: true });
   });
 
+  /* ------------------------------------------------------------ documents */
+
+  var DOC_MAX = 10 * 1024 * 1024;
+  var docState = { used: 0, limit: 1 };
+
+  function docMeta(d) {
+    var parts = [d.kind];
+    if (d.pages) parts.push(d.pages + (d.pages === 1 ? " page" : " pages"));
+    parts.push(d.facts + (d.facts === 1 ? " key fact" : " key facts"));
+    parts.push("added " + new Date(d.at * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short" }));
+    return parts.join(" · ");
+  }
+
+  function drawDocDetail(host, d) {
+    host.textContent = "";
+    host.appendChild(el("p", "ga-doc-brief", d.brief));
+    var list = el("ul", "ga-doc-facts");
+    d.facts.forEach(function (f) {
+      var li = el("li", null, f.text);
+      if (f.page) li.appendChild(el("span", "ga-doc-page", "p. " + f.page));
+      list.appendChild(li);
+    });
+    host.appendChild(list);
+    if (d.truncated) host.appendChild(el("p", "builder-note", "This is a long document: GRIOT read the first part of it."));
+  }
+
+  // `said`: what just happened (a document read), shown ahead of any note
+  // about the allowance, so a refresh never hides it.
+  function loadDocuments(said) {
+    said = typeof said === "string" ? said : "";
+    $("gaDocEmpty").textContent = "Loading…";
+    $("gaDocEmpty").hidden = false;
+    A.call("/griot/documents").then(function (data) {
+      var docs = data.documents || [];
+      docState = { used: data.used || 0, limit: data.limit || 1 };
+      var full = docState.used >= docState.limit;
+      $("gaDocAllowance").textContent = docState.used + " of " + docState.limit + (docState.limit === 1 ? " document" : " documents") + " kept.";
+      $("gaDocAdd").disabled = full || !data.canRead;
+      $("ga-doc-file").disabled = full || !data.canRead;
+      $("gaDocPlans").hidden = !full || docState.limit >= 50;
+      var note = !data.canRead ? "Reading documents is being switched on."
+        : full ? "That is as many as your " + (docState.limit === 1 ? "free account" : "plan") + " keeps. Remove one to add another" +
+          (docState.limit < 50 ? ", or see the plans for more room." : ".")
+        : !data.griotUses && docs.length ? "GRIOT will start drawing on these in its answers shortly." : "";
+      showError($("gaDocStatus"), [said, note].filter(Boolean).join(" "));
+      listState("gaDocEmpty", "gaDocList", docs, "No documents yet. Add one above and GRIOT will draw on it when it bears on your question.");
+      docs.forEach(function (d) { $("gaDocList").appendChild(docItem(d)); });
+    }, function (e) { listError("gaDocEmpty", e); });
+  }
+
+  function docItem(d) {
+    var li = el("li", "ga-item ga-doc" + (d.enabled ? "" : " ga-doc--off"));
+    var head = el("div", "ga-item-head");
+    head.appendChild(el("strong", null, d.name));
+    li.appendChild(head);
+    li.appendChild(el("p", "ga-item-meta", docMeta(d)));
+    var foot = el("div", "ga-item-foot");
+    var sw = el("label", "ga-doc-switch");
+    var box = el("input");
+    box.type = "checkbox";
+    box.checked = d.enabled;
+    sw.appendChild(box);
+    sw.appendChild(el("span", null, "GRIOT uses this"));
+    box.addEventListener("change", function () {
+      box.disabled = true;
+      A.call("/griot/documents/toggle", { id: d.id, enabled: box.checked }).then(function (r) {
+        d.enabled = r.document.enabled;
+        li.classList.toggle("ga-doc--off", !d.enabled);
+      }, function (e) { box.checked = !box.checked; showError($("gaDocStatus"), e.message); })
+        .then(function () { box.disabled = false; });
+    });
+    foot.appendChild(sw);
+    var detail = el("div", "ga-doc-detail");
+    detail.hidden = true;
+    var show = el("button", "ga-link", "Show what GRIOT took from it");
+    show.type = "button";
+    show.setAttribute("aria-expanded", "false");
+    show.addEventListener("click", function () {
+      var open = detail.hidden;
+      detail.hidden = !open;
+      show.setAttribute("aria-expanded", String(open));
+      show.textContent = open ? "Hide" : "Show what GRIOT took from it";
+      if (open && !detail.childNodes.length) {
+        detail.appendChild(el("p", "output-empty", "Loading…"));
+        A.call("/griot/document?id=" + encodeURIComponent(d.id)).then(function (r) { drawDocDetail(detail, r.document); },
+          function (e) { detail.textContent = e.message; });
+      }
+    });
+    foot.appendChild(show);
+    var del = el("button", "ga-link ga-forget", "Delete");
+    del.type = "button";
+    del.addEventListener("click", function () {
+      if (!window.confirm("Delete “" + d.name + "”? GRIOT stops using it, and everything taken from it is removed.")) return;
+      A.call("/griot/documents/delete", { id: d.id }).then(function () { loadDocuments("“" + d.name + "” is deleted."); },
+        function (e) { showError($("gaDocStatus"), e.message); });
+    });
+    foot.appendChild(del);
+    li.appendChild(foot);
+    li.appendChild(detail);
+    return li;
+  }
+
+  // While a document is being read: the same patient wait as GRIOT's steps.
+  function readingState(name) {
+    var host = $("gaDocReading");
+    host.textContent = "";
+    host.appendChild(el("p", null, "GRIOT is reading “" + name + "”. This takes up to a minute; you can keep this tab open and wait."));
+    host.hidden = false;
+    return function () { host.hidden = true; host.textContent = ""; };
+  }
+
+  $("gaDocForm").addEventListener("submit", function (event) {
+    event.preventDefault();
+    var err = $("gaDocError");
+    showError(err, "");
+    showError($("gaDocStatus"), "");
+    var input = $("ga-doc-file");
+    var file = input.files && input.files[0];
+    if (!file) { showError(err, "Choose a file first."); input.focus(); return; }
+    if (file.size > DOC_MAX) { showError(err, "A document can be up to 10 MB. Try a smaller copy or a PDF."); return; }
+    $("gaDocAdd").disabled = true;
+    input.disabled = true;
+    var done = readingState(file.name);
+    A.upload("/griot/documents?name=" + encodeURIComponent(file.name), file).then(function (r) {
+      input.value = "";
+      loadDocuments("GRIOT read “" + r.document.name + "” and kept " + r.document.facts.length +
+        (r.document.facts.length === 1 ? " key fact." : " key facts."));
+    }, function (e) {
+      if (e.status === 401) { signedOut(e.message); return; }
+      if (A.handleProfileRequired(e, "griot-app.html")) return;
+      showError(err, e.message);
+      $("gaDocAdd").disabled = false;
+      input.disabled = false;
+      if (e.code === "documents_full") loadDocuments();
+    }).then(done);
+  });
+
   function describe(reply) {
     var parts = [];
     parts.push(reply.paidWith === "trial" ? "Free try" : "Included in your plan");
@@ -409,6 +608,7 @@
     }
     if (reply.memoryUsed) parts.push("drew on " + reply.memoryUsed + " thing" + (reply.memoryUsed === 1 ? "" : "s") + " it remembers");
     if (reply.memoryWritten) parts.push("now remembers: “" + reply.memoryWritten + "”");
+    if (reply.documentsUsed && reply.documentsUsed.length) parts.push("drew on your documents: " + reply.documentsUsed.join(", "));
     return parts.join(" · ");
   }
 
@@ -483,6 +683,7 @@
       pending.stop();
       pending.item.remove();
       var answer = addMessage("griot", reply.answer, describe(reply));
+      answer.classList.add("griot-msg--new"); // the mark glints once as GRIOT answers
       if (reply.memoryWritten && ws.ready) {
         var see = el("button", "ga-link ga-see-memory", "See what GRIOT remembers");
         see.type = "button";

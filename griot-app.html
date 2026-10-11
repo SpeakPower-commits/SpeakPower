@@ -7,9 +7,10 @@
 <meta name="description" content="Sign in and try GRIOT, SpeakPower's strategic analyst that remembers your business. Your first 3 tries are free; then it comes with every SpeakPower plan.">
 <meta name="robots" content="noindex, follow">
 <meta name="theme-color" content="#16233f">
-<link rel="icon" type="image/png" href="assets/logo-mark.png?v=4" sizes="160x160">
-<link rel="shortcut icon" type="image/png" href="assets/logo-mark.png?v=4">
-<link rel="apple-touch-icon" href="assets/logo-mark.png?v=4">
+<link rel="icon" type="image/svg+xml" href="assets/brand/griot/griot-mark-c.svg">
+<link rel="icon" type="image/png" href="assets/brand/griot/griot-icon-32.png" sizes="32x32">
+<link rel="icon" type="image/png" href="assets/brand/griot/griot-icon-192.png" sizes="192x192">
+<link rel="apple-touch-icon" href="assets/brand/griot/griot-touch-180.png">
 <link rel="manifest" href="site.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -30,6 +31,7 @@
 
 <main id="main">
 <div class="page-hero"><div class="wrap">
+<img class="ga-hero-mark" src="assets/brand/griot/griot-mark-c.svg" width="64" height="64" alt="">
 <span class="eyebrow">SpeakPower Studio &middot; GRIOT</span>
 <h1>Ask GRIOT.</h1>
 <p>Your first 3 tries are free, shared with every Studio service &mdash; no card, no call. After that, GRIOT comes with every <a href="plans.html">SpeakPower plan</a>. It remembers what you tell it, and it marks every claim as fact, inference or hypothesis.</p>
@@ -63,6 +65,7 @@
 <button type="button" role="tab" id="gaTab-conversations" aria-controls="gaPanel-conversations" aria-selected="false" tabindex="-1">Conversations</button>
 <button type="button" role="tab" id="gaTab-memory" aria-controls="gaPanel-memory" aria-selected="false" tabindex="-1">Memory</button>
 <button type="button" role="tab" id="gaTab-decisions" aria-controls="gaPanel-decisions" aria-selected="false" tabindex="-1">Decisions</button>
+<button type="button" role="tab" id="gaTab-documents" aria-controls="gaPanel-documents" aria-selected="false" tabindex="-1">Documents</button>
 </div>
 
 <div id="gaPanel-ask" role="tabpanel" aria-labelledby="gaTab-ask">
@@ -117,6 +120,22 @@
 <p class="output-empty" id="gaDecEmpty">Loading&hellip;</p>
 <ul class="ga-list" id="gaDecList"></ul>
 </div>
+
+<div id="gaPanel-documents" role="tabpanel" aria-labelledby="gaTab-documents" hidden>
+<h2 class="ga-h">Documents GRIOT can read</h2>
+<p class="builder-note">Add a strategy paper, proposal, annual report or spreadsheet. GRIOT reads it once and keeps a short summary and the key facts, with their pages, then cites them when they bear on your question. The file itself is not kept, only you and GRIOT see what was taken from it, and none of it is used to train AI.</p>
+<form class="ga-doc-form" id="gaDocForm" novalidate>
+<div class="builder-field"><label for="ga-doc-file">Choose a file</label>
+<input type="file" id="ga-doc-file" accept=".pdf,.docx,.odt,.xlsx,.xls,.ods,.csv,.txt,.md,.jpg,.jpeg,.png,.webp"></div>
+<p class="builder-note ga-doc-meta"><span>PDF, Word, Excel, CSV or text, up to 10 MB.</span> <span id="gaDocAllowance"></span></p>
+<p class="builder-error" id="gaDocError" role="alert" hidden></p>
+<div class="builder-actions"><button class="btn btn-primary" type="submit" id="gaDocAdd">Read it</button><a class="btn btn-ghost" id="gaDocPlans" href="plans.html" hidden>See the plans</a></div>
+</form>
+<div class="ga-doc-reading" id="gaDocReading" role="status" hidden></div>
+<p class="griot-notice" id="gaDocStatus" role="status" hidden></p>
+<p class="output-empty" id="gaDocEmpty">Loading&hellip;</p>
+<ul class="ga-list" id="gaDocList"></ul>
+</div>
 </div>
 
 <!-- Shown when the free tries are used and no plan covers another question. -->
@@ -135,6 +154,7 @@
 <script src="site-config.js"></script>
 <script src="script.js"></script>
 <script src="account.js"></script>
+<script src="griot-proverbs.js"></script>
 <script src="griot-app.js"></script>
 </body>
 </html>

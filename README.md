@@ -96,7 +96,8 @@ sequenceDiagram
 ├── index.html · services.html · work.html · about.html · contact.html   marketing pages
 ├── studio.html · studio-product.html/.js                                Studio catalogue and builders
 ├── rehearse.html · rehearse.js · rehearse.css                          the Rehearsal Room
-├── studio-griot.html · griot-app.html/.js                               GRIOT page and chat
+├── studio-griot.html · griot-app.html/.js                               GRIOT page, chat, Memory, Decisions, Documents
+├── griot-proverbs.js                                                    the nine proverbs GRIOT shows while it thinks (edit to add your engero)
 ├── account.html · account.js · account-page.js                          sign-up, membership, balance, profile
 ├── welcome.html · welcome.js                                            the two sign-up steps that brief GRIOT
 ├── plans.html · plans.js                                                Starter and Pro, 30 days each
@@ -142,8 +143,8 @@ Full setup, step by step: [`worker/README.md`](worker/README.md).
 
 | Suite | What it proves |
 |---|---|
-| **Worker logic** (`worker/test/run-tests.mjs`, 148 checks) | prices match the site; free tries and plans; exact charge and refund; parallel uses never overdraw; payments settled exactly once; sign-in; the sign-up profile and GRIOT's briefing, account by account; the SEO audit's address guard |
-| **Worker on workerd** (`worker/test/run-workerd-tests.mjs`, 17 checks) | the same Worker on Cloudflare's real runtime, with D1 and the HTML reader |
+| **Worker logic** (`worker/test/run-tests.mjs`, 157 checks) | prices match the site; free tries and plans; exact charge and refund; parallel uses never overdraw; payments settled exactly once; sign-in; the sign-up profile and GRIOT's briefing, account by account; documents read once, chosen per question, kept apart by account; the SEO audit's address guard |
+| **Worker on workerd** (`worker/test/run-workerd-tests.mjs`, 18 checks) | the same Worker on Cloudflare's real runtime, with D1 and the HTML reader |
 | **Browser end to end** (over 200 checks) | Try → sign up → welcome steps → use → plan wall → plan or top-up, the Rehearsal Room, the GRIOT workspace, on desktop and phone |
 | **Site structure** | every page parses, local links resolve, structured data is valid |
 
@@ -163,7 +164,7 @@ Full setup, step by step: [`worker/README.md`](worker/README.md).
 
 GRIOT is named after West Africa's griot (*jeli*): the keeper of memory, adviser to leaders and storyteller. It has two marks with two jobs:
 - **The Griot** is the signature. A portrait in a ring of *bogolan* marks (Mali's mud cloth) on barkcloth brown (Buganda's *lubugo*). Its nine dots are GRIOT's nine steps. It introduces GRIOT, at most once per screen.
-- **The G** is the symbol: glasses and a smile drawn as a G, clean enough for a 16 px browser tab.
+- **The G** is the symbol: glasses and a smile drawn as a G, clean enough for a 16 px browser tab. It is GRIOT's tab icon, its face beside every answer, and, ringed by nine dots that light one by one, how GRIOT shows it is thinking. Each step carries a proverb (`griot-proverbs.js`).
 
 **Slogans:**
 - Everyday line: *"The storyteller who remembers you."*
@@ -179,8 +180,8 @@ GRIOT is named after West Africa's griot (*jeli*): the keeper of memory, adviser
 | 3 | Monthly plans in place of per-use prices; the Clarity Audit inside the Studio; POLSΘ | on the preview |
 | 4 | GRIOT workspace: lenses, the 9 steps, memory, conversations, decisions | on the preview (switches on with GRIOT PR #24) |
 | 5 | Sign-up profile (who you are, your challenge); GRIOT briefed from day one | on the preview (briefing switches on with GRIOT PR #24) |
-| 6 | Documents for GRIOT, cited by page | planned |
-| 7 | The animated GRIOT mark everywhere; proverbs while GRIOT thinks | planned |
+| 6 | Documents for GRIOT, cited by page | on the preview (GRIOT cites them once GRIOT PR #25 is merged) |
+| 7 | GRIOT's mark, its own browser-tab icon, and a proverb at each of its nine steps while it thinks | on the preview (proverbs are placeholders until your engero) |
 
 ## Principles
 
