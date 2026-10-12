@@ -200,6 +200,7 @@ The Worker also supports sign-in by a 6-digit emailed code. It stays off (`email
   - GRIOT's `/projects` (your own ventures) is never reachable.
 - **Bounded turns:** every client question goes to GRIOT with `effort: "medium"` and an 8,000-token backstop (`GRIOT_CLIENT_EFFORT`, `GRIOT_CLIENT_MAX_TOKENS`). Effort shortens reasoning; the backstop only stops a runaway answer, and GRIOT says when one was cut short.
 - **Switching on:** this needs claude-central-agent PR #24 deployed, which reports `"workspace": true` on `/health`. Until then, the tabs and lens picker stay hidden and plain questions work as before.
+- **Challenge · Diagnose · Plan:** `POST /griot/chat` takes an optional `mode` (`challenge`, `diagnose` or `plan`; anything else is refused before a use is spent). It reaches GRIOT as `answer_mode`, a fixed instruction GRIOT holds itself, so no browser text becomes prompt text; the question is sent unchanged. Sent only when GRIOT's `/health` reports `"modes": true` (claude-central-agent PR #26); until then `/griot/workspace` lists no modes and the buttons stay hidden. One question is still one use.
 
 ## Know the customer: the sign-up profile
 
@@ -266,7 +267,7 @@ FROM payments WHERE status = 'paid' GROUP BY day ORDER BY day DESC;
 cd worker && npm install && cd .. && node --experimental-sqlite worker/test/run-tests.mjs
 ```
 
-The business rules, fast, in plain Node (158 tests): the real `worker.js` against an in-memory D1, with Google, GRIOT, Flutterwave and audited sites faked at the network edge only. Google sign-in is tested with real RS256 signatures, so forged keys, `alg: none` and edited tokens are refused by actual cryptography rather than a stub. It also fails if any page quotes a different price from the Worker.
+The business rules, fast, in plain Node (160 tests): the real `worker.js` against an in-memory D1, with Google, GRIOT, Flutterwave and audited sites faked at the network edge only. Google sign-in is tested with real RS256 signatures, so forged keys, `alg: none` and edited tokens are refused by actual cryptography rather than a stub. It also fails if any page quotes a different price from the Worker.
 
 ```
 cd worker && npm install && npm install --no-save miniflare@4 wrangler@4 && node test/run-workerd-tests.mjs
