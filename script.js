@@ -93,7 +93,28 @@
   // the account changes, and other tabs follow through the storage event.
   var SESSION_KEY = "sp_studio_session";
 
+  function storedAccount() {
+    try {
+      var s = JSON.parse(storageGet(SESSION_KEY) || "null");
+      if (s && s.token && !(s.expiresAt && s.expiresAt * 1000 < Date.now())) return s.account || null;
+    } catch (e) { /* unreadable: treat as signed out */ }
+    return null;
+  }
+
+  // "Hi Thomas, welcome back" wherever a page has [data-greeting], once the
+  // account says what to call the person; hidden otherwise.
+  function renderGreeting() {
+    var acct = API_BASE ? storedAccount() : null;
+    var name = acct && typeof acct.greetName === "string" ? acct.greetName.trim() : "";
+    var hosts = document.querySelectorAll("[data-greeting]");
+    for (var i = 0; i < hosts.length; i++) {
+      hosts[i].textContent = name ? "Hi " + name + ", welcome back" : "";
+      hosts[i].hidden = !name;
+    }
+  }
+
   function renderAccountLink() {
+    renderGreeting();
     var nav = document.getElementById("navLinks");
     if (!nav) return;
     var link = nav.querySelector(".nav-account");
@@ -107,11 +128,7 @@
       link.href = "account.html";
       nav.insertBefore(link, nav.querySelector(".nav-cta"));
     }
-    var acct = null;
-    try {
-      var s = JSON.parse(storageGet(SESSION_KEY) || "null");
-      if (s && s.token && !(s.expiresAt && s.expiresAt * 1000 < Date.now())) acct = s.account || null;
-    } catch (e) { acct = null; }
+    var acct = storedAccount();
     link.textContent = "";
     if (!acct) {
       link.textContent = "Sign in";
@@ -214,7 +231,7 @@
     });
 
     // Returning to desktop width must not leave a hidden panel marked open.
-    var desktop = window.matchMedia("(min-width: 881px)");
+    var desktop = window.matchMedia("(min-width: 1101px)");
     var onBreakpoint = function (e) { if (e.matches) setNav(false); };
     if (desktop.addEventListener) desktop.addEventListener("change", onBreakpoint);
     else desktop.addListener(onBreakpoint); // Safari < 14

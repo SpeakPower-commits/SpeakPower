@@ -153,6 +153,7 @@
 
   function drawAccount(acct) {
     if (!acct) return;
+    if (acct.greetName) $("acTitle").textContent = "Hi " + acct.greetName + ", welcome back.";
     drawPlan(acct);
     $("acBalance").textContent = A.formatUgx(acct.balance);
     $("acTries").textContent = (Number(acct.trialsRemaining) || 0) + " of " + (acct.freeTrials || 3);
@@ -243,6 +244,7 @@
       .map(function (f) { return f.name; });
     var lines = [
       ["Who", p.name + ", " + p.position + " at " + p.company],
+      ["Call me", p.callMe],
       ["Expertise", p.expertise],
       ["Sector", sectorName],
       ["Based in", p.location],

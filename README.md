@@ -143,7 +143,7 @@ Full setup, step by step: [`worker/README.md`](worker/README.md).
 
 | Suite | What it proves |
 |---|---|
-| **Worker logic** (`worker/test/run-tests.mjs`, 157 checks) | prices match the site; free tries and plans; exact charge and refund; parallel uses never overdraw; payments settled exactly once; sign-in; the sign-up profile and GRIOT's briefing, account by account; documents read once, chosen per question, kept apart by account; the SEO audit's address guard |
+| **Worker logic** (`worker/test/run-tests.mjs`, 158 checks) | prices match the site; free tries and plans; exact charge and refund; parallel uses never overdraw; payments settled exactly once; sign-in; the sign-up profile and GRIOT's briefing, account by account; documents read once, chosen per question, kept apart by account; the SEO audit's address guard |
 | **Worker on workerd** (`worker/test/run-workerd-tests.mjs`, 18 checks) | the same Worker on Cloudflare's real runtime, with D1 and the HTML reader |
 | **Browser end to end** (over 200 checks) | Try → sign up → welcome steps → use → plan wall → plan or top-up, the Rehearsal Room, the GRIOT workspace, on desktop and phone |
 | **Site structure** | every page parses, local links resolve, structured data is valid |
@@ -153,6 +153,8 @@ Full setup, step by step: [`worker/README.md`](worker/README.md).
 <p align="center"><img src="assets/readme/palette.svg" alt="Midnight and Gold palette" width="100%"></p>
 
 **Midnight & Gold.** SpeakPower's navy, gold and Fraunces, given more depth: midnight for the moments that sell, warm ivory for reading, gold for what matters. Barkcloth brown is the one accent from home, used at most once per screen. Signal colours appear only inside scores. Every text colour pair meets WCAG AA contrast. Tokens live in `styles.css`.
+
+**Icons.** Line icons from [Lucide](https://lucide.dev) (ISC licence) and the WhatsApp, LinkedIn, Instagram and TikTok marks from [Simple Icons](https://simpleicons.org) (CC0), inlined in `styles.css` (section 8c) as CSS masks so they take the colour of their text. They are decorative: the words beside them carry the meaning.
 
 ### GRIOT's marks
 
