@@ -80,6 +80,10 @@ const PAGES = {
     '<title>Second title</title><meta name="description" content="A second description"></head>')),
   "https://entities.test/": () => html("<html lang=en><head><title>Tom &amp; Jerry&#39;s &mdash; Kampala</title></head><body><h1>x</h1></body></html>"),
   "https://huge.test/": () => html(CLEAN.replace("</body>", "<p>" + "x".repeat(600 * 1024) + "</p></body>")),
+  // Sends the whole head, then stops sending (a host that stalls half-way).
+  "https://stalls.test/": () => new Response(new ReadableStream({
+    start(c) { c.enqueue(new TextEncoder().encode(CLEAN.slice(0, CLEAN.indexOf("</head>") + 7))); }
+  }), { headers: { "Content-Type": "text/html; charset=utf-8" } }),
   "https://moved.test/": () => new Response(null, { status: 301, headers: { Location: "https://clean.test/" } }),
   "https://sneaky.test/": () => new Response(null, { status: 302, headers: { Location: "http://169.254.169.254/latest/meta-data/" } })
 };
@@ -443,6 +447,14 @@ await test("seo: an oversized page is inspected up to the cap, then reported", a
   const r = await audit("https://huge.test");
   eq(r.status, 200);
   ok(/first 512 KB inspected/.test(section(r, "Audited page")), section(r, "Audited page"));
+});
+
+await test("seo: a page that stalls half-way is reported on what arrived (15 s, real time)", async () => {
+  const r = await audit("https://stalls.test");
+  eq(r.status, 200, r.data.message);
+  ok(/inspected; the rest of the page was too slow to arrive/.test(section(r, "Audited page")), section(r, "Audited page"));
+  // The head was read by the real HTML parser before the stall.
+  ok(/^Page title: 54 characters/m.test(section(r, "Already correct")), "facts from the part that arrived");
 });
 
 await test("seo: redirects are followed by hand on workerd; a hop to a private address is refused", async () => {

@@ -184,9 +184,11 @@ Two layers. **SpeakPower's own checks** fetch the customer's page and read it wi
 
 The Worker fetches an address the customer types, so it only fetches public websites by domain name, on the normal ports, and re-checks every redirect before following it. Only an unreadable page fails an audit — and that is refunded.
 
+**Order and limits.** The page is read first and Lighthouse runs after it, never at the same moment: Google loads the same site, and on a small host that serves one visitor at a time our own request used to queue behind Google's and time out. The site gets 15 seconds to start answering, and is asked a second time if it does not; then 15 seconds to send the page. A page that stalls half-way is reported on what arrived. Lighthouse has 55 seconds, so an audit takes up to about a minute.
+
 There is deliberately no result cache: a customer who fixes their site and pays to run the audit again must get today's page.
 
-**Plan note:** the free Workers plan allows 10 ms of CPU per request. Reading a large page plus Google's Lighthouse response can come close. If the Worker's logs show "exceeded CPU" on audits, the Workers Paid plan ($5 a month) lifts the limit to 30 seconds.
+**Plan note:** the free Workers plan allows 10 ms of CPU per request. Google's full Lighthouse reply runs to megabytes (mostly screenshots), so the Worker asks only for the scores and audit titles it uses (`fields`); if Google ever refuses that selection, it asks once more for the full reply and logs it. If the Worker's logs show "exceeded CPU" on audits, the Workers Paid plan ($5 a month) lifts the limit to 30 seconds.
 
 ## Email-code sign-in (optional, off by default)
 
@@ -267,10 +269,10 @@ FROM payments WHERE status = 'paid' GROUP BY day ORDER BY day DESC;
 cd worker && npm install && cd .. && node --experimental-sqlite worker/test/run-tests.mjs
 ```
 
-The business rules, fast, in plain Node (160 tests): the real `worker.js` against an in-memory D1, with Google, GRIOT, Flutterwave and audited sites faked at the network edge only. Google sign-in is tested with real RS256 signatures, so forged keys, `alg: none` and edited tokens are refused by actual cryptography rather than a stub. It also fails if any page quotes a different price from the Worker.
+The business rules, fast, in plain Node (170 tests): the real `worker.js` against an in-memory D1, with Google, GRIOT, Flutterwave and audited sites faked at the network edge only. Google sign-in is tested with real RS256 signatures, so forged keys, `alg: none` and edited tokens are refused by actual cryptography rather than a stub. It also fails if any page quotes a different price from the Worker.
 
 ```
 cd worker && npm install && npm install --no-save miniflare@4 wrangler@4 && node test/run-workerd-tests.mjs
 ```
 
-The Worker bundled exactly as Workers Builds deploys it (`wrangler deploy --dry-run`), on **workerd**, the engine Cloudflare runs Workers on (18 tests): real D1, the real HTML parser for the SEO audit, WebCrypto sign-in, the exactly-once top-up under truly concurrent notifications, the sign-up profile briefing GRIOT, and a document read and kept as facts. It also audits this site's own pages.
+The Worker bundled exactly as Workers Builds deploys it (`wrangler deploy --dry-run`), on **workerd**, the engine Cloudflare runs Workers on (19 tests): real D1, the real HTML parser for the SEO audit, WebCrypto sign-in, the exactly-once top-up under truly concurrent notifications, the sign-up profile briefing GRIOT, and a document read and kept as facts. It also audits this site's own pages.

@@ -777,11 +777,22 @@ const PRODUCTS = {
    ------------------------------------------------------------------------ */
 
 const AUDIT_MAX_HTML_BYTES = 512 * 1024;
-const AUDIT_HTML_TIMEOUT_MS = 12000;
+// How long the site has to start answering (redirects included), and how
+// many times it is asked. A slow small host gets a second chance; a real
+// answer (404, not a page, a blocked redirect) is never asked again.
+const AUDIT_ANSWER_TIMEOUT_MS = 15000;
+const AUDIT_ANSWER_TRIES = 2;
+// Then how long it has to send the page itself.
+const AUDIT_READ_TIMEOUT_MS = 15000;
 const AUDIT_LIGHTHOUSE_TIMEOUT_MS = 55000;
 const AUDIT_MAX_REDIRECTS = 5;
 const AUDIT_BLOCKED_HOSTS = [/^localhost$/i, /\.localhost$/i, /\.local$/i, /\.internal$/i, /\.home\.arpa$/i, /^metadata\./i];
 const LIGHTHOUSE_CATEGORIES = ["seo", "performance", "accessibility", "best-practices"];
+// Only what fetchLighthouse reads. Google's full reply carries screenshots
+// and runs to megabytes; parsing that can exceed the Workers free plan's CPU
+// limit, which kills the request before the customer's try can be refunded.
+const LIGHTHOUSE_FIELDS = ["categories/*/score", "audits/*/title", "audits/*/score", "audits/*/scoreDisplayMode", "audits/*/displayValue"]
+  .map((p) => "lighthouseResult/" + p).join(",");
 
 function invalidUrl(message) {
   return new HttpError(400, "invalid_url", message, { field: "url" });
@@ -816,9 +827,13 @@ function normaliseTarget(raw) {
 }
 
 async function runSeoAudit(env, target) {
-  // Both layers at once. Only inspectPage may fail the run: without the page
-  // there is no deliverable.
-  const [facts, lighthouse] = await Promise.all([inspectPage(target), fetchLighthouse(env, target)]);
+  // One after the other, never side by side: Lighthouse loads the same site,
+  // and on a small host that serves one visitor at a time our own request
+  // queued behind Google's and timed out. Only inspectPage may fail the run:
+  // without the page there is no deliverable, and then Google's quota is not
+  // spent either.
+  const facts = await inspectPage(target);
+  const lighthouse = await fetchLighthouse(env, target);
   return buildAuditSections(target, facts, lighthouse);
 }
 
@@ -832,18 +847,30 @@ async function fetchLighthouse(env, target) {
     return unavailable("Google Lighthouse scores are not switched on for this service yet, so this report contains the SpeakPower technical checks only.");
   }
 
-  const endpoint = new URL("https://www.googleapis.com/pagespeedonline/v5/runPagespeed");
-  endpoint.searchParams.set("url", target);
-  endpoint.searchParams.set("strategy", "mobile");
-  endpoint.searchParams.set("key", env.PAGESPEED_KEY);
-  for (const c of LIGHTHOUSE_CATEGORIES) endpoint.searchParams.append("category", c);
+  const endpoint = (trimmed) => {
+    const u = new URL("https://www.googleapis.com/pagespeedonline/v5/runPagespeed");
+    u.searchParams.set("url", target);
+    u.searchParams.set("strategy", "mobile");
+    u.searchParams.set("key", env.PAGESPEED_KEY);
+    for (const c of LIGHTHOUSE_CATEGORIES) u.searchParams.append("category", c);
+    if (trimmed) u.searchParams.set("fields", LIGHTHOUSE_FIELDS);
+    return u.toString();
+  };
 
   const controller = new AbortController();
+  // One limit across both calls below, so the fallback never doubles the wait.
   const timer = setTimeout(() => controller.abort(), AUDIT_LIGHTHOUSE_TIMEOUT_MS);
   try {
-    const res = await fetch(endpoint.toString(), { signal: controller.signal });
+    let res = await fetch(endpoint(true), { signal: controller.signal });
+    let detail = res.ok ? null : await res.json().catch(() => null);
+    if (res.status === 400 && isFieldSelectionFault(detail)) {
+      // Our field list was refused. The scores matter more than the saving:
+      // ask once more for the full reply, and log it so the list gets fixed.
+      console.error("PageSpeed refused the field selection; asking without it", detail && detail.error && detail.error.message);
+      res = await fetch(endpoint(false), { signal: controller.signal });
+      detail = res.ok ? null : await res.json().catch(() => null);
+    }
     if (!res.ok) {
-      const detail = await res.json().catch(() => null);
       const err = (detail && detail.error) || {};
       const reasons = [].concat(err.details || [], err.errors || []).map((d) => String((d && d.reason) || ""));
       // A bad key or a disabled API is OUR fault. Reporting it as "your page
@@ -887,12 +914,32 @@ async function fetchLighthouse(env, target) {
   }
 }
 
+// Google's answer when a `fields` selection is not valid for this API.
+function isFieldSelectionFault(detail) {
+  const err = (detail && detail.error) || {};
+  return /field selection/i.test(String(err.message || "")) ||
+    [].concat(err.errors || []).some((d) => d && d.location === "fields");
+}
+
 /* ---- Layer 2: SpeakPower's own checks of the live page ---- */
 
-// Fetches the page, following redirects by hand so every hop is re-checked.
+// Fetches the page. A site that does not answer at all (too slow, or the
+// connection dropped) is asked once more; every real answer is final.
 async function fetchAuditPage(target) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fetchAuditPageOnce(target);
+    } catch (e) {
+      if (!e.noAnswer || attempt >= AUDIT_ANSWER_TRIES) throw e;
+    }
+  }
+}
+
+// One try, following redirects by hand so every hop is re-checked. The time
+// limit covers the whole redirect chain, up to the moment the page answers.
+async function fetchAuditPageOnce(target) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), AUDIT_HTML_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), AUDIT_ANSWER_TIMEOUT_MS);
   try {
     let url = target;
     for (let hop = 0; ; hop++) {
@@ -909,9 +956,11 @@ async function fetchAuditPage(target) {
           }
         });
       } catch (e) {
-        throw new HttpError(502, "page_unreachable", e && e.name === "AbortError"
-          ? "That page did not respond within " + AUDIT_HTML_TIMEOUT_MS / 1000 + " seconds, so it could not be inspected."
-          : "That page could not be reached. Check the address and that the site is public.");
+        const err = new HttpError(502, "page_unreachable", e && e.name === "AbortError"
+          ? "That page did not start answering within " + AUDIT_ANSWER_TIMEOUT_MS / 1000 + " seconds (asked twice), so it could not be inspected."
+          : "That page could not be reached (tried twice). Check the address and that the site is public.");
+        err.noAnswer = true;
+        throw err;
       }
       if (res.status >= 300 && res.status < 400 && res.headers.get("Location")) {
         if (hop >= AUDIT_MAX_REDIRECTS) {
@@ -924,17 +973,26 @@ async function fetchAuditPage(target) {
         url = next;
         continue;
       }
-      return { res, url, startedTimer: timer };
+      return { res, url };
     }
-  } catch (e) {
+  } finally {
+    // The page has answered (or failed). Reading it has its own limit in
+    // inspectPage, so this timer must not abort the body half-way.
     clearTimeout(timer);
-    throw e;
   }
+}
+
+// One read from the stream, or null when the deadline passes first.
+function readBefore(reader, deadline) {
+  let timer;
+  const late = new Promise((resolve) => { timer = setTimeout(() => resolve(null), Math.max(0, deadline - Date.now())); });
+  return Promise.race([reader.read(), late]).finally(() => clearTimeout(timer));
 }
 
 async function inspectPage(target) {
   const startedAt = Date.now();
-  const { res, url: finalUrl, startedTimer } = await fetchAuditPage(target);
+  const { res, url: finalUrl } = await fetchAuditPage(target);
+  let reading = false;
   try {
     if (res.status >= 400) {
       throw new HttpError(502, "page_unreachable", "That address answered with HTTP " + res.status + ", so there is no page to audit.");
@@ -946,7 +1004,7 @@ async function inspectPage(target) {
 
     const facts = {
       finalUrl, status: res.status, https: finalUrl.startsWith("https://"), redirected: finalUrl !== target,
-      bytes: 0, truncated: false, elapsedMs: 0,
+      bytes: 0, truncated: false, stalled: false, elapsedMs: 0,
       lang: "", title: "", titles: 0, metaDescription: "", descriptions: 0,
       robots: "", robotsHeader: res.headers.get("X-Robots-Tag") || "", canonical: "", viewport: "",
       headings: { h1: 0, h2: 0, h3: 0, h4: 0, h5: 0, h6: 0 }, headingOrder: [],
@@ -1034,12 +1092,26 @@ async function inspectPage(target) {
         text(chunk) { if (prose.length < 200000) prose += chunk.text + " "; }
       });
 
-    // Read under a hard byte cap, so one enormous page cannot exhaust the Worker.
+    // Read under a hard byte cap, so one enormous page cannot exhaust the
+    // Worker, and a time limit, so a page that stalls half-way is reported on
+    // what did arrive (the head, where most of these checks live, comes first).
+    reading = true;
     const reader = rewriter.transform(res).body.getReader();
+    const deadline = Date.now() + AUDIT_READ_TIMEOUT_MS;
     for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      facts.bytes += value ? value.byteLength : 0;
+      const next = await readBefore(reader, deadline);
+      if (next === null) {
+        reader.cancel().catch(() => {}); // not awaited: the stream is the thing that stalled
+        if (!facts.bytes) {
+          throw new HttpError(502, "page_unreachable", "That page started to answer but sent nothing within " +
+            AUDIT_READ_TIMEOUT_MS / 1000 + " seconds, so it could not be inspected.");
+        }
+        facts.truncated = true;
+        facts.stalled = true;
+        break;
+      }
+      if (next.done) break;
+      facts.bytes += next.value ? next.value.byteLength : 0;
       if (facts.bytes > AUDIT_MAX_HTML_BYTES) {
         facts.truncated = true;
         await reader.cancel().catch(() => {});
@@ -1051,7 +1123,9 @@ async function inspectPage(target) {
     facts.proseWords = words ? words.split(/\s+/).length : 0;
     return facts;
   } finally {
-    clearTimeout(startedTimer);
+    // A refused answer (an error status, not a web page) is never read: let
+    // its connection go.
+    if (!reading && res.body) res.body.cancel().catch(() => {});
   }
 }
 
@@ -1195,7 +1269,8 @@ function buildAuditSections(target, f, lighthouse) {
     f.finalUrl,
     f.redirected ? "Redirected from " + target : null,
     "HTTP " + f.status + " · " + Math.max(1, Math.round(f.bytes / 1024)) + " KB of HTML" +
-      (f.truncated ? " (first " + AUDIT_MAX_HTML_BYTES / 1024 + " KB inspected)" : "") + " · answered in " + f.elapsedMs + " ms"
+      (f.stalled ? " inspected; the rest of the page was too slow to arrive"
+        : f.truncated ? " (first " + AUDIT_MAX_HTML_BYTES / 1024 + " KB inspected)" : "") + " · answered in " + f.elapsedMs + " ms"
   ].filter(Boolean).join("\n")]);
 
   sections.push(["Summary", fails.length + " to fix, " + warns.length + " to review, " + passes.length + " already correct."]);

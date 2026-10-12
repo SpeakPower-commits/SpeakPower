@@ -49,7 +49,7 @@
       fields: [
         ["url", "Website address", "example.com", "url"]
       ],
-      busy: "Auditing…",
+      busy: "Auditing… (up to a minute)",
       privacy: "SpeakPower fetches the public page you name, the way a search engine would. Nothing about the page is stored; your account keeps only that you ran an audit."
     },
 

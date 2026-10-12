@@ -54,7 +54,21 @@ class FakeD1 {
 
 /* ------------------------------------------------------- outbound fakes */
 
-const net = { pagespeed: "ok", griot: "ok", pagespeedCalls: [], pageFetches: [] };
+const net = { pagespeed: "ok", griot: "ok", pagespeedCalls: [], pageFetches: [], events: [] };
+
+// Waits like a slow server, but gives up the moment the request is aborted,
+// exactly as fetch does.
+function stall(ms, init) {
+  return new Promise((resolve, reject) => {
+    const signal = init && init.signal;
+    const abort = () => { clearTimeout(t); reject(new DOMException("The operation was aborted.", "AbortError")); };
+    const t = ms === Infinity ? null : setTimeout(resolve, ms);
+    if (signal && signal.aborted) return abort();
+    if (signal) signal.addEventListener("abort", abort, { once: true });
+  });
+}
+const SLOW_HTML = "<!doctype html><html lang=en><title>Slow but there</title><h1>Hi</h1></html>";
+const htmlResponse = (body) => new Response(body, { headers: { "Content-Type": "text/html; charset=utf-8" } });
 // The public half of a real RSA key the tests sign Google ID tokens with, so
 // the Worker's signature check runs for real rather than against a stub.
 const googleJwks = { keys: [] };
@@ -235,6 +249,12 @@ globalThis.fetch = async (input, init) => {
   }
   if (url.startsWith("https://www.googleapis.com/pagespeedonline/")) {
     net.pagespeedCalls.push(url);
+    net.events.push("lighthouse");
+    if (net.pagespeed === "slow") await stall(Infinity, init); // until the Worker gives up
+    if (net.pagespeed === "nofields" && new URL(url).searchParams.has("fields")) {
+      return new Response(JSON.stringify({ error: { code: 400, message: "Invalid field selection lighthouseResult/categories/*/score",
+        errors: [{ reason: "invalidParameter", location: "fields", locationType: "parameter" }] } }), { status: 400 });
+    }
     if (net.pagespeed === "fail") return new Response("nope", { status: 500 });
     if (net.pagespeed === "quota") return new Response(JSON.stringify({ error: { code: 429, message: "Quota exceeded" } }), { status: 429 });
     if (net.pagespeed === "badkey") {
@@ -281,8 +301,9 @@ globalThis.fetch = async (input, init) => {
   const page = PAGES[url.replace(/\/$/, "")];
   if (page !== undefined) {
     net.pageFetches.push({ url, redirect: init && init.redirect });
+    net.events.push("page");
     if (page === "unreachable") throw new TypeError("fetch failed");
-    if (typeof page === "function") return page();
+    if (typeof page === "function") return page(init);
     return new Response(page, { headers: { "Content-Type": "text/html; charset=utf-8" } });
   }
   throw new Error("Unexpected outbound fetch in tests: " + url); // never the real network
@@ -295,7 +316,22 @@ const PAGES = {
   "https://pdf.test": () => new Response("%PDF-1.7", { headers: { "Content-Type": "application/pdf" } }),
   "https://moved.test": () => new Response(null, { status: 301, headers: { Location: "https://example.com/" } }),
   "https://sneaky.test": () => new Response(null, { status: 302, headers: { Location: "http://169.254.169.254/latest/meta-data/" } }),
-  "https://loop.test": () => new Response(null, { status: 302, headers: { Location: "https://loop.test/" } })
+  "https://loop.test": () => new Response(null, { status: 302, headers: { Location: "https://loop.test/" } }),
+  // A small host that takes 13 seconds to start answering (the old limit was 12).
+  "https://slow.test": async (init) => { await stall(13000, init); net.events.push("page answered"); return htmlResponse(SLOW_HTML); },
+  // Hangs the first time it is asked, answers the second.
+  "https://flaky.test": async (init) => {
+    if (net.pageFetches.filter((x) => x.url === "https://flaky.test/").length === 1) await stall(Infinity, init);
+    return htmlResponse(SLOW_HTML);
+  },
+  // Never answers at all.
+  "https://hung.test": (init) => stall(Infinity, init),
+  // Sends the head of the page, then stops sending.
+  "https://stalls.test": () => new Response(new ReadableStream({
+    start(c) { c.enqueue(new TextEncoder().encode("<!doctype html><html lang=en><head><title>Half a page</title>")); }
+  }), { headers: { "Content-Type": "text/html" } }),
+  // Answers at once, then sends nothing.
+  "https://silent.test": () => new Response(new ReadableStream({ start() {} }), { headers: { "Content-Type": "text/html" } })
 };
 
 /* ------------------------------------------------------------- harness */
@@ -1462,6 +1498,125 @@ await test("seo: redirects are followed by hand, and every hop is checked", asyn
   eq(net.pageFetches.map((x) => x.url + " " + x.redirect).join(" | "),
     "https://moved.test/ manual | https://example.com/ manual", "never redirect: follow");
   ok(/Redirected from https:\/\/moved\.test\//.test(r.data.sections[0][1]), "the report says it was redirected");
+  delete env.PAGESPEED_KEY;
+});
+
+/* ------------------------- SEO audit: slow sites, and Google loading them */
+
+// Runs fn with every timer 50 times faster, so a 15-second limit takes 0.3 s.
+// The Worker and the stand-in sites both read the global setTimeout, so their
+// waits shrink together and keep their real proportions.
+async function fastClock(fn) {
+  const real = globalThis.setTimeout;
+  globalThis.setTimeout = (cb, ms, ...rest) => real(cb, ms === Infinity ? ms : (ms || 0) / 50, ...rest);
+  try { return await fn(); } finally { globalThis.setTimeout = real; }
+}
+const auditedLine = (r) => r.data.sections[0][1];
+
+await test("seo: the page is read first and Lighthouse runs after it, never side by side", async () => {
+  const s = await signUp("seo-order@example.com");
+  env.PAGESPEED_KEY = "psi-test-key";
+  net.events.length = 0;
+  const r = await fastClock(() => audit(s.token, "https://slow.test"));
+  eq(r.status, 200, "a site slower than the old 12-second limit is audited");
+  eq(net.events.join(" > "), "page > page answered > lighthouse", "Google never loads the site while we are reading it");
+  ok(/^Seo: 82 \/ 100$/m.test(lighthouseSection(r)[1]), "scores still added");
+  eq(r.data.paidWith, "trial");
+  delete env.PAGESPEED_KEY;
+});
+
+await test("seo: a page that cannot be read never spends Google's quota", async () => {
+  const s = await signUp("seo-noquota@example.com");
+  env.PAGESPEED_KEY = "psi-test-key";
+  net.pagespeedCalls.length = 0;
+  const r = await audit(s.token, "https://down.test");
+  eq(r.status, 502);
+  eq(net.pagespeedCalls.length, 0, "no Lighthouse call for a page we could not read");
+  delete env.PAGESPEED_KEY;
+});
+
+await test("seo: a site that hangs once is asked again and audited", async () => {
+  const s = await signUp("seo-flaky@example.com");
+  net.pageFetches.length = 0;
+  const r = await fastClock(() => audit(s.token, "https://flaky.test"));
+  eq(r.status, 200, "delivered on the second try");
+  eq(net.pageFetches.filter((x) => x.url === "https://flaky.test/").length, 2, "asked exactly twice");
+});
+
+await test("seo: a site that never answers fails clearly, after two tries, and is refunded", async () => {
+  const email = "seo-hung@example.com";
+  const s = await signUp(email);
+  net.pageFetches.length = 0;
+  const r = await fastClock(() => audit(s.token, "https://hung.test"));
+  eq(r.status, 502); eq(r.data.error, "generation_failed");
+  ok(/did not start answering within 15 seconds \(asked twice\)/.test(r.data.message), r.data.message);
+  eq(net.pageFetches.length, 2, "one retry, no more");
+  eq(userRow(email).trials_remaining, 3, "try given back");
+});
+
+await test("seo: a refused answer is final, not retried", async () => {
+  const s = await signUp("seo-404once@example.com");
+  net.pageFetches.length = 0;
+  const r = await audit(s.token, "https://missing.test");
+  eq(r.status, 502);
+  eq(net.pageFetches.length, 1, "a 404 is an answer: asked once");
+  const down = await audit(s.token, "https://down.test");
+  eq(down.status, 502);
+  ok(/could not be reached \(tried twice\)/.test(down.data.message), down.data.message);
+});
+
+await test("seo: a page that stalls half-way is reported on what arrived", async () => {
+  const s = await signUp("seo-stalls@example.com");
+  const r = await fastClock(() => audit(s.token, "https://stalls.test"));
+  eq(r.status, 200, "delivered");
+  ok(/inspected; the rest of the page was too slow to arrive/.test(auditedLine(r)), auditedLine(r));
+  eq(r.data.paidWith, "trial", "a delivered report is a used try");
+});
+
+await test("seo: a page that answers but sends nothing fails clearly and is refunded", async () => {
+  const email = "seo-silent@example.com";
+  const s = await signUp(email);
+  const r = await fastClock(() => audit(s.token, "https://silent.test"));
+  eq(r.status, 502);
+  ok(/sent nothing within 15 seconds/.test(r.data.message), r.data.message);
+  eq(userRow(email).trials_remaining, 3, "try given back");
+});
+
+await test("seo: Lighthouse past its limit still delivers the report, and is charged", async () => {
+  const s = await signUp("seo-slowgoogle@example.com");
+  env.PAGESPEED_KEY = "psi-test-key";
+  net.pagespeed = "slow";
+  const r = await fastClock(() => audit(s.token));
+  net.pagespeed = "ok";
+  eq(r.status, 200);
+  ok(/took too long on this page and was stopped/.test(lighthouseSection(r)[1]), lighthouseSection(r)[1]);
+  eq(r.data.paidWith, "trial");
+  delete env.PAGESPEED_KEY;
+});
+
+await test("seo: Google is asked only for what the report reads", async () => {
+  const s = await signUp("seo-fields@example.com");
+  env.PAGESPEED_KEY = "psi-test-key";
+  net.pagespeedCalls.length = 0;
+  const r = await audit(s.token);
+  eq(r.status, 200);
+  eq(net.pagespeedCalls.length, 1);
+  eq(new URL(net.pagespeedCalls[0]).searchParams.get("fields"),
+    "lighthouseResult/categories/*/score,lighthouseResult/audits/*/title,lighthouseResult/audits/*/score," +
+    "lighthouseResult/audits/*/scoreDisplayMode,lighthouseResult/audits/*/displayValue");
+  delete env.PAGESPEED_KEY;
+});
+
+await test("seo: if Google refuses the field selection, it is asked once more without it", async () => {
+  const s = await signUp("seo-nofields@example.com");
+  env.PAGESPEED_KEY = "psi-test-key";
+  net.pagespeed = "nofields";
+  net.pagespeedCalls.length = 0;
+  const r = await audit(s.token);
+  net.pagespeed = "ok";
+  eq(r.status, 200);
+  eq(net.pagespeedCalls.map((u) => new URL(u).searchParams.has("fields")).join(","), "true,false", "trimmed, then full");
+  ok(/^Seo: 82 \/ 100$/m.test(lighthouseSection(r)[1]), "scores still in the report");
   delete env.PAGESPEED_KEY;
 });
 
