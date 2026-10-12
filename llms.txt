@@ -35,8 +35,8 @@ POLSΘ (also written POLSSE; Θ, theta, stands for Socioeconomics) is a SpeakPow
 
 ## Selected work
 
-- **Tonninyira** — a browser-first commerce system designed around product discovery, customer ordering, digital payments and operational workflows.
-- **CuePointe** — a pool tournament and league concept designed around players, events, matches, talent records and community visibility.
+- **Tonninyira** — a browser-first commerce system designed around product discovery, customer ordering, digital payments and operational workflows. Live: https://speakpower-commits.github.io/tonninyira/
+- **CuePointe** — a pool tournament and league concept designed around players, events, matches, talent records and community visibility. Live: https://speakpower-commits.github.io/CuePointe.github.io/
 
 SpeakPower publishes verified outcomes rather than invented case-study numbers. Future case studies follow **Problem → Strategy → Build → Outcome**.
 
@@ -60,8 +60,8 @@ SpeakPower starts with audience and context rather than generic communication fo
 
 ## SpeakPower ventures
 
-- **Tonninyira** — an online marketing app bringing local vendors to customers.
-- **CuePointe** — a cuesports marketing and community platform focused on events, talent visibility and participation.
+- **Tonninyira** — an online marketing app bringing local vendors to customers. https://speakpower-commits.github.io/tonninyira/
+- **CuePointe** — a cuesports marketing and community platform focused on events, talent visibility and participation. https://speakpower-commits.github.io/CuePointe.github.io/
 
 ## Plans
 
