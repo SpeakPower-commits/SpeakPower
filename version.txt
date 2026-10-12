@@ -6,12 +6,12 @@ Open this file on the live site to see which build GitHub Pages is serving:
     https://speakpower-commits.github.io/SpeakPower/version.txt
 
 branch:   claude/studio-griot-live
-build:    audit fix (2026-10-12): the website audit reads the page first,
-          then asks Google for Lighthouse; a slow site is asked twice
-expects:  studio-product.html?product=seo-audit — the button reads
-                       "Auditing… (up to a minute)" while it runs; with
-                       the Google key set, the report includes "Google
-                       Lighthouse scores (mobile)"
+build:    release 9 (2026-10-12): the website audit reads the whole site,
+          checks private areas, adds Lighthouse and a strategic read, and
+          delivers a branded report in Word and PDF (UGX 150,000)
+expects:  studio-product.html?product=seo-audit — "Audit my website",
+                       an "Extra pages" box, then a progress list and a
+                       midnight report cover with the score ring
 
 If this file still shows an older build, Pages has not rebuilt yet: wait a
 minute and reload. If it 404s, Pages is serving a different branch.

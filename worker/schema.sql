@@ -214,3 +214,34 @@ CREATE TABLE IF NOT EXISTS documents (
   updated_at  INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_documents_user ON documents (user_id, id);
+
+-- Website audits. The audit reads a whole site in short stages (the free
+-- Workers plan allows 10 ms of processing per call), so its progress and
+-- findings live here between calls: the site's own files, a compact record of
+-- each page read (no page is stored whole), the links and private-looking
+-- addresses checked, Lighthouse, and the strategic read. Kept 90 days for the
+-- client to reopen, then deleted by the daily run. `version` lets two calls
+-- never read the same page twice; the *_started columns hold a running stage.
+CREATE TABLE IF NOT EXISTS audits (
+  id                 TEXT PRIMARY KEY,
+  user_id            TEXT NOT NULL,
+  run_id             INTEGER,
+  target             TEXT NOT NULL,
+  prepared_for       TEXT NOT NULL DEFAULT '',
+  state              TEXT NOT NULL,
+  version            INTEGER NOT NULL DEFAULT 0,
+  site               TEXT NOT NULL,
+  pages              TEXT NOT NULL DEFAULT '[]',
+  queue              TEXT NOT NULL DEFAULT '[]',
+  links              TEXT NOT NULL DEFAULT '[]',
+  private            TEXT NOT NULL DEFAULT '[]',
+  lighthouse         TEXT,
+  lighthouse_tries   INTEGER NOT NULL DEFAULT 0,
+  lighthouse_started INTEGER NOT NULL DEFAULT 0,
+  strategy           TEXT,
+  strategy_tries     INTEGER NOT NULL DEFAULT 0,
+  strategy_started   INTEGER NOT NULL DEFAULT 0,
+  created_at         INTEGER NOT NULL,
+  updated_at         INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_audits_user ON audits (user_id, created_at);

@@ -774,3 +774,135 @@
   .griot-composer .builder-actions #gaSendBtn { flex: 1 1 0; width: auto; min-width: 0; }
   .griot-composer .builder-actions #gaNewBtn { flex-basis: 100%; }
 }
+
+/* ==========================================================================
+   The website audit's report (audit-report.js)
+   Midnight cover with the mark and the score; then the scores by area, the
+   strategic read, the findings, the pages, private areas, Google and the
+   method, on the ivory page. Status colours appear only in the small level
+   chips, and always with their word (Fix · Review · Correct).
+   ========================================================================== */
+.studio-builder-grid.has-report{grid-template-columns:minmax(0,1fr)}
+.studio-builder-grid.has-report .studio-output-panel{order:-1}
+
+.ar-progress{padding:1.25rem;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--paper)}
+.ar-progress-title{margin:0 0 .85rem;font:500 1.2rem/1.3 var(--font-display);color:var(--ink)}
+.ar-steps{display:grid;gap:.45rem;margin:0;padding:0;list-style:none}
+.ar-step{display:flex;justify-content:space-between;gap:1rem;padding:.6rem .8rem;border:1px solid var(--line);border-radius:var(--radius);background:var(--bg-raised);font-size:.9rem}
+.ar-step-state{flex:none;font-family:var(--font-mono);font-size:.72rem;letter-spacing:.04em;color:var(--text-muted)}
+.ar-step--done .ar-step-state{color:#1d6b4f}
+.ar-step--done .ar-step-state::before{content:"✓ "}
+.ar-step--running{border-color:var(--gold);box-shadow:inset 3px 0 0 var(--gold)}
+.ar-step--running .ar-step-state{color:var(--gold-text)}
+.ar-step--pending{color:var(--text-faint)}
+.ar-progress-note{margin:.85rem 0 0;font-size:.8rem;color:var(--text-faint)}
+
+.audit-report{display:grid;gap:1.5rem;color:var(--ink)}
+.ar-cover{
+  padding:clamp(1.25rem,1rem + 2vw,2.25rem);border-radius:var(--radius-lg);
+  background:radial-gradient(120% 140% at 100% 0%,rgba(201,162,39,.18),transparent 55%),var(--midnight);
+  color:var(--ivory);-webkit-print-color-adjust:exact;print-color-adjust:exact
+}
+.ar-brand{display:flex;align-items:center;gap:.6rem;margin-bottom:1.25rem;font:600 .78rem var(--font-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--gold-hi)}
+.ar-logo{width:44px;height:44px;border-radius:50%;background:var(--ivory);padding:3px}
+.ar-cover-grid{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1.5rem;align-items:center}
+.ar-kicker{margin:0 0 .35rem;font:600 .74rem var(--font-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--gold-hi)}
+.ar-site{margin:0 0 .5rem;font:500 clamp(1.8rem,1.2rem + 2.4vw,2.8rem)/1.1 var(--font-display);color:var(--ivory);overflow-wrap:anywhere}
+.ar-meta{margin:0 0 .2rem;color:var(--mist);font-size:.92rem}
+.ar-score{position:relative;width:150px;height:150px;flex:none}
+.ar-ring{width:100%;height:100%}
+.ar-ring-track{fill:none;stroke:rgba(255,255,255,.14);stroke-width:10}
+.ar-ring-value{fill:none;stroke:var(--gold-hi);stroke-width:10;stroke-linecap:round}
+.ar-score-num{position:absolute;inset:0;display:grid;place-content:center;text-align:center;line-height:1.1}
+.ar-score-num strong{font:500 2.6rem/1 var(--font-display);color:var(--ivory)}
+.ar-score-num span{font-size:.78rem;color:var(--mist)}
+.ar-score-num em{margin-top:.3rem;font:normal 600 .7rem var(--font-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--gold-hi)}
+
+.ar-section{padding-top:.25rem}
+.ar-h{margin:0 0 .85rem;padding-bottom:.5rem;border-bottom:2px solid var(--gold);font:500 1.35rem/1.25 var(--font-display);color:var(--ink)}
+.ar-h4{margin:1.1rem 0 .5rem;font-size:1rem;color:var(--navy)}
+.ar-lede{font-size:1.05rem;line-height:1.65}
+.ar-note{color:var(--text-muted);font-size:.92rem;line-height:1.6}
+
+.ar-cats{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.75rem}
+.ar-cat,.ar-clarity-row{padding:.75rem .85rem;border:1px solid var(--line);border-radius:var(--radius);background:var(--bg-raised)}
+.ar-cat-top{display:flex;justify-content:space-between;align-items:baseline;gap:.75rem}
+.ar-cat-name{font-weight:600;font-size:.9rem}
+.ar-cat-score{font:500 1.15rem var(--font-display);color:var(--navy)}
+.ar-bar{display:block;height:6px;margin:.45rem 0 .4rem;border-radius:3px;background:var(--paper-3);overflow:hidden}
+.ar-bar i{display:block;height:100%;border-radius:3px;background:var(--navy);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.ar-cat-counts{font-size:.76rem;color:var(--text-faint)}
+.ar-clarity{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.6rem}
+.ar-clarity-row .ar-note{margin:0;font-size:.82rem}
+
+.ar-table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--bg-raised)}
+.ar-table{width:100%;border-collapse:collapse;font-size:.84rem;line-height:1.45}
+.ar-table th{position:sticky;top:0;padding:.55rem .65rem;background:var(--navy);color:var(--ivory);text-align:left;font-weight:600;font-size:.76rem;white-space:nowrap;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.ar-table td{padding:.55rem .65rem;border-top:1px solid var(--line);vertical-align:top;overflow-wrap:anywhere}
+.ar-pages-table td:first-child,.ar-priorities td:first-child{font-weight:600}
+.ar-pages-table{min-width:760px}
+.ar-priorities{min-width:640px}
+
+.ar-plan{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem}
+.ar-plan-col{padding:.8rem .9rem;border:1px solid var(--line);border-top:3px solid var(--gold);border-radius:var(--radius);background:var(--bg-raised)}
+.ar-plan-head{margin:0 0 .4rem;font:600 .74rem var(--font-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--gold-text)}
+.ar-plan-col ul{margin:0;padding-left:1.1rem;font-size:.88rem;line-height:1.55}
+
+.ar-group{margin-bottom:1.1rem}
+.ar-checks{display:grid;gap:.5rem;margin:0;padding:0;list-style:none}
+.ar-check{display:grid;grid-template-columns:auto minmax(0,1fr);gap:.7rem;align-items:start;padding:.7rem .8rem;border:1px solid var(--line);border-radius:var(--radius);background:var(--bg-raised);break-inside:avoid}
+.ar-check-body strong{display:block;font-size:.92rem}
+.ar-check-body p{margin:.2rem 0 0;color:var(--text-muted);font-size:.88rem;line-height:1.55}
+.ar-where{margin:.4rem 0 0;padding-left:1rem;font:500 .76rem/1.6 var(--font-mono);color:var(--text-faint);overflow-wrap:anywhere}
+.ar-chip{display:inline-block;min-width:4.6rem;padding:.2rem .5rem;border-radius:999px;font:700 .68rem var(--font-mono);letter-spacing:.06em;text-transform:uppercase;text-align:center;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.ar-chip--fail{background:var(--danger-tint);color:var(--danger)}
+.ar-chip--warn{background:#fdf1d8;color:#7a4f00}
+.ar-chip--pass{background:#e3f4ec;color:#1d6b4f}
+.ar-right summary{cursor:pointer;margin:.5rem 0;font-size:.86rem;font-weight:600;color:var(--navy)}
+.ar-list{margin:.25rem 0 0;padding-left:1.1rem;font-size:.88rem;line-height:1.6;overflow-wrap:anywhere}
+
+.ar-lh-scores{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:.6rem}
+.ar-lh{display:grid;gap:.15rem;padding:.75rem;border:1px solid var(--line);border-radius:var(--radius);background:var(--bg-raised);text-align:center}
+.ar-lh strong{font:500 1.8rem/1 var(--font-display);color:var(--navy)}
+.ar-lh span{font-size:.78rem;color:var(--text-muted)}
+.ar-retry{margin-top:.5rem}
+
+.ar-contact{
+  display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.5rem 1.25rem;align-items:center;
+  padding:1.1rem 1.25rem;border-radius:var(--radius-lg);background:var(--midnight);color:var(--mist);
+  -webkit-print-color-adjust:exact;print-color-adjust:exact
+}
+.ar-contact strong{display:block;color:var(--gold-hi);font:500 1.1rem var(--font-display)}
+.ar-contact span{font-size:.84rem}
+.ar-reach{grid-column:1;margin:0;font-size:.88rem}
+.ar-reach a{color:var(--ivory)}
+.ar-cta{grid-column:2;grid-row:1 / span 2}
+
+.ar-recent{margin-top:1.1rem;padding-top:1rem;border-top:1px solid var(--line)}
+.ar-recent[hidden]{display:none}
+.ar-recent-title{margin:0 0 .4rem;font-weight:600;font-size:.88rem}
+.ar-recent ul{margin:0;padding-left:1.1rem;font-size:.86rem;line-height:1.7;color:var(--text-faint)}
+
+@media(max-width:640px){
+  .ar-cover-grid{grid-template-columns:1fr}
+  .ar-score{width:128px;height:128px}
+  .ar-plan{grid-template-columns:1fr}
+  .ar-contact{grid-template-columns:1fr}
+  .ar-cta{grid-column:1;grid-row:auto;justify-self:start}
+}
+
+/* Printed (the PDF): the report as on screen, full width, with page breaks
+   that keep a finding or a table row together. */
+@media print{
+  html.sp-printing #spPrint.sp-print--node{max-width:none;font:10pt/1.5 var(--font-sans)}
+  .sp-print--node .audit-report{gap:12pt}
+  .sp-print--node .ar-section{break-inside:auto}
+  .sp-print--node .ar-h{break-after:avoid}
+  .sp-print--node .ar-table-wrap{overflow:visible;border:0}
+  .sp-print--node .ar-pages-table,.sp-print--node .ar-priorities{min-width:0}
+  .sp-print--node .ar-table tr{break-inside:avoid}
+  .sp-print--node .ar-findings,.sp-print--node .ar-pages{break-before:page}
+}
+/* Grid children may shrink below their content, so a wide table scrolls
+   inside its own frame rather than pushing the page sideways. */
+.studio-output > *,.audit-report > *,.ar-section > *{min-width:0}

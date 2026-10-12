@@ -87,6 +87,41 @@ const PAGES = {
   "https://moved.test/": () => new Response(null, { status: 301, headers: { Location: "https://clean.test/" } }),
   "https://sneaky.test/": () => new Response(null, { status: 302, headers: { Location: "http://169.254.169.254/latest/meta-data/" } })
 };
+// A small business site for the whole-site audit, crawled by its links.
+const acme = (title, head, body) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${title}</title>` +
+  `<meta name="viewport" content="width=device-width">${head}</head><body>${body}</body></html>`;
+const ACME_NAV = '<a href="/about">About</a> <a href="/services">Services</a> <a href="/contact">Contact</a> <a href="/privacy">Privacy</a>';
+const ACME_DESC = (what) => '<meta name="description" content="Acme Solar ' + what + ' for schools and clinics across northern Uganda, with local technicians and five-year support.">';
+Object.assign(PAGES, {
+  "https://acme.test/": () => html(acme("Acme Solar: Solar Kits for Ugandan Schools and Clinics",
+    ACME_DESC("installs solar kits") + '<link rel="canonical" href="https://acme.test/">' +
+    '<meta property="og:title" content="Acme Solar"><meta property="og:description" content="Solar for schools."><meta property="og:image" content="https://acme.test/og.png">' +
+    '<script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"Acme Solar","sameAs":["https://www.linkedin.com/company/acme-solar"]}</script>',
+    "<h1>Solar for <em>schools</em></h1><p>" + words(260) + "</p>" + ACME_NAV +
+    ' <a href="/login">Log in</a> <a href="/admin/">Admin</a> <a href="/dashboard">Dashboard</a> <a href="/brochure.pdf">Brochure</a>' +
+    ' <a href="https://partner.example/">Partner</a> <a href="tel:+256700000000">Call</a> <a href="mailto:hi@acme.test">Email</a>' +
+    ' <img src="http://cdn.acme.test/logo.png" alt="Acme logo">'), { "Strict-Transport-Security": "max-age=31536000", "X-Content-Type-Options": "nosniff" }),
+  "https://acme.test/about": () => html(acme("Acme Solar | Our work", "", "<p>" + words(30) + "</p>" + ACME_NAV)),
+  "https://acme.test/services": () => html(acme("Acme Solar | Our work", ACME_DESC("lists its services"),
+    "<h1>Services</h1><p>" + words(200) + "</p>" + ACME_NAV + ' <a href="/team">Our team</a>')),
+  "https://acme.test/contact": () => html(acme("Contact Acme Solar about solar kits in Uganda", ACME_DESC("takes enquiries"),
+    "<h1>Contact</h1><p>" + words(170) + "</p>" + ACME_NAV + ' <a href="tel:+256700000000">Call</a>')),
+  "https://acme.test/privacy": () => html(acme("Privacy at Acme Solar: how we handle your data", ACME_DESC("explains privacy"),
+    "<h1>Privacy</h1><p>" + words(180) + "</p>" + ACME_NAV)),
+  "https://acme.test/team": () => html(acme("The Acme Solar team of engineers and technicians", ACME_DESC("introduces its team"),
+    "<h1>Team</h1><p>" + words(170) + "</p>" + ACME_NAV)),
+  "https://acme.test/login": () => html(acme("Sign in", '<meta name="robots" content="noindex">',
+    '<form method="post"><input name="email"><input type="password" name="password"></form>')),
+  "https://acme.test/admin/": () => new Response("Forbidden", { status: 403, headers: { "Content-Type": "text/html" } }),
+  "https://acme.test/dashboard": () => html(acme("Dashboard", "", "<h1>Orders</h1><p>Order 1001: 4 panels.</p>")),
+  "https://acme.test/og.png": () => new Response(new Uint8Array([137, 80, 78, 71]), { headers: { "Content-Type": "image/png" } }),
+  "https://acme.test/robots.txt": () => new Response("User-agent: *\nAllow: /\nSitemap: https://acme.test/sitemap.xml\n", { headers: { "Content-Type": "text/plain" } }),
+  "https://acme.test/sitemap.xml": () => new Response('<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' +
+    ["/", "/about", "/services"].map((p) => "<url><loc>https://acme.test" + p + "</loc></url>").join("") + "</urlset>", { headers: { "Content-Type": "application/xml" } }),
+  "http://acme.test/": () => new Response(null, { status: 301, headers: { Location: "https://acme.test/" } }),
+  "https://www.acme.test/": () => new Response(null, { status: 301, headers: { Location: "https://acme.test/" } })
+});
+
 // This site's own pages, served exactly as committed, so the audit is
 // exercised on real-world markup and the result doubles as a self-check.
 const SITE = "https://speakpower-commits.github.io/SpeakPower/";
@@ -117,6 +152,8 @@ async function googleToken(email) {
 const flw = { transactions: {}, verifies: 0, delayMs: 0 };
 const coachCalls = [];
 const pageFetches = [];
+// Every request to an audited site, pages and site files alike.
+const siteLog = [];
 const griotMemories = [];
 
 async function outbound(request) {
@@ -155,6 +192,8 @@ async function outbound(request) {
       return Response.json({ deleted: del[1] });
     }
   }
+  const audited = (() => { try { const h = new URL(url).hostname; return /\.test$/.test(h) && h !== "griot.test"; } catch (e) { return false; } })();
+  if (audited) siteLog.push(url);
   if (PAGES[url]) {
     pageFetches.push({ url, redirect: request.redirect });
     return PAGES[url]();
@@ -163,6 +202,18 @@ async function outbound(request) {
   if (url.startsWith("https://api.anthropic.com/v1/messages")) {
     const body = await request.json();
     coachCalls.push({ key: request.headers.get("x-api-key"), beta: request.headers.get("anthropic-beta"), body });
+    if (/senior strategist/.test(JSON.stringify(body.system || ""))) {
+      return Response.json({
+        id: "msg_strategy", type: "message", role: "assistant", model: body.model, stop_reason: "end_turn", stop_sequence: null,
+        content: [{ type: "text", text: JSON.stringify({
+          summary: "Sound pages; the dashboard is open to anyone and the brochure link is broken.",
+          first_impression: "Solar kits for schools, with a phone number.",
+          clarity: ["Audience", "Offer", "Proof", "Action", "Voice"].map((d) => ({ dimension: d, score: 3, note: d + " is clear." })),
+          priorities: [1, 2, 3, 4, 5].map((n) => ({ action: "Do " + n, why: "Finding " + n, impact: "high", effort: "low", where: "/" })),
+          plan: { days30: ["Lock /dashboard"], days60: ["Fix the brochure link"], days90: ["Add case studies"] } }) }],
+        usage: { input_tokens: 4000, output_tokens: 900 }
+      });
+    }
     if (/You read one document/.test(JSON.stringify(body.system || ""))) {
       return Response.json({
         id: "msg_doc", type: "message", role: "assistant", model: body.model, stop_reason: "end_turn", stop_sequence: null,
@@ -180,6 +231,9 @@ async function outbound(request) {
       usage: { input_tokens: 900, output_tokens: 600 }
     });
   }
+  // Anything else on an audited site (robots.txt, a sitemap, a page that is
+  // not there) answers like a real server would.
+  if (audited) return new Response("not found", { status: 404, headers: { "Content-Type": "text/html" } });
   return new Response("unexpected outbound fetch: " + url, { status: 599 });
 }
 
@@ -313,29 +367,29 @@ await test("real D1: three free tries across services, a 402 with the shortfall,
     eq(r.status, 200, url); eq(r.data.paidWith, "trial");
   }
   const wall = await call("POST", "/studio/generate", { token: s.token, body: { product: "seo-audit", inputs: { url: "https://clean.test" } } });
-  eq(wall.status, 402); eq(wall.data.price, 75000); eq(wall.data.shortfall, 75000);
-  await db.prepare("UPDATE users SET balance = 80000 WHERE email_canonical = 'd1.spender@example.com'").run();
+  eq(wall.status, 402); eq(wall.data.price, 150000); eq(wall.data.shortfall, 150000);
+  await db.prepare("UPDATE users SET balance = 155000 WHERE email_canonical = 'd1.spender@example.com'").run();
   const paid = await call("POST", "/studio/generate", { token: s.token, body: { product: "seo-audit", inputs: { url: "https://clean.test" } } });
-  eq(paid.status, 200); eq(paid.data.amount, 75000); eq(paid.data.account.balance, 5000);
+  eq(paid.status, 200); eq(paid.data.amount, 150000); eq(paid.data.account.balance, 5000);
   eq((await user("d1.spender@example.com")).balance, 5000);
 });
 
 await test("real D1: a failed paid audit is refunded to the shilling, and the run marked refunded", async () => {
   const s = await signIn("d1.refund@example.com");
-  await db.prepare("UPDATE users SET trials_remaining = 0, balance = 100000 WHERE email_canonical = 'd1.refund@example.com'").run();
+  await db.prepare("UPDATE users SET trials_remaining = 0, balance = 200000 WHERE email_canonical = 'd1.refund@example.com'").run();
   const r = await call("POST", "/studio/generate", { token: s.token, body: { product: "seo-audit", inputs: { url: "https://sneaky.test" } } });
   eq(r.status, 502); ok(/not charged/.test(r.data.message), r.data.message);
-  eq((await user("d1.refund@example.com")).balance, 100000);
+  eq((await user("d1.refund@example.com")).balance, 200000);
   const run = await db.prepare("SELECT amount, status FROM runs WHERE user_id = ?").bind((await user("d1.refund@example.com")).id).first();
-  eq(run.amount, 75000); eq(run.status, "refunded");
+  eq(run.amount, 150000); eq(run.status, "refunded");
 });
 
 await test("real D1: parallel paid uses never overdraw", async () => {
   const s = await signIn("d1.race@example.com");
-  await db.prepare("UPDATE users SET trials_remaining = 0, balance = 160000 WHERE email_canonical = 'd1.race@example.com'").run();
+  await db.prepare("UPDATE users SET trials_remaining = 0, balance = 310000 WHERE email_canonical = 'd1.race@example.com'").run();
   const results = await Promise.all([1, 2, 3, 4, 5].map(() =>
     call("POST", "/studio/generate", { token: s.token, body: { product: "seo-audit", inputs: { url: "https://clean.test" } } })));
-  eq(results.filter((r) => r.status === 200).length, 2, "160,000 covers two 75,000 audits");
+  eq(results.filter((r) => r.status === 200).length, 2, "310,000 covers two 150,000 audits");
   eq((await user("d1.race@example.com")).balance, 10000);
 });
 
@@ -404,7 +458,7 @@ await test("seo: a clean page — every check passes, SVG titles ignored, entiti
   ok(/Image alt text: All 2 images carry an alt attribute/.test(right), "alt=\"\" counts as handled");
   ok(/Internal linking: 1 internal link and 1 external/.test(right), "#top and mailto: are not links to count");
   ok(/Content depth: About 2\d\d words/.test(right), "prose counted");
-  ok(/not switched on/.test(section(r, "Google Lighthouse scores")), "no key: says so");
+  ok(/once the whole site has been read/.test(section(r, "Google Lighthouse scores")), "Lighthouse comes after the crawl");
 });
 
 await test("seo: a broken page — every defect found and ranked, including invalid JSON-LD", async () => {
@@ -455,6 +509,45 @@ await test("seo: a page that stalls half-way is reported on what arrived (15 s, 
   ok(/inspected; the rest of the page was too slow to arrive/.test(section(r, "Audited page")), section(r, "Audited page"));
   // The head was read by the real HTML parser before the stall.
   ok(/^Page title: 54 characters/m.test(section(r, "Already correct")), "facts from the part that arrived");
+});
+
+await test("audit: a whole site is crawled by its links with the real parser, every finding in its place", async () => {
+  siteLog.length = 0;
+  const start = await call("POST", "/studio/generate", { token: auditor.token, body: { product: "seo-audit", inputs: { url: "https://acme.test" } } });
+  eq(start.status, 200, JSON.stringify(start.data).slice(0, 300));
+  const id = start.data.audit.id;
+  let a = start.data.audit;
+  for (let i = 0; a.state !== "done" && i < 20; i++) {
+    const step = await call("POST", "/studio/audit/run", { token: auditor.token, body: { id, stage: "crawl" } });
+    eq(step.status, 200, "crawl step");
+    a = step.data.audit;
+  }
+  eq((await call("POST", "/studio/audit/run", { token: auditor.token, body: { id, stage: "strategy" } })).status, 200);
+  const got = await call("GET", "/studio/audit?id=" + id, { token: auditor.token });
+  const r = got.data.report;
+  const check = (label) => r.checks.find((c) => c.label === label) || {};
+  eq(r.pages.map((p) => p.path).sort().join(","), "/,/about,/contact,/privacy,/services,/team", "found by links, /team from /services");
+  eq(r.pages.find((p) => p.path === "/").h1Text, "Solar for schools", "the first H1's words, nested tags and all");
+  eq(check("Unique titles").level, "warn"); ok(/\/about, \/services/.test(check("Unique titles").pages[0]), "the shared title names both pages");
+  eq(check("Main headings (H1)").level, "fail"); eq(JSON.stringify(check("Main headings (H1)").pages), JSON.stringify(["/about"]));
+  eq(check("Thin pages").level, "warn"); eq(JSON.stringify(check("Thin pages").pages), JSON.stringify(["/about"]));
+  eq(check("Meta descriptions").level, "warn"); eq(JSON.stringify(check("Meta descriptions").pages), JSON.stringify(["/about"]));
+  eq(check("Broken internal links").level, "fail"); eq(check("Broken internal links").pages[0], "/brochure.pdf (HTTP 404), linked from /");
+  eq(check("Private areas").level, "fail"); eq(JSON.stringify(check("Private areas").pages), JSON.stringify(["/dashboard"]));
+  const login = r.privateAreas.find((x) => x.path === "/login");
+  eq(login.verdict, "protected"); eq(login.detail, "A sign-in form, kept out of search.");
+  eq(r.privateAreas.find((x) => x.path === "/admin/").verdict, "protected");
+  eq(check("Mixed content").level, "fail"); eq(JSON.stringify(check("Mixed content").pages), JSON.stringify(["/"]));
+  for (const label of ["Who is behind the site", "Linked profiles (sameAs)", "Share image", "Ways to reach you", "Privacy policy", "HSTS",
+    "http to https", "www and non-www", "Missing pages", "XML sitemap", "robots.txt", "Mobile layout", "Secure connection (https)"]) {
+    eq(check(label).level, "pass", label + ": " + check(label).detail);
+  }
+  ok(/phone, email/.test(check("Ways to reach you").detail));
+  ok(r.overall > 0 && r.overall < 100, "scored: " + r.overall);
+  eq(r.strategy.priorities.length, 5, "the strategic read is in");
+  const allowed = /^\/($|about$|services$|contact$|privacy$|team$|login$|admin\/$|dashboard$|brochure\.pdf$|og\.png$|robots\.txt$|llms\.txt$|sitemap\.xml$|speakpower-audit-[0-9a-f]{8}-not-a-page$)/;
+  const paths = siteLog.map((u) => new URL(u).pathname);
+  ok(paths.every((p) => allowed.test(p)), "nothing guessed: " + paths.filter((p) => !allowed.test(p)).join(", "));
 });
 
 await test("seo: redirects are followed by hand on workerd; a hop to a private address is refused", async () => {

@@ -26,7 +26,7 @@ It pairs a human practice (communication strategy, public speaking, brand narrat
 |---|---|---|---|
 | **Rehearsal Room** | Speak for up to three minutes; get pace, fillers, pauses, a Speak Score and a stronger opening line | In every plan | Live |
 | **GRIOT** | A strategy advisor that remembers your goals and labels fact from inference; choose its lenses, ask it to **Challenge**, **Diagnose** or **Plan**, add documents with **+**, download any answer or conversation as Word or PDF, and browse your conversations, memory and decisions | In every plan | Live |
-| **Studio packs** | Brand Story, Website SEO Audit, Market Plan, SEO Content Starter, Data Story, Speaker Ready Pack | UGX 75,000 to 125,000 each | Live |
+| **Studio packs** | Brand Story, Website SEO Audit, Market Plan, SEO Content Starter, Data Story, Speaker Ready Pack | UGX 75,000 to 150,000 each | Live |
 | **Coaching with Otieno** | Human-led preparation for the rooms that cannot go wrong | On enquiry | Live |
 | **Clarity Audit** | Free in-browser check of a pitch or document: readability, jargon, evidence (a Studio tool) | Free | Live |
 
@@ -143,8 +143,8 @@ Full setup, step by step: [`worker/README.md`](worker/README.md).
 
 | Suite | What it proves |
 |---|---|
-| **Worker logic** (`worker/test/run-tests.mjs`, 170 checks) | prices match the site; free tries and plans; exact charge and refund; parallel uses never overdraw; payments settled exactly once; sign-in; the sign-up profile and GRIOT's briefing, account by account; documents read once, chosen per question, kept apart by account; the SEO audit's address guard, and slow or stalling sites |
-| **Worker on workerd** (`worker/test/run-workerd-tests.mjs`, 19 checks) | the same Worker on Cloudflare's real runtime, with D1 and the HTML reader |
+| **Worker logic** (`worker/test/run-tests.mjs`, 181 checks) | prices match the site; free tries and plans; exact charge and refund; parallel uses never overdraw; payments settled exactly once; sign-in; the sign-up profile and GRIOT's briefing, account by account; documents read once, chosen per question, kept apart by account; the website audit's stages, private areas, scores and strategic read |
+| **Worker on workerd** (`worker/test/run-workerd-tests.mjs`, 20 checks) | the same Worker on Cloudflare's real runtime, with D1 and the HTML reader |
 | **Browser end to end** (over 200 checks) | Try → sign up → welcome steps → use → plan wall → plan or top-up, the Rehearsal Room, the GRIOT workspace, on desktop and phone |
 | **Site structure** | every page parses, local links resolve, structured data is valid |
 
@@ -184,7 +184,8 @@ GRIOT is named after West Africa's griot (*jeli*): the keeper of memory, adviser
 | 5 | Sign-up profile (who you are, your challenge); GRIOT briefed from day one | shipped |
 | 6 | Documents for GRIOT, cited by page | shipped |
 | 7 | GRIOT's mark, its own browser-tab icon, and a proverb at each of its nine steps while it thinks | shipped (proverbs are placeholders until your engero) |
-| 8 | GRIOT's Challenge · Diagnose · Plan and + upload; Word and PDF downloads; the original Home restored with Home in the menu; contact pre-filled from every Discuss button | on the preview (the modes switch on with GRIOT PR #26) |
+| 8 | GRIOT's Challenge · Diagnose · Plan and + upload; Word and PDF downloads; the original Home restored with Home in the menu; contact pre-filled from every Discuss button | shipped |
+| 9 | The website audit reads the whole site (up to 25 pages), checks private areas, adds Lighthouse with real-visitor speed and a strategic read, and delivers a SpeakPower-branded report in Word and PDF | on the preview |
 
 ## Principles
 
