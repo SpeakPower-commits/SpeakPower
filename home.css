@@ -2,274 +2,102 @@
    SpeakPower — homepage
    Loaded after styles.css, on index.html only.
 
-   Order of the page: midnight hero (GRIOT live card) · proof strip · bento of
-   four ways in · "In the room" photos · ventures · POLSSE lenses · the
-   practice · free audit band · founder · closing band.
+   The 6 October page, restored and set in Midnight & Gold: hero with the
+   slideshow · the gap we solve · ventures · who we help · six capabilities ·
+   how we work · selected work · free audit · Studio · POLSΘ · call to action.
+   Most bands reuse shared components (commercial.css); this file holds the
+   hero, the slideshow in it, and the free-audit band.
    ========================================================================== */
 
 /* ==========================================================================
    HERO
    ========================================================================== */
 
-.home-hero { padding-block: clamp(3.5rem, 2rem + 6vw, 7rem); overflow: hidden; }
-.home-hero-grid {
+.home-hero { padding-block: clamp(3.25rem, 2rem + 5vw, 6.5rem); overflow: hidden; }
+.hero-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.12fr) minmax(0, .88fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: center;
   gap: clamp(2rem, 1rem + 4vw, 4.5rem);
 }
 .home-hero h1 {
-  font-size: clamp(2.8rem, 1.6rem + 5.2vw, 5.6rem);
-  line-height: 1.02;
-  letter-spacing: -.035em;
-  margin-bottom: .35em;
-  max-width: 11ch;
+  font-size: clamp(2.4rem, 1.5rem + 3.6vw, 4.4rem);
+  line-height: 1.04;
+  letter-spacing: -.03em;
+  margin-bottom: .4em;
+  max-width: 16ch;
 }
-.home-hero .lede { max-width: 50ch; }
-
+.hero-copy .lede { max-width: 48ch; }
 .hero-actions { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: 1.9rem; }
-
-.home-trust {
-  display: flex;
-  flex-wrap: wrap;
-  gap: .4rem 1.4rem;
-  margin: 1.4rem 0 0;
-  padding: 0;
-  list-style: none;
-  font-size: .86rem;
-  color: var(--mist);
-}
-.home-trust li { display: inline-flex; align-items: center; gap: .5rem; }
-.home-trust li::before {
-  content: "";
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--gold);
-}
-
-/* The Speak Score card: an example report, so the first screen shows the
-   product working. Status colours sit only inside it, each with its word. */
-.score-card { margin: 0; padding: clamp(1.2rem, 1rem + 1vw, 1.7rem); display: grid; gap: 1rem; }
-.score-card-top { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: .6rem 1rem; }
-.score-card-top .price-chip { white-space: nowrap; }
-.score-card-moment { display: block; font: 500 .72rem/1 var(--font-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--gold-hi); }
-.score-card-top small { display: block; margin-top: .45rem; font-size: .8rem; color: var(--mist); }
-.score-wave { display: flex; align-items: center; gap: 4px; height: 44px; }
-.score-wave i { flex: 1; min-width: 2px; height: var(--h, 40%); border-radius: 3px; background: var(--gold-grad); animation: wave-bob 1.6s ease-in-out infinite; }
-.score-wave i:nth-child(odd) { animation-delay: .3s; }
-.score-wave i:nth-child(3n) { animation-delay: .6s; }
-.score-card-row { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1.2rem; align-items: center; }
-.score-ring { position: relative; width: 124px; height: 124px; }
-.score-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
-.score-ring > div { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
-.score-ring b { font: 600 2.6rem/1 var(--font-sans); color: var(--ivory); }
-.score-ring span { margin-top: .3rem; font: 500 .6rem/1 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--mist); }
-.score-metrics { display: grid; gap: .55rem; margin: 0; padding: 0; list-style: none; }
-.score-metrics li { display: grid; grid-template-columns: 1fr auto; gap: .15rem .6rem; font-size: .84rem; color: var(--mist); }
-.score-metrics b { color: var(--ivory); font-weight: 600; font-variant-numeric: tabular-nums; }
-.score-metrics i { grid-column: 1 / -1; display: block; height: 5px; border-radius: 3px; background: linear-gradient(90deg, var(--c) var(--w), rgba(255,255,255,.1) var(--w)); }
-.score-metrics em { grid-column: 1 / -1; font-style: normal; font-size: .72rem; color: var(--mist); }
-.score-quote { margin: 0; padding: .75rem .9rem; border-radius: 12px; background: var(--ivory); color: var(--ink) !important; font: italic 500 .98rem/1.45 var(--font-display); }
-.score-card figcaption { font-size: .78rem; color: var(--mist); }
-@media (max-width: 420px) { .score-card-row { grid-template-columns: 1fr; justify-items: center; } .score-metrics { width: 100%; } }
+.hero-photo { position: relative; min-width: 0; }
 
 @media (max-width: 900px) {
-  .home-hero-grid { grid-template-columns: 1fr; }
-  .home-hero h1 { max-width: 13ch; }
+  .hero-grid { grid-template-columns: 1fr; }
 }
 
-/* ==========================================================================
-   PROOF STRIP
-   ========================================================================== */
-
-.home-proof { padding-block: 1.1rem; background: var(--paper-2); border-bottom: 1px solid var(--line); }
-.home-proof .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1.4rem; }
-.home-proof-label {
-  font: 500 .7rem/1 var(--font-mono);
-  letter-spacing: .14em;
-  text-transform: uppercase;
-  color: var(--gold-text);
-}
-.home-proof ul { display: flex; flex-wrap: wrap; gap: .4rem 1.4rem; margin: 0 1rem 0 0; padding: 0; list-style: none; }
-.home-proof li { font: 600 1.02rem/1.3 var(--font-display); color: var(--ink); }
-
-/* ==========================================================================
-   BENTO — four ways in
-   ========================================================================== */
-
-.bento {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-auto-rows: minmax(0, auto);
-  gap: clamp(.9rem, .7rem + .8vw, 1.25rem);
-}
-.tile {
-  display: flex;
-  flex-direction: column;
-  gap: .85rem;
-  padding: clamp(1.3rem, 1rem + 1vw, 1.9rem);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
-}
-.tile:not(.dark) { background: var(--bg-raised); }
-.tile h3 { margin: 0; font-size: clamp(1.3rem, 1.1rem + .7vw, 1.65rem); }
-.tile p { margin: 0; color: var(--text-muted); font-size: .96rem; }
-.tile .btn { align-self: flex-start; margin-top: auto; }
-.tile-top { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
-
-.tile--reh { grid-column: span 2; justify-content: center; border-color: transparent; }
-.tile--reh h3 { font-size: clamp(1.9rem, 1.3rem + 2vw, 2.7rem); }
-.tile--reh p { color: var(--mist); max-width: 46ch; }
-
-.wave { display: flex; align-items: center; gap: 5px; height: 56px; margin-block: .25rem; }
-.wave i {
-  flex: 0 0 5px;
-  height: 40%;
-  border-radius: 3px;
-  background: var(--gold-grad);
-  animation: wave-bob 1.6s ease-in-out infinite;
-}
-.wave i:nth-child(3n)   { height: 80%; animation-delay: .2s; }
-.wave i:nth-child(3n+1) { height: 55%; animation-delay: .45s; }
-.wave i:nth-child(4n)   { height: 95%; animation-delay: .7s; }
-.wave i:nth-child(5n)   { height: 30%; animation-delay: .9s; }
-@keyframes wave-bob { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(.45); } }
-
-.mini-chat { display: grid; gap: .5rem; padding: .85rem; border-radius: 14px; background: var(--paper-2); }
-.mini-chat p { margin: 0; font-size: .9rem; }
-.mini-chat .q { justify-self: end; padding: .45rem .7rem; border-radius: 12px 12px 4px 12px; background: var(--navy); color: var(--ivory); }
-.mini-chat .a { padding: .5rem .7rem; border-radius: 4px 12px 12px 12px; background: var(--bg-raised); color: var(--ink); }
-
-.price-list { display: grid; margin: 0; padding: 0; list-style: none; }
-.price-list li {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: .55rem 0;
-  border-bottom: 1px solid var(--line);
-  font-size: .93rem;
-}
-.price-list a { color: var(--ink); text-decoration: none; }
-.price-list a:hover { text-decoration: underline; text-decoration-color: var(--gold); }
-.price-list span { font: 500 .8rem/1.6 var(--font-mono); color: var(--text-muted); font-variant-numeric: tabular-nums; }
-
-.tile--coach { flex-direction: row; align-items: center; gap: 1.4rem; grid-column: span 2; }
-.tile--coach .duo { width: clamp(116px, 80px + 8vw, 180px); }
-.tile-coach-body { display: flex; flex-direction: column; gap: .7rem; }
-
-/* Duotone portrait: grayscale multiplied over a gold-to-navy ground. */
-.duo {
-  flex: none;
-  width: 116px;
-  aspect-ratio: 1;
+/* --- Hero slideshow --------------------------------------------------------
+   The shared slider (styles.css "8b. SLIDER"), one photo at a time in a 4:3
+   frame. Each photo is shown whole (object-fit: contain), so a portrait gets
+   even margins rather than losing its top. The frame's width comes from its
+   slot and its height from the ratio; never add a min-height (with
+   aspect-ratio that makes the frame wider than its window). */
+.hero-slider .slider-track { grid-auto-columns: 100%; }
+.hero-slider .slide-frame {
+  width: 100%;
+  aspect-ratio: 4 / 3;
   overflow: hidden;
-  border-radius: 18px;
-  background: linear-gradient(160deg, var(--gold-hi), var(--gold) 35%, var(--navy) 100%);
-}
-.duo img {
-  width: 100%; height: 100%;
-  object-fit: cover;
-  object-position: 50% 18%;
-  filter: grayscale(1) contrast(1.08);
-  mix-blend-mode: multiply;
-}
-.duo--tall { width: 100%; max-width: 380px; aspect-ratio: 4 / 5; border-radius: var(--radius-lg); }
-
-@media (max-width: 960px) {
-  .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .tile--reh, .tile--coach { grid-column: 1 / -1; }
-}
-@media (max-width: 620px) {
-  .bento { grid-template-columns: 1fr; }
-  .tile--coach { flex-direction: column; align-items: flex-start; }
-}
-
-/* ==========================================================================
-   IN THE ROOM — the existing slider, as a proof section
-   ========================================================================== */
-
-.home-room { background: var(--paper-2); }
-.home-room-grid {
-  display: grid;
-  grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr);
-  align-items: center;
-  gap: clamp(1.75rem, 1rem + 3vw, 3.5rem);
-}
-.home-room .section-head { margin-bottom: 0; }
-.room-slider .slider-track { grid-auto-columns: 100%; }
-.room-slider .slide-frame { aspect-ratio: 3 / 2; background: var(--midnight); border: 0; }
-.room-slider .slide-frame img { object-fit: cover; }
-.room-slider .slide figcaption { color: var(--text-muted); }
-.room-slider .slider-play { background: var(--navy); color: #fff; border-color: var(--navy); }
-.room-slider .slider-dots { margin-left: 0; }
-@media (max-width: 860px) { .home-room-grid { grid-template-columns: 1fr; } }
-
-/* ==========================================================================
-   POLSSE LENSES
-   ========================================================================== */
-
-.lens-row {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 1px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  background: var(--navy-soft, #1e2d4f);
   border: 1px solid var(--line-dark);
   border-radius: var(--radius-lg);
-  overflow: hidden;
-  background: var(--line-dark);
+  box-shadow: 0 24px 60px -24px rgba(0, 0, 0, .6);
 }
-.lens-row li { padding: 1.4rem 1.2rem; background: var(--midnight); display: grid; gap: .45rem; align-content: start; }
-.lens-row b {
-  display: grid;
-  place-items: center;
-  width: 2.6rem; height: 2.6rem;
-  border-radius: 50%;
-  border: 1px solid rgba(201, 162, 39, .5);
-  font: 600 1.15rem/1 var(--font-display);
-  color: var(--gold-hi);
+.hero-slider .slide-frame img {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  object-fit: contain;
+  object-position: center;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
-.lens-row h3 { margin: .3rem 0 0; font-size: 1.15rem; }
-.lens-row p { margin: 0; font-size: .9rem; }
-@media (max-width: 980px) { .lens-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 560px) { .lens-row { grid-template-columns: 1fr; } }
+.hero-slider .slide-frame img.crop-face,
+.hero-slider .slide-frame img.fit-whole { object-fit: contain; object-position: center; }
+.hero-slider .slide figcaption {
+  margin-top: .85rem;
+  max-width: 55ch;
+  color: var(--mist);
+  font: 600 .82rem/1.5 var(--font-sans);
+  letter-spacing: .02em;
+  text-transform: none;
+}
+/* A failed image degrades its own frame and keeps its caption. */
+.hero-slider .slide-frame.img-fallback { min-height: 0; }
+.hero-slider .slider-controls { margin-top: 1rem; }
+.hero-slider .slider-btn { border-color: var(--line-dark); color: var(--ivory); background: transparent; }
+.hero-slider .slider-btn:hover { border-color: var(--gold); }
+.hero-slider .slider-play { background: var(--gold); color: var(--midnight); border-color: var(--gold); }
+.hero-slider .slider-play:hover { background: var(--gold-hi); border-color: var(--gold-hi); }
+.hero-slider .slider-dots { margin-left: 0; }
 
 /* ==========================================================================
-   THE PRACTICE — six capabilities as links into Services
+   THE SIX CAPABILITIES: each card opens its service
    ========================================================================== */
 
-.cap-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
-  gap: .75rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.cap-row a {
-  display: flex;
-  align-items: baseline;
-  gap: .9rem;
-  height: 100%;
-  padding: 1rem 1.15rem;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: var(--bg-raised);
-  color: var(--ink);
-  font: 600 1.05rem/1.3 var(--font-display);
+a.pillar-card--link {
+  display: block;
+  color: inherit;
   text-decoration: none;
-  transition: border-color .18s var(--ease), transform .18s var(--ease);
+  transition: border-color .18s var(--ease), transform .18s var(--ease), box-shadow .18s var(--ease);
 }
-.cap-row a:hover { border-color: var(--gold); transform: translateY(-2px); }
-.cap-row span { font: 500 .72rem/1 var(--font-mono); letter-spacing: .1em; color: var(--gold-text); }
+a.pillar-card--link:hover { border-color: var(--gold); transform: translateY(-2px); box-shadow: var(--shadow-md); }
+a.pillar-card--link:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+a.pillar-card--link h3 { color: var(--ink); }
 
 /* ==========================================================================
    FREE TOOL BAND
    ========================================================================== */
 
-.home-tool { padding-top: 0; }
 .tool-band {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(0, .75fr);
@@ -284,6 +112,7 @@
 }
 .tool-band h2 { margin-bottom: .45em; }
 .tool-band p { color: var(--text-muted); }
+.tool-band .tool-private { margin-top: .9rem; }
 .tool-metrics { display: grid; gap: .5rem; margin: 0; padding: 0; list-style: none; }
 .tool-metrics li {
   display: grid;
@@ -306,46 +135,8 @@
 @media (max-width: 820px) { .tool-band { grid-template-columns: 1fr; } }
 
 /* ==========================================================================
-   FOUNDER
+   STUDIO AND POLSΘ BANDS
    ========================================================================== */
 
-.home-founder { padding-top: 0; }
-.founder-grid {
-  display: grid;
-  grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr);
-  align-items: center;
-  gap: clamp(1.75rem, 1rem + 4vw, 4.5rem);
-}
-.founder-copy blockquote {
-  margin: 0 0 1rem;
-  font: italic 500 clamp(2.2rem, 1.4rem + 3vw, 3.6rem)/1.05 var(--font-display);
-  letter-spacing: -.02em;
-  color: var(--ink);
-}
-@media (max-width: 760px) {
-  .founder-grid { grid-template-columns: 1fr; }
-  .duo--tall { max-width: 300px; }
-}
-
-/* ==========================================================================
-   CLOSING BAND
-   ========================================================================== */
-
-.home-close { padding-top: 0; }
-.close-band {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1.5rem 2.5rem;
-  padding: clamp(1.75rem, 1.2rem + 2.4vw, 3.25rem);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  overflow: hidden;
-}
-.close-band h2 { margin-bottom: .35em; max-width: 20ch; }
-.close-band .hero-actions { margin-top: 0; }
-.home-close .bark-rule { border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
-
-@media (prefers-reduced-motion: reduce) {
-  .wave i, .score-wave i { animation: none; }
-}
+.product-platform .case-preview-grid { margin-top: 1.4rem; }
+.polsse-lenses { margin-top: 1.5rem; }

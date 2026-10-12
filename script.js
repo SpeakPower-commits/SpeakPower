@@ -369,20 +369,41 @@
   if (contactForm) {
     var contactStatus = document.getElementById("contactStatus");
 
-    // A product page can name the reason for contact: contact.html?service=griot
-    // Matching on a prefix of the option text keeps the link short and survives
-    // the option being reworded, which it will be.
+    // Every "Discuss …" button names its service: contact.html?service=…
+    // The form opens on that option with the message already begun, so the
+    // visitor only adds their own detail. Unknown names are ignored.
+    var SERVICE_LINKS = {
+      "brand-storytelling": ["brand-storytelling", "I'd like to discuss Brand Storytelling & Positioning."],
+      "market-development": ["market-development", "I'd like to discuss Market Development & SEO."],
+      "strategic-writing": ["strategic-writing", "I'd like to discuss Strategic Writing & Content."],
+      "visual-communication": ["visual-communication", "I'd like to discuss Visual Communication & Design."],
+      "data-digital": ["data-digital", "I'd like to discuss Data, Analytics & Digital Systems."],
+      "public-speaking": ["public-speaking", "I'd like to discuss Public Speaking & Thought Leadership."],
+      "public": ["public-speaking", "I'd like to book a coaching session on public speaking."],
+      "griot": ["griot", "I have a question about GRIOT."],
+      "studio": ["studio", "I have a question about a Studio pack or a plan."],
+      "tonninyira": ["ventures", "I'd like a demo of Tonninyira."],
+      "cuepointe": ["ventures", "I'd like a demo of CuePointe."],
+      "commerce-system": ["data-digital", "I'd like to discuss a commerce system like Tonninyira."],
+      "community-platform": ["data-digital", "I'd like to discuss a community platform like CuePointe."]
+    };
     (function preselectService() {
-      var wanted = (new URLSearchParams(window.location.search).get("service") || "")
-        .trim().toLowerCase();
-      if (!wanted) return;
+      var wanted = (new URLSearchParams(window.location.search).get("service") || "").trim().toLowerCase();
+      var link = Object.prototype.hasOwnProperty.call(SERVICE_LINKS, wanted) ? SERVICE_LINKS[wanted] : null;
       var select = document.getElementById("c-service");
-      if (!select) return;
-      for (var i = 0; i < select.options.length; i++) {
-        if (select.options[i].text.toLowerCase().indexOf(wanted) === 0) {
-          select.selectedIndex = i;
-          return;
-        }
+      var message = document.getElementById("c-message");
+      if (!link || !select) return;
+      select.value = link[0];
+      // Begin the message, but never over anything the visitor already typed
+      // (a browser restoring the form, for instance).
+      if (message && !message.value.trim()) {
+        message.value = link[1] + "\n\n";
+        // Their first click in the box lands after the opening line.
+        message.addEventListener("focus", function once() {
+          message.removeEventListener("focus", once);
+          var end = message.value.length;
+          window.setTimeout(function () { message.setSelectionRange(end, end); }, 0);
+        });
       }
     })();
 
@@ -392,7 +413,8 @@
       var name = (document.getElementById("c-name") || {}).value || "";
       var organization = (document.getElementById("c-organization") || {}).value || "";
       var email = (document.getElementById("c-email") || {}).value || "";
-      var service = (document.getElementById("c-service") || {}).value || "";
+      var serviceSelect = document.getElementById("c-service");
+      var service = serviceSelect && serviceSelect.value ? serviceSelect.options[serviceSelect.selectedIndex].text : "";
       var message = (document.getElementById("c-message") || {}).value || "";
 
       if (!name.trim() || !email.trim() || !service || !message.trim()) {
@@ -400,7 +422,7 @@
         return;
       }
 
-      var subject = "SpeakPower discovery request — " + name.trim();
+      var subject = "SpeakPower discovery request — " + service + " — " + name.trim();
       var body = [
         "Name: " + name.trim(),
         "Organization: " + (organization.trim() || "Not provided"),
