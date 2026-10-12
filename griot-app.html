@@ -24,7 +24,7 @@
 <header class="site-header"><div class="wrap">
 <a href="index.html" class="logo" aria-label="SpeakPower — home"><img class="logo-mark" src="assets/logo-mark.png" alt="" width="160" height="160"><span class="logo-text">Speak<span>Power</span></span></a>
 <nav class="nav-links" id="navLinks" aria-label="Primary">
-<a href="rehearse.html">Rehearse</a><a href="services.html">Services</a><a href="studio.html">Studio</a><a href="plans.html">Plans</a><a href="work.html">Work</a><a href="about.html">About</a><a href="https://speakpower1.blogspot.com" target="_blank" rel="noopener">Insights</a><a href="contact.html" class="nav-cta">Book a discovery call</a>
+<a href="index.html">Home</a><a href="services.html">Services</a><a href="studio.html">Studio</a><a href="plans.html">Plans</a><a href="work.html">Work</a><a href="about.html">About</a><a href="https://speakpower1.blogspot.com" target="_blank" rel="noopener">Insights</a><a href="contact.html" class="nav-cta">Book a discovery call</a>
 </nav>
 <button class="nav-toggle" id="navToggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">&#9776;</button>
 </div></header>
@@ -89,10 +89,21 @@
 <div class="ga-lens-chips" id="gaLensChips"></div>
 <p class="builder-note" id="gaLensHint">Auto lets GRIOT pick the specialists your question needs.</p>
 </fieldset>
+<fieldset class="ga-lenses ga-modes" id="gaModes" hidden>
+<legend>How should GRIOT answer? <span>&mdash; optional</span></legend>
+<div class="ga-lens-chips" id="gaModeChips">
+<button type="button" class="chip ga-mode" data-mode="challenge" aria-pressed="false">Challenge</button>
+<button type="button" class="chip ga-mode" data-mode="diagnose" aria-pressed="false">Diagnose</button>
+<button type="button" class="chip ga-mode" data-mode="plan" aria-pressed="false">Plan</button>
+</div>
+<p class="builder-note" id="gaModeHint">Pick one to change how GRIOT answers, or leave them off for its usual answer.</p>
+</fieldset>
 <div class="builder-field"><label for="ga-message">Your question</label>
 <textarea id="ga-message" rows="4" maxlength="20000" placeholder="We sell solar kits to rural schools in Uganda. Donors are cooling. Where should the next quarter go?" required></textarea></div>
+<p class="ga-attach-status" id="gaAttachStatus" role="status" hidden></p>
 <p class="builder-error" id="gaChatError" role="alert" hidden></p>
-<div class="builder-actions"><button class="btn btn-primary" type="submit" id="gaSendBtn">Ask GRIOT</button><button class="btn btn-ghost" type="button" id="gaNewBtn" hidden>New conversation</button></div>
+<div class="builder-actions"><button class="ga-attach" type="button" id="gaAttach" aria-label="Add a document for GRIOT to read" title="Add a document for GRIOT to read" hidden></button><input type="file" id="gaAttachFile" accept=".pdf,.docx,.odt,.xlsx,.xls,.ods,.csv,.txt,.md,.jpg,.jpeg,.png,.webp" hidden><button class="btn btn-primary" type="submit" id="gaSendBtn">Ask GRIOT</button><button class="btn btn-ghost" type="button" id="gaNewBtn" hidden>New conversation</button></div>
+<div class="ga-conv-download" id="gaConvDownload" hidden></div>
 </form>
 </div>
 
@@ -148,7 +159,7 @@
 
 <footer class="site-footer"><div class="wrap"><div class="footer-grid">
 <div><h4>SpeakPower</h4><p class="footer-tagline">Articulate is key.</p><p>Brand storytelling and market development, backed by SEO, writing, design, data, programming and public speaking. Kampala, Uganda.</p></div>
-<div><h4>Explore</h4><div class="footer-links"><a href="rehearse.html">Rehearsal Room</a><a href="services.html">Services</a><a href="studio.html">Studio</a><a href="plans.html">Plans</a><a href="work.html">Work</a><a href="about.html">About</a><a href="https://speakpower1.blogspot.com" target="_blank" rel="noopener">Insights</a><a href="contact.html">Contact</a></div></div>
+<div><h4>Explore</h4><div class="footer-links"><a href="index.html">Home</a><a href="services.html">Services</a><a href="studio.html">Studio</a><a href="plans.html">Plans</a><a href="work.html">Work</a><a href="about.html">About</a><a href="https://speakpower1.blogspot.com" target="_blank" rel="noopener">Insights</a><a href="contact.html">Contact</a></div></div>
 <div><h4>Contact</h4><div class="footer-links"><a href="tel:+256743482588">+256 743 482 588</a><a href="mailto:thomasotieno583@gmail.com">thomasotieno583@gmail.com</a><a href="https://wa.me/256743482588" target="_blank" rel="noopener">WhatsApp</a></div></div>
 <div><h4>Follow</h4><div class="footer-links"><a href="https://www.linkedin.com/in/otieno-thomas-a39b1b21b/" target="_blank" rel="noopener">LinkedIn</a><a href="https://www.instagram.com/otienothomas8/" target="_blank" rel="noopener">Instagram</a><a href="https://www.tiktok.com/@otom323" target="_blank" rel="noopener">TikTok</a></div></div>
 </div><div class="footer-bottom">&copy; 2026 SpeakPower. All rights reserved.</div></div></footer>
@@ -156,6 +167,7 @@
 <script src="script.js"></script>
 <script src="account.js"></script>
 <script src="griot-proverbs.js"></script>
+<script src="export.js"></script>
 <script src="griot-app.js"></script>
 </body>
 </html>

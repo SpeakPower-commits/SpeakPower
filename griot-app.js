@@ -117,6 +117,10 @@
     });
   }
 
+  // What each message in the log says, for downloads. Keyed by its element,
+  // so clearing the log forgets it too.
+  var logged = new WeakMap();
+
   function addMessage(role, text, meta) {
     var empty = $("gaEmpty");
     if (empty) empty.remove();
@@ -147,8 +151,75 @@
       item.appendChild(m);
     }
     $("gaLog").appendChild(item);
+    if (text) {
+      logged.set(item, { role: role, text: String(text), meta: meta || "" });
+      if (role === "griot" && window.SPExport) {
+        var dl = el("div", "ga-msg-download");
+        dl.appendChild(SPExport.buttons(function () { return answerDoc(item); }));
+        item.appendChild(dl);
+      }
+      refreshConversationDownload();
+    }
     item.scrollIntoView({ behavior: "smooth", block: "nearest" });
     return item;
+  }
+
+  /* ------------------------------------------------------------ downloads */
+
+  function messagesInLog() {
+    var out = [];
+    Array.prototype.forEach.call($("gaLog").children, function (n) {
+      var m = logged.get(n);
+      if (m) out.push(m);
+    });
+    return out;
+  }
+
+  function shorten(text, n) {
+    var t = String(text).replace(/\s+/g, " ").trim();
+    return t.length > n ? t.slice(0, n - 1).replace(/\s+\S*$/, "") + "…" : t;
+  }
+
+  // One answer and the question it answered.
+  function answerDoc(item) {
+    var answer = logged.get(item);
+    var question = null;
+    for (var n = item.previousElementSibling; n; n = n.previousElementSibling) {
+      var m = logged.get(n);
+      if (m && m.role === "user") { question = m; break; }
+    }
+    var sections = [];
+    if (question) sections.push({ heading: "Your question", lines: [question.text] });
+    sections.push({ heading: "GRIOT's answer", lines: [answer.text] });
+    if (answer.meta) sections.push({ heading: "", lines: [answer.meta] });
+    return {
+      title: question ? "GRIOT · " + shorten(question.text, 70) : "GRIOT's answer",
+      subtitle: "An answer from GRIOT, SpeakPower's strategic advisor",
+      footer: "SpeakPower · GRIOT",
+      sections: sections
+    };
+  }
+
+  // The whole conversation on the page, in order.
+  function conversationDoc() {
+    var msgs = messagesInLog();
+    var first = msgs.filter(function (m) { return m.role === "user"; })[0];
+    return {
+      title: first ? "GRIOT · " + shorten(first.text, 70) : "A conversation with GRIOT",
+      subtitle: "A conversation with GRIOT, SpeakPower's strategic advisor",
+      footer: "SpeakPower · GRIOT",
+      sections: msgs.map(function (m) {
+        return { heading: m.role === "user" ? "You" : "GRIOT", lines: m.meta ? [m.text, m.meta] : [m.text] };
+      })
+    };
+  }
+
+  function refreshConversationDownload() {
+    var host = $("gaConvDownload");
+    if (!host || !window.SPExport) return;
+    var any = messagesInLog().some(function (m) { return m.role === "griot"; });
+    if (any && !host.firstChild) host.appendChild(SPExport.buttons(conversationDoc, "Download this conversation"));
+    host.hidden = !any;
   }
 
   /* ------------------------------------------------------------ workspace */
@@ -167,8 +238,38 @@
     brand: "Identity, positioning and reputation",
     strategy: "Priorities, trade-offs and the next decision"
   };
-  var ws = { ready: false, lenses: [], steps: [] };
+  var ws = { ready: false, lenses: [], steps: [], modes: [] };
   var chosen = [];
+
+  // Challenge, Diagnose or Plan: how GRIOT answers. One at a time, and it
+  // stays on for follow-up questions until switched off.
+  var MODE_HINTS = {
+    challenge: "Challenge: GRIOT pressure-tests your idea: its weakest assumptions, the toughest objection, and a verdict.",
+    diagnose: "Diagnose: GRIOT finds the root cause before suggesting any fix.",
+    plan: "Plan: GRIOT lays out phases with owners, dates and measures, and the first step for this week."
+  };
+  var chosenMode = null;
+
+  function renderModeChips() {
+    var available = ws.ready ? ws.modes : [];
+    $("gaModes").hidden = !available.length;
+    if (available.indexOf(chosenMode) === -1) chosenMode = null;
+    Array.prototype.forEach.call(document.querySelectorAll(".ga-mode"), function (b) {
+      var mode = b.getAttribute("data-mode");
+      b.hidden = available.indexOf(mode) === -1;
+      b.setAttribute("aria-pressed", String(mode === chosenMode));
+    });
+    $("gaModeHint").textContent = chosenMode ? MODE_HINTS[chosenMode] + " Tap it again for GRIOT's usual answer."
+      : "Pick one to change how GRIOT answers, or leave them off for its usual answer.";
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll(".ga-mode"), function (b) {
+    b.addEventListener("click", function () {
+      var mode = b.getAttribute("data-mode");
+      chosenMode = chosenMode === mode ? null : mode;
+      renderModeChips();
+    });
+  });
   var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   function el(tag, className, text) {
@@ -184,10 +285,12 @@
 
   function loadWorkspace() {
     return A.call("/griot/workspace").then(function (data) {
-      ws = { ready: !!data.ready, lenses: data.lenses || [], steps: data.steps || [] };
+      ws = { ready: !!data.ready, lenses: data.lenses || [], steps: data.steps || [], modes: data.modes || [] };
       $("gaTabs").hidden = !ws.ready;
       $("gaLenses").hidden = !ws.ready || !ws.lenses.length;
       $("gaNewBtn").hidden = !ws.ready;
+      $("gaAttach").hidden = !ws.ready;
+      renderModeChips();
       if (ws.ready) renderLensChips();
     }, function () { /* the plain conversation still works */ });
   }
@@ -363,6 +466,7 @@
     var empty = el("p", "output-empty", text);
     empty.id = "gaEmpty";
     $("gaLog").appendChild(empty);
+    refreshConversationDownload();
   }
 
   function openThread(id) {
@@ -599,9 +703,47 @@
     }).then(done);
   });
 
+  // The + beside "Ask GRIOT": add a document without leaving the question.
+  // Same upload, limits and messages as the Documents tab; the document is
+  // switched on, so the next question can use it.
+  $("gaAttach").addEventListener("click", function () { $("gaAttachFile").click(); });
+  $("gaAttachFile").addEventListener("change", function () {
+    var input = $("gaAttachFile");
+    var file = input.files && input.files[0];
+    if (!file) return;
+    var status = $("gaAttachStatus");
+    function say(text, cls) {
+      status.textContent = "";
+      status.className = "ga-attach-status" + (cls ? " ga-attach-status--" + cls : "");
+      status.appendChild(document.createTextNode(text));
+      status.hidden = !text;
+    }
+    input.value = "";
+    if (file.size > DOC_MAX) { say("“" + file.name + "” is over 10 MB. Try a smaller copy or a PDF.", "error"); return; }
+    $("gaAttach").disabled = true;
+    say("Reading “" + file.name + "”… This takes up to a minute.", "busy");
+    A.upload("/griot/documents?name=" + encodeURIComponent(file.name), file).then(function (r) {
+      var n = r.document.facts.length;
+      say("“" + r.document.name + "” is ready: " + n + (n === 1 ? " key fact" : " key facts") +
+        ". GRIOT can use it from your next question.", "ready");
+      loadDocuments();
+    }, function (e) {
+      if (e.status === 401) { signedOut(e.message); return; }
+      if (A.handleProfileRequired(e, "griot-app.html")) return;
+      say(e.message, "error");
+      if (e.code === "documents_full") {
+        var plans = el("a", "ga-link", "See the plans");
+        plans.href = "plans.html";
+        status.appendChild(document.createTextNode(" "));
+        status.appendChild(plans);
+      }
+    }).then(function () { $("gaAttach").disabled = false; });
+  });
+
   function describe(reply) {
     var parts = [];
     parts.push(reply.paidWith === "trial" ? "Free try" : "Included in your plan");
+    if (reply.mode) parts.push("Mode: " + reply.mode.charAt(0).toUpperCase() + reply.mode.slice(1));
     if (reply.agents && reply.agents.length) {
       var lensNames = reply.agents.map(function (a) { return String(a).replace(/Agent$/, ""); });
       parts.push((lensNames.length > 1 ? "Lenses: " : "Lens: ") + lensNames.join(", "));
@@ -679,6 +821,7 @@
 
     var payload = { message: message, threadId: getThread(account), anonId: SP.anonId, page: location.pathname };
     if (ws.ready && chosen.length) payload.lenses = chosen.slice();
+    if (chosenMode) payload.mode = chosenMode;
     A.call("/griot/chat", payload).then(function (reply) {
       pending.stop();
       pending.item.remove();

@@ -530,9 +530,52 @@
     coach.href = "contact.html?service=public";
     actions.appendChild(coach);
     host.appendChild(actions);
+    if (window.SPExport) {
+      var dl = el("div", "rr-download");
+      dl.appendChild(SPExport.buttons(function () { return reportDoc(r, label, coached); }, "Download this report"));
+      host.appendChild(dl);
+    }
 
     host.hidden = false;
     host.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  // The report as a document for SPExport: the same words as on screen.
+  function reportDoc(r, label, coached) {
+    var m = r.metrics;
+    var sections = [{
+      heading: label + ": " + r.score + " / 100",
+      lines: [
+        verdict(r.score).text + ".",
+        r.previousScore != null ? "Your last " + r.momentTitle.toLowerCase() + " scored " + r.previousScore + "." : "",
+        coached ? "" : "Scores only: the score covers delivery alone."
+      ]
+    }, {
+      heading: "Delivery",
+      lines: [
+        "- **Pace:** " + m.wpm + " words a minute (aim for 130 to 160)",
+        "- **Fillers:** " + m.fillersPerMin + " a minute (aim for 3 or fewer)",
+        "- **Long pauses:** " + m.pausesPerMin + " a minute (aim for 1 or fewer)",
+        m.words + " words in " + clock(m.seconds) + "; your longest sentence ran " + m.longestSentence + " words."
+      ]
+    }];
+    if (coached) {
+      var c = r.coaching;
+      sections.push({ heading: "Message, through the POLSΘ lenses",
+        lines: c.lenses.map(function (l) { return "- **" + l.lens + ": " + l.score + " / 5.** " + l.note; }) });
+      sections.push({ heading: "What landed, and what got lost", lines: ["**Landed:** " + c.landed, "**Lost:** " + c.lost] });
+      sections.push({ heading: "Three fixes, most important first",
+        lines: c.fixes.map(function (x, i) { return (i + 1) + ". " + x; }) });
+      sections.push({ heading: "A stronger opening line", lines: [c.openingLine] });
+      sections.push({ heading: "Your 60-second version", lines: [c.sixtySecondVersion] });
+    }
+    sections.push({ heading: "What we heard (your transcript)", lines: [r.transcript] });
+    return {
+      title: r.momentTitle + " rehearsal",
+      subtitle: label + " " + r.score + " / 100 · " + clock(m.seconds),
+      footer: "SpeakPower · Rehearsal Room",
+      sections: sections
+    };
   }
 
   /* ------------------------------------------------------------ history */
