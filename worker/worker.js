@@ -1585,6 +1585,20 @@ async function griotChat(request, env) {
     }
   }
 
+  // How to answer, chosen with a button: one of three fixed modes, each a
+  // fixed instruction GRIOT holds itself. Nothing the browser sends becomes
+  // prompt text. Checked before a use is spent.
+  let answerMode = null;
+  if (body.mode !== undefined && body.mode !== null && body.mode !== "") {
+    if (!ANSWER_MODES.includes(body.mode)) {
+      throw new HttpError(400, "unknown_mode", "Choose Challenge, Diagnose or Plan, or ask without one.");
+    }
+    if (!(await griotHealth(env)).modes) {
+      throw new HttpError(400, "unknown_mode", "Challenge, Diagnose and Plan are being switched on. Ask without one for now.");
+    }
+    answerMode = body.mode;
+  }
+
   // A briefing GRIOT could not take earlier goes first, before anything is
   // spent, so this answer is already about the person. Its failure never
   // blocks the question.
@@ -1601,7 +1615,7 @@ async function griotChat(request, env) {
 
   let reply;
   try {
-    reply = await callGriot(env, user.id, message, threadId, lenses, docs.items);
+    reply = await callGriot(env, user.id, message, threadId, lenses, docs.items, answerMode);
   } catch (err) {
     // A failed message never costs the customer: give back what was taken.
     await refundRun(env, user, reserved);
@@ -1622,12 +1636,13 @@ async function griotChat(request, env) {
     memoryUsed: num(reply.memory_used) || 0,
     memoryWritten: reply.memory_written || null,
     documentsUsed: docs.names,
+    mode: answerMode,
     paidWith: reserved.paidWith,
     account: await accountAfter(env, user, reserved)
   });
 }
 
-async function callGriot(env, tenantId, message, threadId, lenses, context) {
+async function callGriot(env, tenantId, message, threadId, lenses, context, answerMode) {
   const base = String(env.GRIOT_API_BASE).replace(/\/+$/, "");
   const controller = new AbortController();
   // GRIOT runs a large model and may legitimately take a while; without a
@@ -1650,7 +1665,8 @@ async function callGriot(env, tenantId, message, threadId, lenses, context) {
         { message: message, thread_id: threadId, mode: "think",
           effort: GRIOT_CLIENT_EFFORT, max_output_tokens: GRIOT_CLIENT_MAX_TOKENS },
         lenses && lenses.length ? { lenses } : {},
-        context && context.length ? { context } : {})),
+        context && context.length ? { context } : {},
+        answerMode ? { answer_mode: answerMode } : {})),
       signal: controller.signal
     });
   } catch (err) {
@@ -1705,6 +1721,7 @@ async function griotHealth(env) {
   let ok = false;
   let workspace = false;
   let documents = false;
+  let modes = false;
   try {
     const res = await fetch(base + "/health?check_db=false");
     if (res.ok) {
@@ -1712,10 +1729,11 @@ async function griotHealth(env) {
       ok = Boolean(body && body.tenancy === true && body.tenant_header === "X-Tenant-Id");
       workspace = ok && body.workspace === true;
       documents = workspace && body.documents === true;
+      modes = workspace && body.modes === true;
     }
   } catch (e) { ok = false; }
   if (!ok) console.error("GRIOT at " + base + " does not report tenancy; refusing client traffic.");
-  const entry = { ok, workspace, documents, until: now + (ok ? 600000 : 30000) };
+  const entry = { ok, workspace, documents, modes, until: now + (ok ? 600000 : 30000) };
   griotTenancy.set(base, entry);
   return entry;
 }
@@ -1740,6 +1758,9 @@ function griotTimeoutMs(env) {
 // is only a backstop (hitting it cuts an answer off, and GRIOT says so).
 const GRIOT_CLIENT_EFFORT = "medium";
 const GRIOT_CLIENT_MAX_TOKENS = 8000;
+// The answer modes GRIOT offers (claude-central-agent PR #26): pressure-test
+// the idea, find the root cause, or lay out a plan.
+const ANSWER_MODES = Object.freeze(["challenge", "diagnose", "plan"]);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const griotCatalogue = new Map(); // GRIOT address -> { lenses, steps, until }
 
@@ -1810,9 +1831,9 @@ async function griotLenses(env) {
 
 async function griotWorkspace(request, env) {
   const { health } = await griotWorkspaceUser(request, env, false);
-  if (!health.workspace) return json(request, env, { ready: false, lenses: [], steps: [] });
+  if (!health.workspace) return json(request, env, { ready: false, lenses: [], steps: [], modes: [] });
   const c = await griotLenses(env);
-  return json(request, env, { ready: true, lenses: c.lenses, steps: c.steps });
+  return json(request, env, { ready: true, lenses: c.lenses, steps: c.steps, modes: health.modes ? ANSWER_MODES : [] });
 }
 
 async function griotThreads(request, env) {

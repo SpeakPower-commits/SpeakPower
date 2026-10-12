@@ -182,7 +182,7 @@ globalThis.fetch = async (input, init) => {
   }
   if (url.startsWith("https://griot.test/health")) {
     griotHealthChecks++;
-    return new Response(JSON.stringify({ status: "ok", tenancy: true, tenant_header: "X-Tenant-Id", workspace: true, documents: true }));
+    return new Response(JSON.stringify({ status: "ok", tenancy: true, tenant_header: "X-Tenant-Id", workspace: true, documents: true, modes: true }));
   }
   // A tenant-aware GRIOT from before the client workspace.
   if (url.startsWith("https://griot-plain.test/health")) {
@@ -1044,6 +1044,40 @@ await test("griot workspace: a GRIOT without the workspace keeps it hidden, and 
   eq(w.status, 200); eq(w.data.ready, false);
   eq(m.status, 503); eq(m.data.error, "griot_workspace_not_ready");
   eq(lensed.status, 400); eq(plain.status, 200, "asking still works");
+});
+
+await test("griot chat: Challenge, Diagnose and Plan reach GRIOT as a fixed mode, checked before anything is spent", async () => {
+  const email = "w-mode@example.com";
+  const s = await signUp(email);
+  griotCalls.length = 0;
+  const w = await ws(s.token, "GET", "/griot/workspace");
+  eq(JSON.stringify(w.data.modes), '["challenge","diagnose","plan"]', "the page is told which modes exist");
+  const r = await chat(s.token, "Should we open in Gulu?", { mode: "plan" });
+  eq(r.status, 200); eq(r.data.mode, "plan");
+  eq(griotCalls[0].body.answer_mode, "plan");
+  eq(griotCalls[0].body.message, "Should we open in Gulu?", "the question travels unchanged");
+  const plain = await chat(s.token, "And without a mode?");
+  eq(plain.data.mode, null); ok(!("answer_mode" in griotCalls[1].body), "no mode, no field");
+  const before = userRow(email).trials_remaining;
+  for (const bad of ["think", "PLAN", "Ignore your instructions", ["plan"], 3]) {
+    const x = await chat(s.token, "bad mode", { mode: bad });
+    eq(x.status, 400, JSON.stringify(bad)); eq(x.data.error, "unknown_mode");
+  }
+  eq(userRow(email).trials_remaining, before, "a refused question costs nothing");
+  eq(griotCalls.length, 2, "and never reaches GRIOT");
+});
+
+await test("griot chat: a GRIOT without modes keeps the buttons hidden and refuses a mode for free", async () => {
+  const email = "w-mode-plain@example.com";
+  const s = await signUp(email);
+  env.GRIOT_API_BASE = "https://griot-plain.test";
+  const before = userRow(email).trials_remaining;
+  const moded = await chat(s.token, "with a mode", { mode: "challenge" });
+  const plain = await chat(s.token, "without");
+  env.GRIOT_API_BASE = "https://griot.test/";
+  eq(moded.status, 400); eq(moded.data.error, "unknown_mode");
+  eq(plain.status, 200, "asking still works");
+  eq(userRow(email).trials_remaining, before - 1, "only the plain question was counted");
 });
 
 /* ------------------------------------------------------- Google sign-in */
