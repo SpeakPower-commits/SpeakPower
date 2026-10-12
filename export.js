@@ -7,6 +7,9 @@
    dialog, where "Save as PDF" is the choice (the default on Android Chrome).
 
    A document is { title, subtitle, sections: [{ heading, lines: [text] }] }.
+   It may also carry a branded cover ({ cover: { kicker, title, lines },
+   logoUrl }) and tables (a section with table: { head: [], rows: [[]] }),
+   as the website audit's report does.
    Lines keep GRIOT's light formatting: "## " headings, "- " bullets,
    **bold**, and its evidence labels (FACT:, RECOMMENDATION: …) in bold.
    Everything is written as text: in the .docx through XML escaping, in the
@@ -54,11 +57,17 @@
   }
 
   function blocksOf(doc) {
-    var blocks = [{ kind: "title", runs: [{ text: doc.title || "SpeakPower", bold: false }] }];
-    if (doc.subtitle) blocks.push({ kind: "subtitle", runs: [{ text: doc.subtitle, bold: false }] });
-    blocks.push({ kind: "meta", runs: [{ text: "Prepared with SpeakPower · " + longDate(), bold: false }] });
+    var blocks;
+    if (doc.cover) {
+      blocks = [{ kind: "cover", cover: doc.cover, runs: [] }];
+    } else {
+      blocks = [{ kind: "title", runs: [{ text: doc.title || "SpeakPower", bold: false }] }];
+      if (doc.subtitle) blocks.push({ kind: "subtitle", runs: [{ text: doc.subtitle, bold: false }] });
+      blocks.push({ kind: "meta", runs: [{ text: "Prepared with SpeakPower · " + longDate(), bold: false }] });
+    }
     (doc.sections || []).forEach(function (s) {
       if (s.heading) blocks.push({ kind: "h1", runs: [{ text: s.heading, bold: false }] });
+      if (s.table) blocks.push({ kind: "table", head: s.table.head || [], rows: s.table.rows || [], runs: [] });
       (s.lines || []).forEach(function (l) {
         String(l == null ? "" : l).split("\n").forEach(function (one) {
           var b = parseLine(one);
@@ -80,7 +89,74 @@
 
   var STYLE = { title: "Title", subtitle: "Subtitle", meta: "Meta", h1: "Heading1", h2: "Heading2", h3: "Heading3", li: "ListPara", num: "ListPara", p: "Normal" };
 
-  function paragraph(b) {
+  // A run of text in a colour and size of its own, for the cover and tables.
+  function run(text, opts) {
+    var o = opts || {};
+    var rpr = (o.font ? "<w:rFonts w:ascii=\"" + o.font + "\" w:hAnsi=\"" + o.font + "\" w:cs=\"" + o.font + "\"/>" : "") +
+      (o.bold ? "<w:b/>" : "") + (o.caps ? "<w:caps/>" : "") + (o.color ? "<w:color w:val=\"" + o.color + "\"/>" : "") +
+      (o.size ? "<w:sz w:val=\"" + o.size + "\"/><w:szCs w:val=\"" + o.size + "\"/>" : "");
+    return "<w:r>" + (rpr ? "<w:rPr>" + rpr + "</w:rPr>" : "") + "<w:t xml:space=\"preserve\">" + xml(text) + "</w:t></w:r>";
+  }
+  function para(runsXml, after) {
+    return "<w:p><w:pPr><w:spacing w:after=\"" + (after == null ? 60 : after) + "\"/></w:pPr>" + runsXml + "</w:p>";
+  }
+
+  // The SpeakPower mark, 0.55 inch square, from word/media/logo.png.
+  var LOGO_EMU = 502920;
+  function logoRun() {
+    return "<w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\">" +
+      "<wp:extent cx=\"" + LOGO_EMU + "\" cy=\"" + LOGO_EMU + "\"/><wp:docPr id=\"1\" name=\"SpeakPower\"/>" +
+      "<a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">" +
+      "<a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">" +
+      "<pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">" +
+      "<pic:nvPicPr><pic:cNvPr id=\"1\" name=\"logo.png\"/><pic:cNvPicPr/></pic:nvPicPr>" +
+      "<pic:blipFill><a:blip r:embed=\"rIdLogo\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>" +
+      "<pic:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"" + LOGO_EMU + "\" cy=\"" + LOGO_EMU + "\"/></a:xfrm>" +
+      "<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>";
+  }
+
+  var NO_BORDERS = "<w:tblBorders><w:top w:val=\"nil\"/><w:left w:val=\"nil\"/><w:bottom w:val=\"nil\"/><w:right w:val=\"nil\"/>" +
+    "<w:insideH w:val=\"nil\"/><w:insideV w:val=\"nil\"/></w:tblBorders>";
+
+  // The cover: one midnight cell holding the mark, the kicker, the title and its lines.
+  function coverXml(c, hasLogo) {
+    var inner = para((hasLogo ? logoRun() + run("  ", {}) : "") +
+      run("SpeakPower Studio", { color: "F1D47A", bold: true, size: 20, font: "Calibri" }), 160);
+    if (c.kicker) inner += para(run(c.kicker, { color: "F1D47A", caps: true, size: 18 }), 80);
+    inner += para(run(c.title || "", { color: "FAF7F0", font: "Georgia", size: 44 }), 120);
+    (c.lines || []).forEach(function (l) { inner += para(run(l, { color: "C9D2E3", size: 20 }), 40); });
+    return "<w:tbl><w:tblPr><w:tblW w:w=\"5000\" w:type=\"pct\"/>" + NO_BORDERS +
+      "<w:tblCellMar><w:top w:w=\"360\" w:type=\"dxa\"/><w:left w:w=\"420\" w:type=\"dxa\"/>" +
+      "<w:bottom w:w=\"360\" w:type=\"dxa\"/><w:right w:w=\"420\" w:type=\"dxa\"/></w:tblCellMar></w:tblPr>" +
+      "<w:tblGrid><w:gridCol w:w=\"9306\"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w=\"5000\" w:type=\"pct\"/>" +
+      "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"0A1020\"/></w:tcPr>" + inner + "</w:tc></w:tr></w:tbl>" +
+      "<w:p><w:pPr><w:spacing w:after=\"200\"/></w:pPr></w:p>";
+  }
+
+  // A table: a navy header row that repeats on every page, then the rows.
+  function tableXml(b) {
+    var cols = Math.max(1, b.head.length || (b.rows[0] || []).length);
+    var width = Math.floor(9306 / cols);
+    function cell(text, head) {
+      var lines = String(text == null ? "" : text).split("\n");
+      return "<w:tc><w:tcPr><w:tcW w:w=\"" + width + "\" w:type=\"dxa\"/>" +
+        (head ? "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"16233F\"/>" : "") + "</w:tcPr>" +
+        lines.map(function (l) { return para(run(l, head ? { color: "FFFFFF", bold: true, size: 18 } : { size: 18 }), 20); }).join("") + "</w:tc>";
+    }
+    var grid = "";
+    for (var i = 0; i < cols; i++) grid += "<w:gridCol w:w=\"" + width + "\"/>";
+    var line = "w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"D9DEE8\"";
+    return "<w:tbl><w:tblPr><w:tblW w:w=\"5000\" w:type=\"pct\"/><w:tblBorders><w:top " + line + "/><w:bottom " + line + "/>" +
+      "<w:insideH " + line + "/></w:tblBorders><w:tblCellMar><w:left w:w=\"90\" w:type=\"dxa\"/><w:right w:w=\"90\" w:type=\"dxa\"/></w:tblCellMar></w:tblPr>" +
+      "<w:tblGrid>" + grid + "</w:tblGrid>" +
+      (b.head.length ? "<w:tr><w:trPr><w:tblHeader/></w:trPr>" + b.head.map(function (h) { return cell(h, true); }).join("") + "</w:tr>" : "") +
+      b.rows.map(function (r) { return "<w:tr><w:trPr><w:cantSplit/></w:trPr>" + r.map(function (c) { return cell(c, false); }).join("") + "</w:tr>"; }).join("") +
+      "</w:tbl><w:p><w:pPr><w:spacing w:after=\"120\"/></w:pPr></w:p>";
+  }
+
+  function paragraph(b, hasLogo) {
+    if (b.kind === "cover") return coverXml(b.cover, hasLogo);
+    if (b.kind === "table") return tableXml(b);
     var runs = b.runs.slice();
     if (b.kind === "li") runs.unshift({ text: "•\t", bold: false });
     return "<w:p><w:pPr><w:pStyle w:val=\"" + STYLE[b.kind] + "\"/></w:pPr>" +
@@ -91,11 +167,12 @@
   }
 
   var W = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" " +
-          "xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"";
+          "xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" " +
+          "xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\"";
   var HEAD = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n";
 
-  function documentXml(blocks) {
-    return HEAD + "<w:document " + W + "><w:body>" + blocks.map(paragraph).join("") +
+  function documentXml(blocks, hasLogo) {
+    return HEAD + "<w:document " + W + "><w:body>" + blocks.map(function (b) { return paragraph(b, hasLogo); }).join("") +
       "<w:sectPr><w:footerReference w:type=\"default\" r:id=\"rIdFooter\"/>" +
       "<w:pgSz w:w=\"11906\" w:h=\"16838\"/>" +
       "<w:pgMar w:top=\"1300\" w:right=\"1300\" w:bottom=\"1300\" w:left=\"1300\" w:header=\"600\" w:footer=\"600\" w:gutter=\"0\"/>" +
@@ -150,6 +227,7 @@
     return HEAD + "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">" +
       "<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>" +
       "<Default Extension=\"xml\" ContentType=\"application/xml\"/>" +
+      "<Default Extension=\"png\" ContentType=\"image/png\"/>" +
       "<Override PartName=\"/word/document.xml\" ContentType=\"" + CT_DOC + "document.main+xml\"/>" +
       "<Override PartName=\"/word/styles.xml\" ContentType=\"" + CT_DOC + "styles+xml\"/>" +
       "<Override PartName=\"/word/footer1.xml\" ContentType=\"" + CT_DOC + "footer+xml\"/>" +
@@ -164,10 +242,11 @@
       "<Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties\" Target=\"docProps/core.xml\"/>" +
       "</Relationships>";
   }
-  function documentRels() {
+  function documentRels(hasLogo) {
     return HEAD + "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" +
       "<Relationship Id=\"rIdStyles\" Type=\"" + REL + "styles\" Target=\"styles.xml\"/>" +
       "<Relationship Id=\"rIdFooter\" Type=\"" + REL + "footer\" Target=\"footer1.xml\"/>" +
+      (hasLogo ? "<Relationship Id=\"rIdLogo\" Type=\"" + REL + "image\" Target=\"media/logo.png\"/>" : "") +
       "</Relationships>";
   }
 
@@ -193,7 +272,7 @@
     var time = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1);
     var date = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
     files.forEach(function (f) {
-      var name = enc.encode(f.name), data = enc.encode(f.data), crc = crc32(data);
+      var name = enc.encode(f.name), data = f.data instanceof Uint8Array ? f.data : enc.encode(f.data), crc = crc32(data);
       var local = new DataView(new ArrayBuffer(30));
       local.setUint32(0, 0x04034b50, true); local.setUint16(4, 20, true); local.setUint16(6, 0x0800, true);
       local.setUint16(8, 0, true); local.setUint16(10, time, true); local.setUint16(12, date, true);
@@ -218,15 +297,18 @@
 
   function docxBlob(doc) {
     var blocks = blocksOf(doc);
-    return zip([
+    var hasLogo = !!(doc.cover && doc.logo && doc.logo.length);
+    var files = [
       { name: "[Content_Types].xml", data: contentTypesXml() },
       { name: "_rels/.rels", data: rootRels() },
       { name: "docProps/core.xml", data: coreXml(doc.title || "SpeakPower") },
-      { name: "word/document.xml", data: documentXml(blocks) },
+      { name: "word/document.xml", data: documentXml(blocks, hasLogo) },
       { name: "word/styles.xml", data: stylesXml() },
       { name: "word/footer1.xml", data: footerXml(doc.footer || "SpeakPower") },
-      { name: "word/_rels/document.xml.rels", data: documentRels() }
-    ]);
+      { name: "word/_rels/document.xml.rels", data: documentRels(hasLogo) }
+    ];
+    if (hasLogo) files.push({ name: "word/media/logo.png", data: doc.logo });
+    return zip(files);
   }
 
   function save(blob, filename) {
@@ -240,8 +322,16 @@
     setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
   }
 
+  // The mark is fetched from the site when the button is pressed; without it
+  // (offline, or blocked) the cover is simply set without the image.
   function word(doc) {
-    save(docxBlob(doc), slug(doc.title) + "-" + today() + ".docx");
+    var name = slug(doc.title) + "-" + today() + ".docx";
+    if (!doc.logoUrl || doc.logo) { save(docxBlob(doc), name); return Promise.resolve(); }
+    return fetch(doc.logoUrl).then(function (r) { return r.ok ? r.arrayBuffer() : null; }, function () { return null; })
+      .then(function (buf) {
+        if (buf) doc.logo = new Uint8Array(buf);
+        save(docxBlob(doc), name);
+      });
   }
 
   /* -------------------------------------------------------------- PDF (print) */
@@ -267,6 +357,34 @@
     brand.textContent = "SpeakPower";
     host.appendChild(brand);
     blocksOf(doc).forEach(function (b) {
+      if (b.kind === "cover") {
+        var h = document.createElement("h1");
+        h.className = "sp-print-title";
+        h.textContent = b.cover.title || doc.title || "";
+        host.appendChild(h);
+        (b.cover.lines || []).forEach(function (l) {
+          var p = document.createElement("p");
+          p.className = "sp-print-meta";
+          p.textContent = l;
+          host.appendChild(p);
+        });
+        return;
+      }
+      if (b.kind === "table") {
+        var t = document.createElement("table");
+        t.className = "sp-print-table";
+        if (b.head.length) {
+          var tr = t.createTHead().insertRow();
+          b.head.forEach(function (x) { var th = document.createElement("th"); th.textContent = x; tr.appendChild(th); });
+        }
+        var body = t.createTBody();
+        b.rows.forEach(function (r) {
+          var row = body.insertRow();
+          r.forEach(function (x) { row.insertCell().textContent = x; });
+        });
+        host.appendChild(t);
+        return;
+      }
       var n = document.createElement(TAG[b.kind]);
       n.className = "sp-print-" + b.kind;
       if (b.kind === "li") n.appendChild(document.createTextNode("• "));
@@ -293,6 +411,30 @@
     // where none fires, the next download clears the old view and title first.
   }
 
+  // Prints a rendered element as it looks on screen: a copy, so the page
+  // itself is untouched. Anything marked data-no-print (buttons) is left out.
+  function pdfNode(node, title) {
+    cleanup();
+    var host = document.createElement("article");
+    host.id = "spPrint";
+    host.className = "sp-print sp-print--node";
+    var copy = node.cloneNode(true);
+    copy.removeAttribute("id");
+    Array.prototype.forEach.call(copy.querySelectorAll("[data-no-print]"), function (x) { x.remove(); });
+    Array.prototype.forEach.call(copy.querySelectorAll("[id]"), function (x) { x.removeAttribute("id"); });
+    Array.prototype.forEach.call(copy.querySelectorAll("details"), function (x) { x.open = true; }); // folded lists print in full
+    host.appendChild(copy);
+    document.body.appendChild(host);
+    document.documentElement.classList.add("sp-printing");
+    pageTitle = document.title;
+    document.title = slug(title) + "-" + today();
+    window.addEventListener("afterprint", function done() {
+      window.removeEventListener("afterprint", done);
+      cleanup();
+    });
+    window.print();
+  }
+
   // "Download: Word · PDF" for a result. `get` builds the document when
   // clicked, so it always reflects what is on the page at that moment.
   function buttons(get, label) {
@@ -313,5 +455,5 @@
     return wrap;
   }
 
-  window.SPExport = { word: word, pdf: pdf, buttons: buttons, docxBlob: docxBlob, blocksOf: blocksOf };
+  window.SPExport = { word: word, pdf: pdf, pdfNode: pdfNode, buttons: buttons, docxBlob: docxBlob, blocksOf: blocksOf, longDate: longDate };
 })();

@@ -44,13 +44,15 @@
 
     "seo-audit": {
       title: "Website SEO & Visibility Audit",
-      price: 75000,
-      lead: "Enter a public website address. SpeakPower checks what search engines and sharing apps see on the page — title, description, headings, structured data, social preview, mobile readiness and more — and adds Google Lighthouse scores where available.",
+      price: 150000,
+      lead: "Enter your website address. SpeakPower reads the whole site (up to 25 pages) the way search engines and AI assistants do, checks that private areas stay private, adds Google Lighthouse and real-visitor speed, and writes a strategic read with your five priorities.",
       fields: [
-        ["url", "Website address", "example.com", "url"]
+        ["url", "Website address", "example.com", "url"],
+        ["extra", "Extra pages to include (optional)", "Up to 10 addresses on the same site, one per line — e.g. a landing page that is not in your menu.", "textarea", true]
       ],
-      busy: "Auditing…",
-      privacy: "SpeakPower fetches the public page you name, the way a search engine would. Nothing about the page is stored; your account keeps only that you ran an audit."
+      busy: "Starting the audit…",
+      action: "Audit my website",
+      privacy: "SpeakPower reads the public pages of the site you name, the way a search engine would. It never signs in. Your report is kept in your account for 90 days, then deleted."
     },
 
     "market-plan": {
@@ -130,6 +132,8 @@
   $("builderLead").textContent = product.lead;
   $("builderPrice").textContent = ugx(product.price);
   if (product.privacy) $("builderPrivacy").textContent = product.privacy;
+  var ACTION = product.action || "Generate my pack";
+  generateBtn.textContent = ACTION;
 
   /* ----------------------------------------------------------------- form */
 
@@ -161,7 +165,7 @@
       }
       input.id = "field-" + f[0];
       input.name = f[0];
-      input.required = true;
+      input.required = !f[4]; // a fifth entry marks an optional field
       if (f[3] !== "file") input.placeholder = f[2] || "";
       wrap.appendChild(input);
       form.appendChild(wrap);
@@ -441,7 +445,7 @@
   function setBusy(on) {
     running = on;
     generateBtn.disabled = on;
-    generateBtn.textContent = on ? (product.busy || "Generating…") : "Generate my pack";
+    generateBtn.textContent = on ? (product.busy || "Generating…") : ACTION;
   }
 
   function run() {
@@ -454,9 +458,11 @@
     }).then(function (data) {
       hideGate();
       A.setAccount(data.account);
-      render(data.sections);
       paidLine(data);
       drawStatus();
+      // The website audit carries on in stages; every other pack is done.
+      if (data.audit && window.SPAudit) return followAudit(data.audit);
+      render(data.sections);
       outputHost.scrollIntoView({ behavior: "smooth", block: "start" });
     }, function (e) {
       if (e.status === 401) { showSignIn("Your session ended."); return; }
@@ -489,6 +495,90 @@
   });
 
 
+  /* ------------------------------------------------- the website audit */
+
+  // The audit's address stays in the page's, so a reload or a later visit
+  // reopens the report, or carries on a run that was interrupted.
+  function rememberAudit(id) {
+    try { history.replaceState(null, "", "studio-product.html?product=seo-audit&audit=" + encodeURIComponent(id)); }
+    catch (e) { /* the report still shows; only a reload would lose its place */ }
+  }
+
+  function followAudit(progress) {
+    rememberAudit(progress.id);
+    $("outputTitle").textContent = "Auditing " + (progress.host || "your site") + "…";
+    downloadHost.textContent = "";
+    downloadHost.hidden = true;
+    outputHost.scrollIntoView({ behavior: "smooth", block: "start" });
+    return SPAudit.drive(progress, function (p) { SPAudit.renderProgress(outputHost, p); }).then(showAudit, function (e) {
+      if (e.status === 401) { showSignIn("Your session ended."); return; }
+      showOutputMessage((e.message || "The audit stopped.") + " Your progress is saved: reload this page to carry on.");
+    });
+  }
+
+  function showAudit(d) {
+    var report = d.report;
+    var grid = outputHost.closest(".studio-builder-grid");
+    if (grid) grid.classList.add("has-report"); // the report takes the full width
+    $("outputTitle").textContent = "Your website audit: " + report.host;
+    var article = SPAudit.render(report, outputHost, {
+      progress: d.audit,
+      onRetry: function (stage) {
+        SPAudit.retry(report.id, stage).then(showAudit, function (e) { showOutputMessage(e.message); });
+      }
+    });
+    downloadHost.textContent = "";
+    if (window.SPExport) {
+      downloadHost.appendChild(SPAudit.downloads(report, article));
+      downloadHost.hidden = false;
+    }
+    loadRecent();
+  }
+
+  function resumeAudit(id) {
+    setBusy(true);
+    return SPAudit.fetchReport(id).then(function (d) {
+      if (d.audit.done) return showAudit(d);
+      return followAudit(d.audit);
+    }, function (e) { showOutputMessage(e.message); }).then(function () { setBusy(false); });
+  }
+
+  // "Your recent audits", under the form.
+  var recentHost = null;
+  function loadRecent() {
+    if (key !== "seo-audit" || !A || !A.session() || !window.SPAudit) return;
+    if (!recentHost) {
+      recentHost = document.createElement("div");
+      recentHost.className = "ar-recent";
+      recentHost.hidden = true;
+      var panel = form.closest(".studio-builder-panel");
+      if (panel) panel.appendChild(recentHost);
+    }
+    A.call("/studio/audits").then(function (d) {
+      var list = (d && d.audits) || [];
+      recentHost.textContent = "";
+      recentHost.hidden = !list.length;
+      if (!list.length) return;
+      var h = document.createElement("p");
+      h.className = "ar-recent-title";
+      h.textContent = "Your recent audits";
+      recentHost.appendChild(h);
+      var ul = document.createElement("ul");
+      list.forEach(function (x) {
+        var li = document.createElement("li");
+        var a = document.createElement("a");
+        a.href = "studio-product.html?product=seo-audit&audit=" + encodeURIComponent(x.id);
+        a.textContent = x.host;
+        li.appendChild(a);
+        var when = document.createElement("span");
+        when.textContent = " · " + new Date(x.createdAt * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) + (x.crawled ? "" : " · unfinished");
+        li.appendChild(when);
+        ul.appendChild(li);
+      });
+      recentHost.appendChild(ul);
+    }, function () { /* the list is a convenience: leave it hidden */ });
+  }
+
   /* ---------------------------------------------------------------- start */
 
   renderForm();
@@ -499,11 +589,16 @@
     // Settle a returning payment first, then refresh: run together, a /me
     // answered before the credit could overwrite the new balance.
     A.settleReturn().then(function (result) {
-      if (result) notice(result.ok ? { text: result.text + " Press “Generate my pack” to continue." } : result);
+      if (result) notice(result.ok ? { text: result.text + " Press “" + ACTION + "” to continue." } : result);
       if (A.session()) return A.refresh();
     }).then(function () {
       if (A.session() && A.requireAccount("studio-product.html?product=" + key)) return;
       drawStatus();
+      if (key === "seo-audit" && A.session() && window.SPAudit) {
+        loadRecent();
+        var auditId = params.get("audit");
+        if (auditId) resumeAudit(auditId);
+      }
     }, drawStatus);
   }
 })();

@@ -42,7 +42,7 @@ Studio packs keep a one-off price, paid from a balance in Uganda shillings (`PRI
 | Studio pack | Price |
 |---|---|
 | Brand Story Builder | UGX 100,000 |
-| Website SEO & Visibility Audit | UGX 75,000 |
+| Website SEO & Visibility Audit | UGX 150,000 |
 | Market Development Planner | UGX 125,000 |
 | SEO Content Starter | UGX 75,000 |
 | Data Story Builder | UGX 100,000 |
@@ -178,15 +178,38 @@ Then switch `FLW_SECRET_KEY` to the live key, and merge the preview into `main`.
 - **The webhook's secret hash is compared in constant time.**
 - **A bank later** slots in without a schema change: `payments.provider` is `flutterwave` today.
 
-## The SEO audit
+## The website audit
 
-Two layers. **SpeakPower's own checks** fetch the customer's page and read it with Cloudflare's HTML parser: indexability (including an `X-Robots-Tag` header), HTTPS, title and description length, H1 and heading order, canonical, JSON-LD validity, Open Graph and X cards, image alt text, viewport, language, content depth, internal links, favicon. These need no key and no quota. **Google Lighthouse scores** are added when `PAGESPEED_KEY` is set; a broken key, a spent quota or a slow page is reported plainly and never fails the audit.
+The audit reads **the whole site**, up to 25 pages, the way a search engine or an AI assistant would, and checks that private areas stay private. It then adds Google Lighthouse with real-visitor speed, and a strategic read written by Claude. Price: UGX 150,000.
 
-The Worker fetches an address the customer types, so it only fetches public websites by domain name, on the normal ports, and re-checks every redirect before following it. Only an unreadable page fails an audit — and that is refunded.
+**Stages.** The free Workers plan allows 10 ms of processing and 50 outbound requests per call, so one call cannot do all of this. The audit lives in D1 (`audits`) and moves on in short stages that the page calls one after another:
 
-There is deliberately no result cache: a customer who fixes their site and pays to run the audit again must get today's page.
+| Stage | Route | What it does |
+|---|---|---|
+| start | `POST /studio/generate` | Charges, then reads the home page (15 s to answer, asked twice; 15 s to read). Also reads `robots.txt`, the sitemap, `llms.txt`, the `http://` and www twins, one made-up address (a real 404?) and the share image. Plans the crawl. **Refunded if the home page cannot be read**; nothing later is charged. |
+| crawl | `POST /studio/audit/run {id, stage:"crawl"}`, repeated | 4 pages a call (the client's extra pages first, then the home page's links, then the sitemap; same site only; `robots.txt` respected), then up to 25 links that lead off the pages read, then the private areas. |
+| lighthouse | `POST /studio/audit/run {id, stage:"lighthouse"}` | After the crawl, so Google never competes with it for the site. Up to 100 s, and one more try if it times out. Asks only for the fields the report uses, including the Chrome UX Report's real-visitor LCP, INP and CLS. |
+| strategy | `POST /studio/audit/run {id, stage:"strategy"}` | Runs alongside Lighthouse. Claude (`claude-opus-5-5`, structured output) reads the facts (never the account's details) and writes the summary, the first impression, message clarity (Audience · Offer · Proof · Action · Voice), five priorities and a 30-60-90 plan. One more try if it fails. |
+| report | `GET /studio/audit?id=`, `GET /studio/audits` | The assembled report, its 8 category scores and the overall score; the client's last 5 audits. |
 
-**Plan note:** the free Workers plan allows 10 ms of CPU per request. Reading a large page plus Google's Lighthouse response can come close. If the Worker's logs show "exceeded CPU" on audits, the Workers Paid plan ($5 a month) lifts the limit to 30 seconds.
+Every stage is safe to call twice:
+- crawl writes carry a version check;
+- Lighthouse and the strategic read are claimed before they run;
+- only the audit's owner can read it or move it on.
+
+Reports are kept 90 days, then the daily run deletes them.
+
+**Private areas.** Only addresses the site itself links to, or the client lists, whose path looks private (`login`, `account`, `admin`, `dashboard`, `cart`, `checkout`…). Each is visited once, without signing in, and classed:
+- **protected:** 401 or 403, a redirect to a sign-in page, `noindex`, or disallowed by robots;
+- **exposed:** opens to anyone and open to search engines.
+
+**No path is ever guessed**, and the `robots.txt` disallow list is reported, not fetched.
+
+**Scores.** Each check passes (1), needs review (0.5) or fails (0), and has a weight. A category's score is the weighted share of its checks that pass, and a Lighthouse score counts as its own value. The overall score is the weighted mean of the 8 categories: Crawl & index, Page basics, Content, Structured data & AI visibility, Social sharing, Speed, Mobile & accessibility, Security & trust.
+
+**Safety.** The Worker fetches addresses a customer types, so it only fetches public websites by domain name, on the normal ports, and re-checks every redirect before following it.
+
+**What it cannot see:** rankings, search traffic, backlinks and conversions, which need the site's own Search Console and analytics data. The report says so.
 
 ## Email-code sign-in (optional, off by default)
 
@@ -267,10 +290,10 @@ FROM payments WHERE status = 'paid' GROUP BY day ORDER BY day DESC;
 cd worker && npm install && cd .. && node --experimental-sqlite worker/test/run-tests.mjs
 ```
 
-The business rules, fast, in plain Node (160 tests): the real `worker.js` against an in-memory D1, with Google, GRIOT, Flutterwave and audited sites faked at the network edge only. Google sign-in is tested with real RS256 signatures, so forged keys, `alg: none` and edited tokens are refused by actual cryptography rather than a stub. It also fails if any page quotes a different price from the Worker.
+The business rules, fast, in plain Node (181 tests): the real `worker.js` against an in-memory D1, with Google, GRIOT, Flutterwave and audited sites faked at the network edge only. Google sign-in is tested with real RS256 signatures, so forged keys, `alg: none` and edited tokens are refused by actual cryptography rather than a stub. It also fails if any page quotes a different price from the Worker.
 
 ```
 cd worker && npm install && npm install --no-save miniflare@4 wrangler@4 && node test/run-workerd-tests.mjs
 ```
 
-The Worker bundled exactly as Workers Builds deploys it (`wrangler deploy --dry-run`), on **workerd**, the engine Cloudflare runs Workers on (18 tests): real D1, the real HTML parser for the SEO audit, WebCrypto sign-in, the exactly-once top-up under truly concurrent notifications, the sign-up profile briefing GRIOT, and a document read and kept as facts. It also audits this site's own pages.
+The Worker bundled exactly as Workers Builds deploys it (`wrangler deploy --dry-run`), on **workerd**, the engine Cloudflare runs Workers on (20 tests): real D1, the real HTML parser for the SEO audit, WebCrypto sign-in, the exactly-once top-up under truly concurrent notifications, the sign-up profile briefing GRIOT, and a document read and kept as facts. It also audits this site's own pages.
