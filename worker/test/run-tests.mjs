@@ -693,7 +693,7 @@ await test("three free tries were shared across three services; the fourth use a
   eq(used, "brand-story,seo-audit,data-story", "one free try on each of three services");
   const r = await call("POST", "/studio/generate", { token: alice.token, body: { product: "brand-story", inputs: BRIEF } });
   eq(r.status, 402); eq(r.data.error, "payment_required");
-  eq(r.data.service, "brand-story"); eq(r.data.title, "Brand Story Builder");
+  eq(r.data.service, "brand-story"); eq(r.data.title, "Brand Message Kit");
   eq(r.data.price, 100000, "price"); eq(r.data.balance, 0, "balance"); eq(r.data.shortfall, 100000, "shortfall");
   ok(/UGX 100,000/.test(r.data.message), "message names the price in shillings");
   eq(r.data.account.trialsRemaining, 0);
