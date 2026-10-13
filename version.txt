@@ -6,11 +6,15 @@ Open this file on the live site to see which build GitHub Pages is serving:
     https://speakpower-commits.github.io/SpeakPower/version.txt
 
 branch:   claude/studio-griot-live
-build:    venture links (2026-10-12): Tonninyira and CuePointe open their
-          live apps
-expects:  index.html — "Two marketing products. Both mine. Both live.",
-                       and "Open the app" on both ventures (new tab)
-          work.html — the same buttons on each case study
+build:    Brand Message Kit launch focus (2026-10-13)
+expects:  index.html — homepage leads with “Build my Brand Message Kit”
+          and a featured Brand Message Kit section
+          studio.html — “Start with your message. Then grow your market.”
+          and Brand Message Kit appears first in the Studio catalogue
+          product builder + Worker — the product is named “Brand Message Kit”
 
-If this file still shows an older build, Pages has not rebuilt yet: wait a
-minute and reload. If it 404s, Pages is serving a different branch.
+The Brand Message Kit remains linked to the existing brand-story product ID.
+Current price, free-try rules and payment flow are unchanged.
+
+If this file still shows an older build, GitHub Pages has not rebuilt yet:
+wait a minute and reload. If it 404s, Pages is serving a different branch.
