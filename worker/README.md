@@ -217,12 +217,19 @@ The Worker also supports sign-in by a 6-digit emailed code. It stays off (`email
 
 ## The GRIOT workspace
 
-- **What clients see** on `griot-app.html`: up to three chosen **lenses** (GRIOT's specialists), GRIOT's **nine steps** lighting up while it works, and the **Conversations**, **Memory** and **Decisions** tabs.
+- **What clients see** on `griot-app.html`, the full-screen GRIOT OS app (`griot-app.css`): up to three chosen **lenses** (GRIOT's specialists), GRIOT's **nine steps** lighting up while it works, their own **projects**, and the **Conversations**, **Memory**, **Decisions** and **Documents** views.
 - **Routes:** `GET /griot/workspace`, `/griot/threads`, `/griot/thread?id=`, `/griot/memories`, `/griot/decisions`; `POST /griot/memory`, `/griot/memories/delete`.
   - Every route runs behind the session, sets `X-Tenant-Id` to the account's own id, and charges nothing.
   - GRIOT's `/projects` (your own ventures) is never reachable.
 - **Bounded turns:** every client question goes to GRIOT with `effort: "medium"` and an 8,000-token backstop (`GRIOT_CLIENT_EFFORT`, `GRIOT_CLIENT_MAX_TOKENS`). Effort shortens reasoning; the backstop only stops a runaway answer, and GRIOT says when one was cut short.
 - **Switching on:** this needs claude-central-agent PR #24 deployed, which reports `"workspace": true` on `/health`. Until then, the tabs and lens picker stay hidden and plain questions work as before.
+- **Client projects:** a client keeps their own projects, and each conversation, memory and decision is filed under one of them (or General, GRIOT's `global`).
+  - **Routes:** `GET /griot/my-projects` (`{ready, projects, limit}`); `POST /griot/my-projects` `{name}` creates one; `POST /griot/my-projects/rename` `{slug, name}`; `POST /griot/my-projects/delete` `{slug}` deletes it with everything filed under it.
+  - **Names** are one line, up to 60 characters. **Slugs** are made by GRIOT (`p-` and 8 hex characters), so a client's project can never be, or name, one of your ventures.
+  - **At most 20 per account**, checked here and by GRIOT.
+  - **Projects reach GRIOT** on `POST /griot/chat` and `POST /griot/memory` as `project`, and on the lists as `?project=` (threads, memories, decisions). The Worker checks the slug's shape; GRIOT checks it is this tenant's own, and a refused question is given back. General is never sent as a project. One of your ventures (`speakpower`, `tonninyira`…) is refused outright.
+  - **Shared across projects:** documents and the sign-up profile, so GRIOT knows the client in every project.
+  - **Switching on:** this needs claude-central-agent PR #29 deployed, which reports `"projects": true` on `/health`. Until then `/griot/my-projects` answers `ready: false`, the picker stays hidden, and everything works in General. GRIOT's `/projects` (your ventures) stays unreachable: `/griot/projects` is a 404.
 - **Challenge · Diagnose · Plan:** `POST /griot/chat` takes an optional `mode` (`challenge`, `diagnose` or `plan`; anything else is refused before a use is spent). It reaches GRIOT as `answer_mode`, a fixed instruction GRIOT holds itself, so no browser text becomes prompt text; the question is sent unchanged. Sent only when GRIOT's `/health` reports `"modes": true` (claude-central-agent PR #26); until then `/griot/workspace` lists no modes and the buttons stay hidden. One question is still one use.
 
 ## Know the customer: the sign-up profile

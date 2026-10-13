@@ -101,10 +101,11 @@ async function route(request, env, ctx) {
     if (path === "/profile") return getProfile(request, env);
     if (path === "/plans") return json(request, env, { plans: publicPlans(), currency: CURRENCY, canBuy: paymentsEnabled(env) });
     if (path === "/griot/workspace") return griotWorkspace(request, env);
-    if (path === "/griot/threads") return griotThreads(request, env);
+    if (path === "/griot/threads") return griotThreads(request, env, url);
     if (path === "/griot/thread") return griotThread(request, env, url);
-    if (path === "/griot/memories") return griotMemories(request, env);
-    if (path === "/griot/decisions") return griotDecisions(request, env);
+    if (path === "/griot/memories") return griotMemories(request, env, url);
+    if (path === "/griot/decisions") return griotDecisions(request, env, url);
+    if (path === "/griot/my-projects") return griotMyProjects(request, env);
     if (path === "/griot/documents") return listDocuments(request, env);
     if (path === "/studio/audit") return auditGet(request, env, url);
     if (path === "/studio/audits") return auditList(request, env);
@@ -120,6 +121,9 @@ async function route(request, env, ctx) {
     if (path === "/griot/chat") return griotChat(request, env);
     if (path === "/griot/memory") return griotAddMemory(request, env);
     if (path === "/griot/memories/delete") return griotDeleteMemory(request, env);
+    if (path === "/griot/my-projects") return griotCreateProject(request, env);
+    if (path === "/griot/my-projects/rename") return griotRenameProject(request, env);
+    if (path === "/griot/my-projects/delete") return griotDeleteProject(request, env);
     if (path === "/griot/documents") return uploadDocument(request, env, url);
     if (path === "/griot/documents/toggle") return toggleDocument(request, env);
     if (path === "/griot/documents/delete") return deleteDocument(request, env);
@@ -2806,6 +2810,14 @@ async function griotChat(request, env) {
     answerMode = body.mode;
   }
 
+  // Which of the client's projects this question belongs to. Only the shape
+  // is checked here; GRIOT checks the project is this account's own and
+  // refuses anything else (the use is then given back).
+  const project = clientProject(body.project);
+  if (project !== "global" && !(await griotHealth(env)).projects) {
+    throw new HttpError(400, "unknown_project", "Projects are being switched on. Ask in General for now.");
+  }
+
   // A briefing GRIOT could not take earlier goes first, before anything is
   // spent, so this answer is already about the person. Its failure never
   // blocks the question.
@@ -2822,7 +2834,7 @@ async function griotChat(request, env) {
 
   let reply;
   try {
-    reply = await callGriot(env, user.id, message, threadId, lenses, docs.items, answerMode);
+    reply = await callGriot(env, user.id, message, threadId, lenses, docs.items, answerMode, project);
   } catch (err) {
     // A failed message never costs the customer: give back what was taken.
     await refundRun(env, user, reserved);
@@ -2844,12 +2856,13 @@ async function griotChat(request, env) {
     memoryWritten: reply.memory_written || null,
     documentsUsed: docs.names,
     mode: answerMode,
+    project,
     paidWith: reserved.paidWith,
     account: await accountAfter(env, user, reserved)
   });
 }
 
-async function callGriot(env, tenantId, message, threadId, lenses, context, answerMode) {
+async function callGriot(env, tenantId, message, threadId, lenses, context, answerMode, project) {
   const base = String(env.GRIOT_API_BASE).replace(/\/+$/, "");
   const controller = new AbortController();
   // GRIOT runs a large model and may legitimately take a while; without a
@@ -2865,12 +2878,14 @@ async function callGriot(env, tenantId, message, threadId, lenses, context, answ
         "X-API-Key": env.GRIOT_API_KEY,
         "X-Tenant-Id": tenantId
       },
-      // `project` is deliberately omitted. GRIOT validates it against the
-      // operator's own venture list, so a client must never be able to set it;
-      // omitted, GRIOT files the exchange under the tenant's own "global".
+      // `project` is sent only when it is one of the client's own (checked
+      // above for its shape, and by GRIOT for its owner). Otherwise it is
+      // omitted and GRIOT files the exchange under the tenant's own "global":
+      // a client can never name one of the operator's ventures.
       body: JSON.stringify(Object.assign(
         { message: message, thread_id: threadId, mode: "think",
           effort: GRIOT_CLIENT_EFFORT, max_output_tokens: GRIOT_CLIENT_MAX_TOKENS },
+        project && project !== "global" ? { project } : {},
         lenses && lenses.length ? { lenses } : {},
         context && context.length ? { context } : {},
         answerMode ? { answer_mode: answerMode } : {})),
@@ -2894,6 +2909,9 @@ async function callGriot(env, tenantId, message, threadId, lenses, context, answ
     }
     if (res.status === 429) {
       throw new HttpError(503, "griot_busy", "GRIOT is rate-limited right now. Try again shortly.");
+    }
+    if (res.status === 400 && project && project !== "global") {
+      throw new HttpError(400, "unknown_project", "That project could not be found. It may have been deleted.");
     }
     throw new HttpError(502, "griot_upstream", "GRIOT could not answer that.");
   }
@@ -2929,6 +2947,7 @@ async function griotHealth(env) {
   let workspace = false;
   let documents = false;
   let modes = false;
+  let projects = false;
   try {
     const res = await fetch(base + "/health?check_db=false");
     if (res.ok) {
@@ -2937,10 +2956,11 @@ async function griotHealth(env) {
       workspace = ok && body.workspace === true;
       documents = workspace && body.documents === true;
       modes = workspace && body.modes === true;
+      projects = workspace && body.projects === true;
     }
   } catch (e) { ok = false; }
   if (!ok) console.error("GRIOT at " + base + " does not report tenancy; refusing client traffic.");
-  const entry = { ok, workspace, documents, modes, until: now + (ok ? 600000 : 30000) };
+  const entry = { ok, workspace, documents, modes, projects, until: now + (ok ? 600000 : 30000) };
   griotTenancy.set(base, entry);
   return entry;
 }
@@ -3008,6 +3028,8 @@ async function griotJson(env, tenantId, method, path, body) {
     clearTimeout(timer);
   }
   if (res.status === 404) throw new HttpError(404, "not_found", "That could not be found.");
+  if (res.status === 409) throw new HttpError(409, "conflict", "That limit is reached.");
+  if (res.status === 400) throw new HttpError(400, "griot_refused", "GRIOT could not accept that.");
   if (!res.ok) {
     console.error("GRIOT workspace call failed", method, path.split("?")[0], res.status);
     throw new HttpError(502, "griot_upstream", "GRIOT could not load that right now.");
@@ -3043,13 +3065,14 @@ async function griotWorkspace(request, env) {
   return json(request, env, { ready: true, lenses: c.lenses, steps: c.steps, modes: health.modes ? ANSWER_MODES : [] });
 }
 
-async function griotThreads(request, env) {
-  const { user } = await griotWorkspaceUser(request, env);
-  const rows = await griotJson(env, user.id, "GET", "/threads?limit=30");
+async function griotThreads(request, env, url) {
+  const { user, health } = await griotWorkspaceUser(request, env);
+  const rows = await griotJson(env, user.id, "GET", "/threads?limit=30" + projectQuery(url, health));
   return json(request, env, {
     threads: (Array.isArray(rows) ? rows : []).map((t) => ({
       id: str(t.thread_id, 64), firstQuestion: str(t.first_question, 200),
-      lastAt: str(t.last_at, 40), messages: num(t.messages) || 0
+      lastAt: str(t.last_at, 40), messages: num(t.messages) || 0,
+      project: publicProjectSlug(t.project)
     }))
   });
 }
@@ -3074,22 +3097,36 @@ function publicMemory(m) {
   };
 }
 
-async function griotMemories(request, env) {
-  const { user } = await griotWorkspaceUser(request, env);
-  const rows = await griotJson(env, user.id, "GET", "/memories?limit=100");
+async function griotMemories(request, env, url) {
+  const { user, health } = await griotWorkspaceUser(request, env);
+  const rows = await griotJson(env, user.id, "GET", "/memories?limit=100" + projectQuery(url, health));
   return json(request, env, { memories: (Array.isArray(rows) ? rows : []).map(publicMemory) });
 }
 
 async function griotAddMemory(request, env) {
-  const { user } = await griotWorkspaceUser(request, env);
+  const { user, health } = await griotWorkspaceUser(request, env);
   const body = await readJson(request, 8192);
   const title = str(body.title, 200);
   const content = str(body.content, 2000);
   if (!title || !content) throw new HttpError(400, "memory_required", "Give the fact a short title and the detail.");
   // Something the client tells GRIOT about themselves is a fact, filed in
-  // their own 'global' memory; the project list is never theirs to choose.
-  const row = await griotJson(env, user.id, "POST", "/memory",
-    { project: "global", kind: "fact", title, content, confidence: "fact" });
+  // their own 'global' memory or one of their own projects; the operator's
+  // ventures are never theirs to choose.
+  const project = clientProject(body.project);
+  if (project !== "global" && !health.projects) {
+    throw new HttpError(400, "unknown_project", "Projects are being switched on. Add it in General for now.");
+  }
+  let row;
+  try {
+    row = await griotJson(env, user.id, "POST", "/memory",
+      { project, kind: "fact", title, content, confidence: "fact" });
+  } catch (e) {
+    // GRIOT refuses a project that is not this account's own.
+    if (e instanceof HttpError && e.status === 400 && project !== "global") {
+      throw new HttpError(400, "unknown_project", "That project could not be found. It may have been deleted.");
+    }
+    throw e;
+  }
   return json(request, env, { memory: publicMemory(row || {}) });
 }
 
@@ -3102,15 +3139,115 @@ async function griotDeleteMemory(request, env) {
   return json(request, env, { deleted: id });
 }
 
-async function griotDecisions(request, env) {
-  const { user } = await griotWorkspaceUser(request, env);
-  const rows = await griotJson(env, user.id, "GET", "/decisions?limit=30");
+async function griotDecisions(request, env, url) {
+  const { user, health } = await griotWorkspaceUser(request, env);
+  const rows = await griotJson(env, user.id, "GET", "/decisions?limit=30" + projectQuery(url, health));
   return json(request, env, {
     decisions: (Array.isArray(rows) ? rows : []).map((d) => ({
       id: str(d.id, 64), threadId: str(d.thread_id, 64), question: str(d.request, 500),
-      recommendation: str(d.recommendation, 600), at: str(d.created_at, 40)
+      recommendation: str(d.recommendation, 600), at: str(d.created_at, 40),
+      project: publicProjectSlug(d.project)
     }))
   });
+}
+
+/* --------------------------------------------------------------------------
+   A client's own projects
+
+   Kept by GRIOT under the account's tenant (claude-central-agent PR #29):
+   names the client chooses, slugs GRIOT makes ("p-" and 8 hex characters),
+   so a client's project can never be, or name, one of the operator's
+   ventures. GRIOT's /projects (those ventures) is never reachable from here.
+   Until GRIOT reports "projects", the list answers ready: false and the
+   page keeps the picker hidden; everything else works in General.
+   ------------------------------------------------------------------------ */
+
+const MAX_CLIENT_PROJECTS = 20;
+const CLIENT_PROJECT_RE = /^p-[0-9a-f]{8}$/;
+
+// "global" (shown as General) or one of the client's own slugs, by shape.
+// Anything else, a venture's name included, is refused.
+function clientProject(value) {
+  if (value === undefined || value === null || value === "" || value === "global") return "global";
+  if (typeof value === "string" && CLIENT_PROJECT_RE.test(value)) return value;
+  throw new HttpError(400, "unknown_project", "That project could not be found.");
+}
+
+// What GRIOT says a row was filed under, as the page may see it: a client
+// slug, or "global" for everything else.
+function publicProjectSlug(value) {
+  return typeof value === "string" && CLIENT_PROJECT_RE.test(value) ? value : "global";
+}
+
+// "&project=…" for a list GRIOT can filter, from ?project= on the request.
+// Before GRIOT keeps projects, lists are not filtered (all is General).
+function projectQuery(url, health) {
+  const raw = url && url.searchParams.get("project");
+  if (!raw || !health.projects) return "";
+  return "&project=" + encodeURIComponent(clientProject(raw));
+}
+
+function projectName(value) {
+  const name = str(value, 200).replace(/\s+/g, " ").trim().slice(0, 60).trim();
+  if (!name) throw new HttpError(400, "project_name_required", "Give the project a name.");
+  return name;
+}
+
+function publicProject(p) {
+  return { slug: publicProjectSlug(p && p.slug), name: str(p && p.name, 60), createdAt: str(p && p.created_at, 40) };
+}
+
+async function griotProjectsUser(request, env) {
+  const ctx = await griotWorkspaceUser(request, env);
+  if (!ctx.health.projects) {
+    throw new HttpError(503, "griot_projects_not_ready", "Projects are being switched on. Please try again shortly.");
+  }
+  return ctx;
+}
+
+async function griotMyProjects(request, env) {
+  const { user, health } = await griotWorkspaceUser(request, env);
+  if (!health.projects) return json(request, env, { ready: false, projects: [], limit: MAX_CLIENT_PROJECTS });
+  const rows = await griotJson(env, user.id, "GET", "/tenant/projects");
+  const projects = (Array.isArray(rows) ? rows : []).map(publicProject).filter((p) => p.slug !== "global");
+  return json(request, env, { ready: true, projects, limit: MAX_CLIENT_PROJECTS });
+}
+
+async function griotCreateProject(request, env) {
+  const { user } = await griotProjectsUser(request, env);
+  const body = await readJson(request, 2048);
+  const name = projectName(body.name);
+  const existing = await griotJson(env, user.id, "GET", "/tenant/projects");
+  const tooMany = new HttpError(409, "project_limit",
+    "You can keep up to " + MAX_CLIENT_PROJECTS + " projects. Delete one to add another.");
+  if (Array.isArray(existing) && existing.length >= MAX_CLIENT_PROJECTS) throw tooMany;
+  let row;
+  try {
+    row = await griotJson(env, user.id, "POST", "/tenant/projects", { name });
+  } catch (e) {
+    if (e instanceof HttpError && e.status === 409) throw tooMany;
+    throw e;
+  }
+  return json(request, env, { project: publicProject(row || {}) });
+}
+
+async function griotRenameProject(request, env) {
+  const { user } = await griotProjectsUser(request, env);
+  const body = await readJson(request, 2048);
+  const slug = clientProject(body.slug);
+  if (slug === "global") throw new HttpError(400, "unknown_project", "General cannot be renamed.");
+  const name = projectName(body.name);
+  const row = await griotJson(env, user.id, "PATCH", "/tenant/projects/" + slug, { name });
+  return json(request, env, { project: publicProject(row || {}) });
+}
+
+async function griotDeleteProject(request, env) {
+  const { user } = await griotProjectsUser(request, env);
+  const body = await readJson(request, 1024);
+  const slug = clientProject(body.slug);
+  if (slug === "global") throw new HttpError(400, "unknown_project", "General cannot be deleted.");
+  await griotJson(env, user.id, "DELETE", "/tenant/projects/" + slug);
+  return json(request, env, { deleted: slug });
 }
 
 /* --------------------------------------------------------------------------

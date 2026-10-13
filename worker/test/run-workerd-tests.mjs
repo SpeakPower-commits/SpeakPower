@@ -155,6 +155,7 @@ const pageFetches = [];
 // Every request to an audited site, pages and site files alike.
 const siteLog = [];
 const griotMemories = [];
+const griotProjects = [];
 
 async function outbound(request) {
   const url = request.url;
@@ -177,12 +178,28 @@ async function outbound(request) {
   if (url.startsWith("https://griot.test/")) {
     const u = new URL(url);
     const tenant = request.headers.get("X-Tenant-Id");
-    if (u.pathname === "/health") return Response.json({ status: "ok", tenancy: true, tenant_header: "X-Tenant-Id", workspace: true });
+    if (u.pathname === "/health") return Response.json({ status: "ok", tenancy: true, tenant_header: "X-Tenant-Id", workspace: true, projects: true });
     if (request.headers.get("X-API-Key") !== "griot-workerd-key") return Response.json({ detail: "bad key" }, { status: 401 });
     if (u.pathname === "/memory" && request.method === "POST") {
       const row = Object.assign({ id: crypto.randomUUID(), tenant_id: tenant }, await request.json());
       griotMemories.push(row);
       return Response.json(row);
+    }
+    // A client's own projects (claude-central-agent #29), per tenant.
+    if (u.pathname === "/tenant/projects" && request.method === "GET") {
+      return Response.json(griotProjects.filter((x) => x.tenant === tenant).map(({ slug, name }) => ({ slug, name })));
+    }
+    if (u.pathname === "/tenant/projects" && request.method === "POST") {
+      const row = { tenant, slug: "p-" + crypto.randomUUID().replace(/-/g, "").slice(0, 8), name: (await request.json()).name };
+      griotProjects.push(row);
+      return Response.json({ slug: row.slug, name: row.name }, { status: 201 });
+    }
+    const delProject = u.pathname.match(/^\/tenant\/projects\/(.+)$/);
+    if (delProject && request.method === "DELETE") {
+      const i = griotProjects.findIndex((x) => x.tenant === tenant && x.slug === delProject[1]);
+      if (i < 0) return Response.json({ detail: "No such project" }, { status: 404 });
+      griotProjects.splice(i, 1);
+      return Response.json({ deleted: delProject[1] });
     }
     const del = u.pathname.match(/^\/memories\/(.+)$/);
     if (del && request.method === "DELETE") {
@@ -600,6 +617,20 @@ await test("real D1: the sign-up profile gates spending, briefs GRIOT under the 
   eq(d.status, 200); eq(d.data.griotCleared, true);
   eq(await db.prepare("SELECT 1 FROM profiles WHERE user_id = ?").bind(id).first(), null);
   eq(griotMemories.filter((m) => m.tenant_id === id).length, 0);
+});
+
+await test("projects: the bundled Worker keeps a client's projects under their own tenant, on workerd", async () => {
+  const a = await signIn("projects.a@example.com");
+  const b = await signIn("projects.b@example.com");
+  const made = await call("POST", "/griot/my-projects", { token: a.token, body: { name: "Coffee  export\tpitch" } });
+  eq(made.status, 200, JSON.stringify(made.data)); ok(/^p-[0-9a-f]{8}$/.test(made.data.project.slug)); eq(made.data.project.name, "Coffee export pitch");
+  const listA = await call("GET", "/griot/my-projects", { token: a.token });
+  eq(listA.data.ready, true); eq(listA.data.projects.length, 1);
+  eq((await call("GET", "/griot/my-projects", { token: b.token })).data.projects.length, 0, "B sees none of A's");
+  eq(griotProjects[0].tenant, (await user("projects.a@example.com")).id, "the tenant is the account's own id");
+  eq((await call("POST", "/griot/my-projects/delete", { token: b.token, body: { slug: made.data.project.slug } })).status, 404);
+  eq((await call("POST", "/griot/my-projects/delete", { token: a.token, body: { slug: made.data.project.slug } })).status, 200);
+  eq((await call("GET", "/griot/projects", { token: a.token })).status, 404, "the operator's ventures stay unreachable");
 });
 
 await test("real D1: a document is read once, kept as facts with pages, limited by plan, and deleted", async () => {

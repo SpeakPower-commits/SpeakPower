@@ -118,7 +118,7 @@ const COACHING = {
 let griotOldChats = 0;
 let griotHealthChecks = 0;
 // GRIOT's client workspace, per tenant, as the real one keeps it.
-const griotStore = { memories: [], messages: [], decisions: [] };
+const griotStore = { memories: [], messages: [], decisions: [], projects: [] };
 const griotWsCalls = [];
 const GRIOT_AGENTS = { story: "StoryAgent", market: "MarketAgent", data: "DataAgent", dev: "DevAgent", research: "ResearchAgent",
   growth: "GrowthAgent", operations: "OperationsAgent", brand: "BrandAgent", strategy: "StrategyAgent" };
@@ -137,9 +137,16 @@ async function griotWorkspaceFake(url, init) {
   if (u.pathname === "/agents") return out(GRIOT_AGENTS);
   if (u.pathname === "/protocol") return out({ steps: GRIOT_STEPS });
   if (u.pathname === "/projects") return out({ speakpower: { name: "SpeakPower" } });
-  if (u.pathname === "/memories" && method === "GET") return out(griotStore.memories.filter((m) => m.tenant_id === tenant));
+  const ownProject = (slug) => griotStore.projects.some((x) => x.tenant === tenant && x.slug === slug);
+  const projectOk = (slug) => !slug || slug === "global" || slug === "speakpower" || ownProject(slug);
+  const wantProject = u.searchParams.get("project");
+  if (u.pathname === "/memories" && method === "GET") {
+    return out(griotStore.memories.filter((m) => m.tenant_id === tenant &&
+      (!wantProject || m.project === wantProject || m.project === "global")));
+  }
   if (u.pathname === "/memory" && method === "POST") {
     if (net.griotMemoryDelay) await new Promise((r) => setTimeout(r, net.griotMemoryDelay));
+    if (!projectOk(JSON.parse(init.body).project)) return out({ detail: "Unknown project" }, 400);
     const row = Object.assign({ id: crypto.randomUUID(), tenant_id: tenant, created_at: new Date().toISOString() }, JSON.parse(init.body));
     griotStore.memories.push(row);
     return out(row);
@@ -152,11 +159,11 @@ async function griotWorkspaceFake(url, init) {
     return out({ deleted: md[1] });
   }
   if (u.pathname === "/threads") {
-    const mine = griotStore.messages.filter((m) => m.tenant === tenant);
+    const mine = griotStore.messages.filter((m) => m.tenant === tenant && (!wantProject || (m.project || "global") === wantProject));
     const ids = [...new Set(mine.map((m) => m.thread))];
     return out(ids.map((id) => {
       const ms = mine.filter((m) => m.thread === id);
-      return { thread_id: id, first_question: ms[0].content, last_at: ms[ms.length - 1].at, messages: ms.length };
+      return { thread_id: id, first_question: ms[0].content, last_at: ms[ms.length - 1].at, messages: ms.length, project: ms[0].project || "global" };
     }));
   }
   const mt = u.pathname.match(/^\/threads\/(.+)$/);
@@ -165,12 +172,43 @@ async function griotWorkspaceFake(url, init) {
     if (!ms.length) return out({ detail: "No such thread" }, 404);
     return out({ thread_id: mt[1], messages: ms.map((m) => ({ role: m.role, content: m.content, created_at: m.at })) });
   }
-  if (u.pathname === "/decisions") return out(griotStore.decisions.filter((d) => d.tenant_id === tenant));
+  if (u.pathname === "/decisions") {
+    return out(griotStore.decisions.filter((d) => d.tenant_id === tenant && (!wantProject || d.project === wantProject)));
+  }
+  // A client's own projects, as GRIOT keeps them (claude-central-agent #29).
+  if (u.pathname === "/tenant/projects" && method === "GET") {
+    return out(griotStore.projects.filter((x) => x.tenant === tenant).map((x) => ({ slug: x.slug, name: x.name, created_at: x.at })));
+  }
+  if (u.pathname === "/tenant/projects" && method === "POST") {
+    if (griotStore.projects.filter((x) => x.tenant === tenant).length >= (net.griotProjectCap || 20)) return out({ detail: "Project limit reached" }, 409);
+    const row = { tenant, slug: "p-" + crypto.randomUUID().replace(/-/g, "").slice(0, 8), name: JSON.parse(init.body).name, at: new Date().toISOString() };
+    griotStore.projects.push(row);
+    return out({ slug: row.slug, name: row.name, created_at: row.at }, 201);
+  }
+  const mp = u.pathname.match(/^\/tenant\/projects\/(.+)$/);
+  if (mp) {
+    const row = griotStore.projects.find((x) => x.tenant === tenant && x.slug === mp[1]);
+    if (!row) return out({ detail: "No such project" }, 404);
+    if (method === "PATCH") { row.name = JSON.parse(init.body).name; return out({ slug: row.slug, name: row.name, created_at: row.at }); }
+    if (method === "DELETE") {
+      griotStore.projects.splice(griotStore.projects.indexOf(row), 1);
+      griotStore.messages = griotStore.messages.filter((m) => !(m.tenant === tenant && m.project === row.slug));
+      griotStore.decisions = griotStore.decisions.filter((d) => !(d.tenant_id === tenant && d.project === row.slug));
+      griotStore.memories = griotStore.memories.filter((m) => !(m.tenant_id === tenant && m.project === row.slug));
+      return out({ deleted: row.slug });
+    }
+  }
   return out({ detail: "not here" }, 404);
 }
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (input, init) => {
-  const url = typeof input === "string" ? input : input.url;
+  let url = typeof input === "string" ? input : input.url;
+  // A GRIOT with the workspace but not client projects yet: otherwise the
+  // same GRIOT as griot.test.
+  if (url.startsWith("https://griot-noproj.test/health")) {
+    return new Response(JSON.stringify({ status: "ok", tenancy: true, tenant_header: "X-Tenant-Id", workspace: true, documents: true, modes: true }));
+  }
+  if (url.startsWith("https://griot-noproj.test/")) url = url.replace("https://griot-noproj.test/", "https://griot.test/");
   if (url === "https://api.flutterwave.com/v3/payments") {
     const body = JSON.parse(init.body);
     flw.checkouts.push({ body, auth: new Headers(init.headers).get("Authorization") });
@@ -205,7 +243,7 @@ globalThis.fetch = async (input, init) => {
   }
   if (url.startsWith("https://griot.test/health")) {
     griotHealthChecks++;
-    return new Response(JSON.stringify({ status: "ok", tenancy: true, tenant_header: "X-Tenant-Id", workspace: true, documents: true, modes: true }));
+    return new Response(JSON.stringify({ status: "ok", tenancy: true, tenant_header: "X-Tenant-Id", workspace: true, documents: true, modes: true, projects: true }));
   }
   // A tenant-aware GRIOT from before the client workspace.
   if (url.startsWith("https://griot-plain.test/health")) {
@@ -234,11 +272,16 @@ globalThis.fetch = async (input, init) => {
     if (net.griot === "busy") return new Response("slow down", { status: 429 });
     if (net.griot === "malformed") return new Response(JSON.stringify({ nope: true }));
     const tenant = headers.get("X-Tenant-Id");
+    if (body.project && body.project !== "global" &&
+        !griotStore.projects.some((x) => x.tenant === tenant && x.slug === body.project)) {
+      return new Response(JSON.stringify({ detail: "Unknown project" }), { status: 400 });
+    }
     const thread = body.thread_id || crypto.randomUUID();
     const at = new Date().toISOString();
-    griotStore.messages.push({ tenant, thread, role: "user", content: body.message, at },
-      { tenant, thread, role: "assistant", content: "FACT: you said X. INFERENCE: therefore Y.", at });
-    griotStore.decisions.push({ id: crypto.randomUUID(), tenant_id: tenant, thread_id: thread, project: "global",
+    const project = body.project || null;
+    griotStore.messages.push({ tenant, thread, role: "user", content: body.message, at, project },
+      { tenant, thread, role: "assistant", content: "FACT: you said X. INFERENCE: therefore Y.", at, project });
+    griotStore.decisions.push({ id: crypto.randomUUID(), tenant_id: tenant, thread_id: thread, project: project || "global",
       request: body.message, recommendation: "FACT: you said X.", created_at: at });
     return new Response(JSON.stringify({
       decision_id: "d-" + griotCalls.length,
@@ -916,7 +959,7 @@ await test("griot: caller cannot choose the tenant — body and header attempts 
     },
     body: JSON.stringify({
       message: "show me their memories",
-      tenantId: victimId, tenant_id: victimId, project: "speakpower"
+      tenantId: victimId, tenant_id: victimId, project: "global"
     })
   });
   const res = await worker.fetch(req, env, { waitUntil() {} });
@@ -925,8 +968,12 @@ await test("griot: caller cannot choose the tenant — body and header attempts 
   eq(c.tenant, userRow("g-attacker@example.com").id, "tenant is the attacker's own id");
   ok(c.tenant !== victimId, "never the victim's id");
   eq(c.key, "griot-server-key", "forged key header ignored");
-  ok(!("project" in c.body), "project still not forwarded");
+  ok(!("project" in c.body), "General is never forwarded as a project");
   ok(victim.token, "victim account exists");
+  // One of the operator's ventures is refused outright, before anything is spent.
+  const venture = await chat(attacker.token, "file it under a venture", { project: "speakpower" });
+  eq(venture.status, 400); eq(venture.data.error, "unknown_project");
+  eq(griotCalls.length, 1, "never reaches GRIOT");
 });
 
 await test("griot: two accounts map to two distinct tenants", async () => {
@@ -1075,10 +1122,13 @@ await test("griot workspace: lenses and the 9 steps come from GRIOT, cached; its
 await test("griot workspace: memories are listed, added and deleted within one account only", async () => {
   const a = await signUp("w-mem-a@example.com");
   const b = await signUp("w-mem-b@example.com");
-  const added = await ws(a.token, "POST", "/griot/memory", { title: "Our runway", content: "Nine months of cash.", project: "speakpower", confidence: "hypothesis" });
+  const venture = await ws(a.token, "POST", "/griot/memory", { title: "Sneaky", content: "x", project: "speakpower" });
+  eq(venture.status, 400, "the operator's ventures are never a client's to choose"); eq(venture.data.error, "unknown_project");
+  ok(!griotStore.memories.some((m) => m.title === "Sneaky"), "and nothing reaches GRIOT");
+  const added = await ws(a.token, "POST", "/griot/memory", { title: "Our runway", content: "Nine months of cash.", confidence: "hypothesis" });
   eq(added.status, 200); eq(added.data.memory.title, "Our runway"); eq(added.data.memory.confidence, "fact", "what a client tells GRIOT is a fact");
   const stored = griotStore.memories.find((m) => m.id === added.data.memory.id);
-  eq(stored.project, "global", "the project is never the client's to choose"); eq(stored.tenant_id, userId("w-mem-a@example.com"));
+  eq(stored.project, "global", "without a project, General"); eq(stored.tenant_id, userId("w-mem-a@example.com"));
   ok(!("tenant_id" in added.data.memory) && !("project" in added.data.memory), "no tenant or project echoed back");
   const listA = (await ws(a.token, "GET", "/griot/memories")).data.memories.map((m) => m.title);
   const listB = (await ws(b.token, "GET", "/griot/memories")).data.memories.map((m) => m.title);
@@ -1192,6 +1242,129 @@ await test("griot chat: a GRIOT without modes keeps the buttons hidden and refus
   eq(moded.status, 400); eq(moded.data.error, "unknown_mode");
   eq(plain.status, 200, "asking still works");
   eq(userRow(email).trials_remaining, before - 1, "only the plain question was counted");
+});
+
+/* ----------------------------------------------- a client's own projects */
+
+await test("griot projects: an account creates, lists, renames and deletes only its own", async () => {
+  const a = await signUp("p-own-a@example.com");
+  const b = await signUp("p-own-b@example.com");
+  griotWsCalls.length = 0;
+  const empty = await ws(a.token, "GET", "/griot/my-projects");
+  eq(empty.status, 200); eq(empty.data.ready, true); eq(empty.data.projects.length, 0); eq(empty.data.limit, 20);
+  const made = await ws(a.token, "POST", "/griot/my-projects", { name: "  Coffee\n export   pitch " });
+  eq(made.status, 200); ok(/^p-[0-9a-f]{8}$/.test(made.data.project.slug), made.data.project.slug);
+  eq(made.data.project.name, "Coffee export pitch", "one line, single spaces");
+  const listA = (await ws(a.token, "GET", "/griot/my-projects")).data.projects;
+  const listB = (await ws(b.token, "GET", "/griot/my-projects")).data.projects;
+  eq(listA.map((x) => x.name).join(), "Coffee export pitch"); eq(listB.length, 0, "B sees none of A's");
+  const slug = made.data.project.slug;
+  eq((await ws(b.token, "POST", "/griot/my-projects/rename", { slug, name: "Mine now" })).status, 404, "B cannot rename A's");
+  eq((await ws(b.token, "POST", "/griot/my-projects/delete", { slug })).status, 404, "B cannot delete A's");
+  const renamed = await ws(a.token, "POST", "/griot/my-projects/rename", { slug, name: "Buyer pitch" });
+  eq(renamed.status, 200); eq(renamed.data.project.name, "Buyer pitch");
+  eq((await ws(a.token, "POST", "/griot/my-projects/delete", { slug })).status, 200);
+  eq((await ws(a.token, "GET", "/griot/my-projects")).data.projects.length, 0);
+  ok(griotWsCalls.every((c) => c.tenant === userId("p-own-a@example.com") || c.tenant === userId("p-own-b@example.com") || c.tenant === "catalogue"),
+    "always the signed-in account's own tenant");
+  ok(!griotWsCalls.some((c) => c.path.startsWith("/projects")), "the operator's ventures are never requested");
+  for (const bad of ["global", "speakpower", "../projects", "p-XYZ", ""]) {
+    const r = await ws(a.token, "POST", "/griot/my-projects/delete", { slug: bad });
+    eq(r.status, 400, JSON.stringify(bad));
+  }
+  eq((await ws(a.token, "POST", "/griot/my-projects", { name: "   " })).status, 400, "a name is required");
+  eq((await ws(null, "GET", "/griot/my-projects")).status, 401, "signed out");
+});
+
+await test("griot projects: GRIOT's /projects (the operator's ventures) stays unreachable", async () => {
+  const s = await signUp("p-ventures@example.com");
+  for (const method of ["GET", "POST"]) {
+    eq((await ws(s.token, method, "/griot/projects", method === "POST" ? { name: "x" } : undefined)).status, 404, method);
+  }
+});
+
+await test("griot projects: at most 20 per account, checked here and by GRIOT", async () => {
+  const s = await signUp("p-many@example.com");
+  net.griotProjectCap = 100; // the Worker's own check, on its own
+  let over;
+  try {
+    for (let i = 0; i < 20; i++) eq((await ws(s.token, "POST", "/griot/my-projects", { name: "Project " + i })).status, 200, String(i));
+    over = await ws(s.token, "POST", "/griot/my-projects", { name: "One too many" });
+  } finally { delete net.griotProjectCap; }
+  eq(over.status, 409); eq(over.data.error, "project_limit"); ok(/up to 20 projects/.test(over.data.message), over.data.message);
+  eq((await ws(s.token, "GET", "/griot/my-projects")).data.projects.length, 20, "the 21st was never created");
+  // GRIOT's own limit reads the same, should the two ever disagree.
+  const t = await signUp("p-cap@example.com");
+  net.griotProjectCap = 1;
+  try {
+    eq((await ws(t.token, "POST", "/griot/my-projects", { name: "First" })).status, 200);
+    const capped = await ws(t.token, "POST", "/griot/my-projects", { name: "Second" });
+    eq(capped.status, 409); eq(capped.data.error, "project_limit");
+  } finally { delete net.griotProjectCap; }
+});
+
+await test("griot projects: a question is filed under the account's own project, and the lists follow it", async () => {
+  const email = "p-chat@example.com";
+  const s = await signUp(email);
+  const other = await signUp("p-chat-other@example.com");
+  const slug = (await ws(s.token, "POST", "/griot/my-projects", { name: "Donor pitch" })).data.project.slug;
+  griotCalls.length = 0;
+  const inProject = await chat(s.token, "Filed under the pitch", { project: slug });
+  eq(inProject.status, 200); eq(inProject.data.project, slug);
+  eq(griotCalls[0].body.project, slug, "sent to GRIOT");
+  const general = await chat(s.token, "Filed in General", { project: "global" });
+  eq(general.data.project, "global"); ok(!("project" in griotCalls[1].body), "General is never sent as a project");
+  await chat(s.token, "No project at all");
+  ok(!("project" in griotCalls[2].body));
+
+  const threads = (await ws(s.token, "GET", "/griot/threads?project=" + slug)).data.threads;
+  eq(threads.map((t) => t.firstQuestion).join("|"), "Filed under the pitch"); eq(threads[0].project, slug);
+  const generalThreads = (await ws(s.token, "GET", "/griot/threads?project=global")).data.threads;
+  eq(generalThreads.length, 2); ok(generalThreads.every((t) => t.project === "global"));
+  eq((await ws(s.token, "GET", "/griot/threads")).data.threads.length, 3, "no filter, everything");
+  eq((await ws(s.token, "GET", "/griot/decisions?project=" + slug)).data.decisions.map((d) => d.question).join(), "Filed under the pitch");
+  eq((await ws(s.token, "GET", "/griot/threads?project=speakpower")).status, 400, "a venture is not a filter");
+
+  const fact = await ws(s.token, "POST", "/griot/memory", { title: "Deadline", content: "31 March", project: slug });
+  eq(fact.status, 200);
+  eq(griotStore.memories.find((m) => m.id === fact.data.memory.id).project, slug);
+  const mem = (await ws(s.token, "GET", "/griot/memories?project=" + slug)).data.memories.map((m) => m.title);
+  ok(mem.includes("Deadline"), JSON.stringify(mem));
+
+  // Another account holding the slug: GRIOT refuses, and the use comes back.
+  const before = userRow("p-chat-other@example.com").trials_remaining;
+  const stolen = await chat(other.token, "Using A's project", { project: slug });
+  eq(stolen.status, 400); ok(/project could not be found/.test(stolen.data.message), stolen.data.message);
+  ok(/not charged/.test(stolen.data.message), stolen.data.message);
+  eq(userRow("p-chat-other@example.com").trials_remaining, before, "given back");
+  eq((await ws(other.token, "POST", "/griot/memory", { title: "x", content: "y", project: slug })).status, 400);
+
+  // A bad shape never reaches GRIOT and costs nothing.
+  const calls = griotCalls.length;
+  const was = userRow(email).trials_remaining;
+  for (const bad of ["speakpower", "tonninyira", "P-1234ABCD", "p-123", ["p-12345678"], "../x"]) {
+    const r = await chat(s.token, "bad project", { project: bad });
+    eq(r.status, 400, JSON.stringify(bad)); eq(r.data.error, "unknown_project");
+  }
+  eq(griotCalls.length, calls, "never reaches GRIOT"); eq(userRow(email).trials_remaining, was, "and costs nothing");
+});
+
+await test("griot projects: before GRIOT keeps projects, the picker stays hidden and General works", async () => {
+  const email = "p-noproj@example.com";
+  const s = await signUp(email);
+  env.GRIOT_API_BASE = "https://griot-noproj.test";
+  try {
+    const list = await ws(s.token, "GET", "/griot/my-projects");
+    eq(list.status, 200); eq(list.data.ready, false); eq(list.data.projects.length, 0);
+    eq((await ws(s.token, "POST", "/griot/my-projects", { name: "x" })).status, 503);
+    const before = userRow(email).trials_remaining;
+    const r = await chat(s.token, "in a project", { project: "p-12345678" });
+    eq(r.status, 400); eq(r.data.error, "unknown_project");
+    eq(userRow(email).trials_remaining, before, "refused for free");
+    eq((await chat(s.token, "in General")).status, 200, "asking still works");
+    const all = await ws(s.token, "GET", "/griot/threads?project=global");
+    eq(all.status, 200); ok(!griotWsCalls.some((c) => c.path.includes("project=") && c.tenant === userId(email)), "lists are not filtered yet");
+  } finally { env.GRIOT_API_BASE = "https://griot.test/"; }
 });
 
 /* ------------------------------------------------------- Google sign-in */
