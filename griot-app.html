@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>GRIOT — SpeakPower</title>
-<meta name="description" content="Sign in and try GRIOT, SpeakPower's strategic analyst that remembers your business. Your first 3 tries are free; then it comes with every SpeakPower plan.">
+<meta name="description" content="GRIOT, SpeakPower's strategic analyst that remembers your business. Sign in with Google: your first 3 tries are free, then it comes with every SpeakPower plan.">
 <meta name="robots" content="noindex, follow">
-<meta name="theme-color" content="#16233f">
+<meta name="theme-color" content="#283142">
 <link rel="icon" type="image/svg+xml" href="assets/brand/griot/griot-mark-c.svg">
 <link rel="icon" type="image/png" href="assets/brand/griot/griot-icon-32.png" sizes="32x32">
 <link rel="icon" type="image/png" href="assets/brand/griot/griot-icon-192.png" sizes="192x192">
@@ -14,155 +14,245 @@
 <link rel="manifest" href="site.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="preload" as="image" href="assets/brand/griot/griot-signature.webp" type="image/webp">
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="commercial.css">
+<link rel="stylesheet" href="griot-app.css">
 <script>document.documentElement.classList.add("js");</script>
 </head>
-<body>
-<a class="skip-link" href="#main">Skip to content</a>
-<header class="site-header"><div class="wrap">
-<a href="index.html" class="logo" aria-label="SpeakPower — home"><img class="logo-mark" src="assets/logo-mark.png" alt="" width="160" height="160"><span class="logo-text">Speak<span>Power</span></span></a>
-<nav class="nav-links" id="navLinks" aria-label="Primary">
-<a href="index.html">Home</a><a href="services.html">Services</a><a href="studio.html">Studio</a><a href="plans.html">Plans</a><a href="work.html">Work</a><a href="about.html">About</a><a href="https://speakpower1.blogspot.com" target="_blank" rel="noopener">Insights</a><a href="contact.html" class="nav-cta">Book a discovery call</a>
+<body class="gx-body">
+<a class="skip-link" href="#ga-message">Skip to the question box</a>
+
+<!-- Icons: Lucide line icons (ISC licence), used through <use>. -->
+<svg class="gx-sprite" width="0" height="0" aria-hidden="true" focusable="false">
+<defs>
+<linearGradient id="gxGold" x1=".12" y1=".02" x2=".88" y2=".98"><stop offset="0" stop-color="#F2D67B"/><stop offset=".5" stop-color="#E0BE55"/><stop offset="1" stop-color="#BA9622"/></linearGradient>
+</defs>
+<symbol id="gx-ask" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></symbol>
+<symbol id="gx-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></symbol>
+<symbol id="gx-brain" viewBox="0 0 24 24"><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"/><path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4"/><path d="M17.599 6.5a3 3 0 0 0 .399-1.375"/><path d="M6.003 5.125A3 3 0 0 0 6.401 6.5"/><path d="M3.477 10.896a4 4 0 0 1 .585-.396"/><path d="M19.938 10.5a4 4 0 0 1 .585.396"/><path d="M6 18a4 4 0 0 1-1.967-.516"/><path d="M19.967 17.484A4 4 0 0 1 18 18"/></symbol>
+<symbol id="gx-decisions" viewBox="0 0 24 24"><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/></symbol>
+<symbol id="gx-doc" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></symbol>
+<symbol id="gx-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+<symbol id="gx-send" viewBox="0 0 24 24"><path d="M3.714 3.048a.498.498 0 0 0-.683.627l2.843 7.627a2 2 0 0 1 0 1.396l-2.842 7.627a.498.498 0 0 0 .682.627l18-8.5a.5.5 0 0 0 0-.904z"/><path d="M6 12h16"/></symbol>
+<symbol id="gx-challenge" viewBox="0 0 24 24"><path d="M14.5 17.5 3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l4 4"/><path d="M19 21l2-2"/><path d="M14.5 6.5 18 3h3v3l-3.5 3.5"/><path d="M5 14l4 4"/><path d="M7 17l-3 3"/><path d="M3 19l2 2"/></symbol>
+<symbol id="gx-diagnose" viewBox="0 0 24 24"><path d="M11 2v2"/><path d="M5 2v2"/><path d="M5 3H4a2 2 0 0 0-2 2v4a6 6 0 0 0 12 0V5a2 2 0 0 0-2-2h-1"/><path d="M8 15a6 6 0 0 0 12 0v-3"/><circle cx="20" cy="10" r="2"/></symbol>
+<symbol id="gx-plan" viewBox="0 0 24 24"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></symbol>
+<symbol id="gx-glasses" viewBox="0 0 24 24"><circle cx="6" cy="15" r="4"/><circle cx="18" cy="15" r="4"/><path d="M14 15a2 2 0 0 0-2-2 2 2 0 0 0-2 2"/><path d="M2.5 13 5 7c.7-1.3 1.4-2 3-2"/><path d="M21.5 13 19 7c-.7-1.3-1.5-2-3-2"/></symbol>
+<symbol id="gx-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="gx-menu" viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></symbol>
+<symbol id="gx-close" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+<symbol id="gx-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></symbol>
+<symbol id="gx-signout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></symbol>
+<symbol id="gx-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></symbol>
+<symbol id="gx-card" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="5" rx="2"/><path d="M2 10h20"/></symbol>
+<symbol id="gx-back" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></symbol>
+<symbol id="gx-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+<symbol id="gx-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+<symbol id="gx-pencil" viewBox="0 0 24 24"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></symbol>
+<symbol id="gx-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></symbol>
+</svg>
+
+<!-- GRIOT's face beside what it says: the G from GRIOT OS. It blinks, and
+     moves its smile while GRIOT works. -->
+<template id="gaFace">
+<svg class="gx-avatar" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+<path d="M 56.23 32 A 24.23 24.23 0 1 1 51.35 17.42" fill="none" stroke="url(#gxGold)" stroke-width="5.55" stroke-linecap="round"/>
+<path class="gx-smile" d="M 38.8 37.0 Q 44.4 43.6 50.4 36.4" fill="none" stroke="url(#gxGold)" stroke-width="5.6" stroke-linecap="round"/>
+<g class="gx-specs" fill="none" stroke="#FAF7EF" stroke-width="2.75" stroke-linejoin="round"><rect x="18.83" y="22.18" width="11.80" height="8.55" rx="2.1"/><rect x="35.05" y="22.18" width="13.79" height="8.55" rx="2.1"/></g>
+<path d="M 31.9 26.3 H 34.0" stroke="#FAF7EF" stroke-width="1.9" stroke-linecap="round"/>
+</svg>
+</template>
+
+<div class="gx-app" id="gxApp" data-state="loading">
+<div class="gx-shell">
+
+<aside class="gx-sidebar" aria-label="GRIOT">
+<div class="gx-side-head">
+<div class="gx-signature-wrap">
+<picture><source srcset="assets/brand/griot/griot-signature.webp" type="image/webp"><img class="gx-signature" src="assets/brand/griot/griot-signature.png" alt="GRIOT" width="132" height="132"></picture>
+</div>
+<div class="gx-brand-block">
+<p class="gx-brand">GRIOT <span>OS</span></p>
+<p class="gx-tagline">Strategic intelligence &amp; execution</p>
+</div>
+<div class="gx-project" id="gaProjectBlock" hidden>
+<label class="gx-side-label" for="gaProject">Project</label>
+<div class="gx-select"><svg class="gx-i" aria-hidden="true"><use href="#gx-folder"/></svg><select id="gaProject"></select></div>
+<div class="gx-project-tools" id="gaProjectTools" hidden>
+<button type="button" class="gx-mini" id="gaProjectRename"><svg class="gx-i" aria-hidden="true"><use href="#gx-pencil"/></svg>Rename</button>
+<button type="button" class="gx-mini" id="gaProjectDelete"><svg class="gx-i" aria-hidden="true"><use href="#gx-trash"/></svg>Delete</button>
+</div>
+<form class="gx-project-form" id="gaProjectForm" novalidate hidden>
+<label class="gx-sr" for="gaProjectName" id="gaProjectFormLabel">Project name</label>
+<input id="gaProjectName" type="text" maxlength="60" placeholder="Name your project" autocomplete="off">
+<div class="gx-project-row"><button type="submit" class="gx-np-go" id="gaProjectSave">Create project</button><button type="button" class="gx-np-cancel" id="gaProjectCancel">Cancel</button></div>
+<p class="gx-project-note" id="gaProjectNote">Its conversations, memory and decisions stay separate from your other projects.</p>
+</form>
+<div class="gx-project-confirm" id="gaProjectConfirm" role="alertdialog" aria-labelledby="gaProjectConfirmText" hidden>
+<p id="gaProjectConfirmText"></p>
+<div class="gx-project-row"><button type="button" class="gx-np-danger" id="gaProjectDeleteYes">Delete it</button><button type="button" class="gx-np-cancel" id="gaProjectDeleteNo">Keep it</button></div>
+</div>
+<p class="gx-project-error" id="gaProjectError" role="alert" hidden></p>
+</div>
+<button type="button" class="gx-menu-btn" id="gaMenuBtn" aria-label="Open menu" aria-expanded="false" aria-controls="gaSideBody"><svg class="gx-i" aria-hidden="true"><use href="#gx-menu"/></svg></button>
+</div>
+
+<div class="gx-side-body" id="gaSideBody">
+<div class="gx-drawer-head"><p class="gx-brand gx-brand--small">GRIOT <span>OS</span></p><button type="button" class="gx-menu-btn" id="gaMenuClose" aria-label="Close menu"><svg class="gx-i" aria-hidden="true"><use href="#gx-close"/></svg></button></div>
+<nav class="gx-nav" id="gaTabs" role="tablist" aria-orientation="vertical" aria-label="GRIOT workspace" hidden>
+<button type="button" class="gx-nav-item" role="tab" id="gaTab-ask" aria-controls="gaPanel-ask" aria-selected="true"><svg class="gx-i" aria-hidden="true"><use href="#gx-ask"/></svg><span>Ask</span></button>
+<button type="button" class="gx-nav-item" role="tab" id="gaTab-conversations" aria-controls="gaPanel-conversations" aria-selected="false" tabindex="-1"><svg class="gx-i" aria-hidden="true"><use href="#gx-history"/></svg><span>Conversations</span></button>
+<button type="button" class="gx-nav-item" role="tab" id="gaTab-memory" aria-controls="gaPanel-memory" aria-selected="false" tabindex="-1"><svg class="gx-i" aria-hidden="true"><use href="#gx-brain"/></svg><span>Memory</span></button>
+<button type="button" class="gx-nav-item" role="tab" id="gaTab-decisions" aria-controls="gaPanel-decisions" aria-selected="false" tabindex="-1"><svg class="gx-i" aria-hidden="true"><use href="#gx-decisions"/></svg><span>Decisions</span></button>
+<button type="button" class="gx-nav-item" role="tab" id="gaTab-documents" aria-controls="gaPanel-documents" aria-selected="false" tabindex="-1"><svg class="gx-i" aria-hidden="true"><use href="#gx-doc"/></svg><span>Documents</span></button>
 </nav>
-<button class="nav-toggle" id="navToggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">&#9776;</button>
-</div></header>
-
-<main id="main">
-<div class="page-hero"><div class="wrap">
-<img class="ga-hero-mark" src="assets/brand/griot/griot-mark-c.svg" width="64" height="64" alt="">
-<p class="greeting" data-greeting hidden></p>
-<span class="eyebrow">SpeakPower Studio &middot; GRIOT</span>
-<h1>Ask GRIOT.</h1>
-<p>Your first 3 tries are free, shared with every Studio service &mdash; no card, no call. After that, GRIOT comes with every <a href="plans.html">SpeakPower plan</a>. It remembers what you tell it, and it marks every claim as fact, inference or hypothesis.</p>
-</div></div>
-
-<section style="padding-top:0"><div class="wrap griot-app">
-
-<!-- Shown only when the site has no Worker configured. -->
-<div class="studio-builder-panel" id="gaOffline" hidden>
-<h2>GRIOT is being connected.</h2>
-<p>Sign-up opens here shortly. Nothing you type on this page is sent anywhere until then.</p>
-<div class="builder-actions"><a class="btn btn-ghost" href="studio.html">Back to the Studio</a></div>
+<div class="gx-account-card" id="gaAccountCard">
+<p class="gx-status"><span class="gx-dot" aria-hidden="true"></span><strong id="gaStatusLine">GRIOT</strong></p>
+<p class="gx-plan-line" id="gaBalance">&mdash;</p>
+<div class="usage gx-usage" id="gaUsage" hidden></div>
 </div>
-
-<p class="griot-notice" id="gaNotice" role="status" hidden></p>
-
-<!-- Sign in: built by account.js, one account for GRIOT and the Studio. -->
-<div class="studio-builder-panel" id="gaSignIn" hidden></div>
-
-<!-- The workspace: Ask, plus Conversations, Memory and Decisions once this
-     GRIOT has them (griot-app.js reveals the tabs and the lens picker). -->
-<div class="studio-builder-panel griot-chat" id="gaChat" hidden>
-<div class="griot-chat-head">
-<div class="studio-builder-meta" aria-live="polite"><span id="gaBalance">&mdash;</span><span id="gaWho"></span></div>
-<button class="btn btn-ghost griot-signout" type="button" id="gaSignout">Sign out</button>
+<button type="button" class="gx-ghost" id="gaNewBtn" hidden>Start new conversation</button>
+<div class="gx-drawer-only" id="gaDrawerAcct" hidden>
+<a class="gx-nav-item" href="account.html"><svg class="gx-i" aria-hidden="true"><use href="#gx-user"/></svg><span>Account</span></a>
+<a class="gx-nav-item" href="plans.html"><svg class="gx-i" aria-hidden="true"><use href="#gx-card"/></svg><span>Plans</span></a>
+<a class="gx-nav-item" href="index.html"><svg class="gx-i" aria-hidden="true"><use href="#gx-back"/></svg><span>Back to SpeakPower</span></a>
+<button type="button" class="gx-nav-item" id="gaSignoutDrawer"><svg class="gx-i" aria-hidden="true"><use href="#gx-signout"/></svg><span>Sign out</span></button>
 </div>
-<div class="usage" id="gaUsage" hidden></div>
+<div class="gx-side-foot">
+<p class="gx-principle">&ldquo;Never confuse activity with progress.&rdquo;</p>
+<a class="gx-attribution" href="index.html">A product of <strong>SpeakPower</strong></a>
+</div>
+</div>
+</aside>
+<div class="gx-scrim" id="gaScrim"></div>
 
-<div class="ga-tabs" role="tablist" aria-label="GRIOT workspace" id="gaTabs" hidden>
-<button type="button" role="tab" id="gaTab-ask" aria-controls="gaPanel-ask" aria-selected="true">Ask</button>
-<button type="button" role="tab" id="gaTab-conversations" aria-controls="gaPanel-conversations" aria-selected="false" tabindex="-1">Conversations</button>
-<button type="button" role="tab" id="gaTab-memory" aria-controls="gaPanel-memory" aria-selected="false" tabindex="-1">Memory</button>
-<button type="button" role="tab" id="gaTab-decisions" aria-controls="gaPanel-decisions" aria-selected="false" tabindex="-1">Decisions</button>
-<button type="button" role="tab" id="gaTab-documents" aria-controls="gaPanel-documents" aria-selected="false" tabindex="-1">Documents</button>
+<main class="gx-main" id="main">
+<header class="gx-topbar">
+<div class="gx-topbar-title">
+<h1 id="gaViewTitle">What are we solving?</h1>
+<p id="gaViewSub">Give GRIOT the situation. It will route the right specialists.</p>
 </div>
+<div class="gx-topbar-meta">
+<span class="gx-thread" id="gaThreadLabel"></span>
+<button type="button" class="gx-link-btn" id="gaLegendBtn" aria-expanded="false" aria-controls="gaLegend"><svg class="gx-i" aria-hidden="true"><use href="#gx-info"/></svg><span>How GRIOT labels claims</span></button>
+<div class="gx-acct" id="gaAcct" hidden>
+<button type="button" class="gx-acct-chip" id="gaAcctBtn" aria-expanded="false" aria-controls="gaAcctMenu"><span class="gx-initial" id="gaInitial" aria-hidden="true"></span><span id="gaHi">Account</span><svg class="gx-i gx-chev" aria-hidden="true"><use href="#gx-chevron"/></svg></button>
+<div class="gx-menu" id="gaAcctMenu" hidden>
+<p class="gx-menu-who" id="gaWho"></p>
+<a href="account.html"><svg class="gx-i" aria-hidden="true"><use href="#gx-user"/></svg>Account</a>
+<a href="plans.html"><svg class="gx-i" aria-hidden="true"><use href="#gx-card"/></svg>Plans</a>
+<a href="index.html"><svg class="gx-i" aria-hidden="true"><use href="#gx-back"/></svg>Back to SpeakPower</a>
+<hr>
+<button type="button" id="gaSignout"><svg class="gx-i" aria-hidden="true"><use href="#gx-signout"/></svg>Sign out</button>
+</div>
+</div>
+</div>
+<div class="gx-popover gx-legend ga-legend" id="gaLegend" hidden>
+<h2>How GRIOT labels every claim</h2>
+<dl>
+<dt><span class="griot-label griot-label--fact">FACT</span></dt><dd>What you told it, or what can be checked</dd>
+<dt><span class="griot-label griot-label--inference">INFERENCE</span></dt><dd>Reasoned from the facts</dd>
+<dt><span class="griot-label griot-label--hypothesis">HYPOTHESIS</span></dt><dd>Plausible; worth testing</dd>
+<dt><span class="griot-label griot-label--recommendation">RECOMMENDATION</span></dt><dd>What to do next</dd>
+<dt><span class="griot-label griot-label--unknown">UNKNOWN</span></dt><dd>Missing; ask or find out</dd>
+</dl>
+<p class="gx-fine">GRIOT's answers are analysis, not professional advice. What you send is stored against your account so GRIOT can remember it, and is never visible to any other account.</p>
+</div>
+</header>
 
-<div id="gaPanel-ask" role="tabpanel" aria-labelledby="gaTab-ask">
-<details class="ga-legend">
-<summary>How GRIOT labels every claim</summary>
-<ul>
-<li><strong class="griot-label griot-label--fact">FACT</strong> what you told it, or what can be checked</li>
-<li><strong class="griot-label griot-label--inference">INFERENCE</strong> reasoned from the facts</li>
-<li><strong class="griot-label griot-label--hypothesis">HYPOTHESIS</strong> plausible; worth testing</li>
-<li><strong class="griot-label griot-label--recommendation">RECOMMENDATION</strong> what to do next</li>
-<li><strong class="griot-label griot-label--unknown">UNKNOWN</strong> missing; ask or find out</li>
-</ul>
-</details>
-<div class="griot-log" id="gaLog" aria-live="polite" aria-relevant="additions">
-<p class="output-empty" id="gaEmpty">Start with the decision in front of you &mdash; pricing, positioning, a hire, a donor narrative. Give GRIOT the context once; it keeps it.</p>
-</div>
-<form id="gaComposer" class="griot-composer" novalidate>
-<fieldset class="ga-lenses" id="gaLenses" hidden>
-<legend>Lenses <span>&mdash; optional, up to three</span></legend>
-<div class="ga-lens-chips" id="gaLensChips"></div>
-<p class="builder-note" id="gaLensHint">Auto lets GRIOT pick the specialists your question needs.</p>
-</fieldset>
-<fieldset class="ga-lenses ga-modes" id="gaModes" hidden>
-<legend>How should GRIOT answer? <span>&mdash; optional</span></legend>
-<div class="ga-lens-chips" id="gaModeChips">
-<button type="button" class="chip ga-mode" data-mode="challenge" aria-pressed="false">Challenge</button>
-<button type="button" class="chip ga-mode" data-mode="diagnose" aria-pressed="false">Diagnose</button>
-<button type="button" class="chip ga-mode" data-mode="plan" aria-pressed="false">Plan</button>
-</div>
-<p class="builder-note" id="gaModeHint">Pick one to change how GRIOT answers, or leave them off for its usual answer.</p>
-</fieldset>
-<div class="builder-field"><label for="ga-message">Your question</label>
-<textarea id="ga-message" rows="4" maxlength="20000" placeholder="We sell solar kits to rural schools in Uganda. Donors are cooling. Where should the next quarter go?" required></textarea></div>
+<p class="gx-notice" id="gaNotice" role="status" hidden></p>
+
+<section class="gx-view gx-view--ask" id="gaPanel-ask" role="tabpanel" aria-labelledby="gaTab-ask">
+<div class="gx-chat griot-log" id="gaLog" aria-live="polite" aria-relevant="additions"></div>
+<div class="ga-conv-download gx-conv-download" id="gaConvDownload" hidden></div>
+
+<!-- Asking: shown once signed in. -->
+<div class="gx-composer-wrap" id="gaChat" hidden>
+<form id="gaComposer" class="gx-composer griot-composer" novalidate>
 <p class="ga-attach-status" id="gaAttachStatus" role="status" hidden></p>
+<label class="gx-sr" for="ga-message">Your question for GRIOT</label>
+<textarea id="ga-message" rows="3" maxlength="20000" placeholder="e.g. We sell solar kits to rural schools. Donors are cooling. Where should the next quarter go?"></textarea>
 <p class="builder-error" id="gaChatError" role="alert" hidden></p>
-<div class="builder-actions"><button class="ga-attach" type="button" id="gaAttach" aria-label="Add a document for GRIOT to read" title="Add a document for GRIOT to read" hidden></button><input type="file" id="gaAttachFile" accept=".pdf,.docx,.odt,.xlsx,.xls,.ods,.csv,.txt,.md,.jpg,.jpeg,.png,.webp" hidden><button class="btn btn-primary" type="submit" id="gaSendBtn">Ask GRIOT</button><button class="btn btn-ghost" type="button" id="gaNewBtn" hidden>New conversation</button></div>
-<div class="ga-conv-download" id="gaConvDownload" hidden></div>
+<div class="gx-composer-row">
+<div class="gx-quick">
+<button type="button" class="gx-chip gx-chip--plus ga-attach" id="gaAttach" aria-label="Add a document for GRIOT to read" title="Add a document for GRIOT to read" hidden><svg class="gx-i" aria-hidden="true"><use href="#gx-plus"/></svg></button>
+<input type="file" id="gaAttachFile" accept=".pdf,.docx,.odt,.xlsx,.xls,.ods,.csv,.txt,.md,.jpg,.jpeg,.png,.webp" hidden>
+<span class="gx-modes" id="gaModes" role="group" aria-label="How GRIOT answers" hidden>
+<button type="button" class="gx-chip ga-mode" data-mode="challenge" aria-pressed="false"><svg class="gx-i" aria-hidden="true"><use href="#gx-challenge"/></svg>Challenge</button>
+<button type="button" class="gx-chip ga-mode" data-mode="diagnose" aria-pressed="false"><svg class="gx-i" aria-hidden="true"><use href="#gx-diagnose"/></svg>Diagnose</button>
+<button type="button" class="gx-chip ga-mode" data-mode="plan" aria-pressed="false"><svg class="gx-i" aria-hidden="true"><use href="#gx-plan"/></svg>Plan</button>
+</span>
+<button type="button" class="gx-chip gx-chip--lens" id="gaLensBtn" aria-expanded="false" aria-controls="gaLenses" hidden><svg class="gx-i" aria-hidden="true"><use href="#gx-glasses"/></svg><span id="gaLensLabel">Lenses: Auto</span><svg class="gx-i gx-chev" aria-hidden="true"><use href="#gx-chevron"/></svg></button>
+</div>
+<button class="gx-send" type="submit" id="gaSendBtn"><span id="gaSendLabel">Ask GRIOT</span><svg class="gx-i" aria-hidden="true"><use href="#gx-send"/></svg></button>
+</div>
+<p class="gx-hint" id="gaModeHint"></p>
+<div class="gx-popover gx-lens-pop" id="gaLenses" hidden>
+<h2>Choose GRIOT's lenses</h2>
+<p id="gaLensHint">Auto lets GRIOT pick the specialists your question needs.</p>
+<div class="gx-lens-grid" id="gaLensChips"></div>
+</div>
 </form>
 </div>
 
-<div id="gaPanel-conversations" role="tabpanel" aria-labelledby="gaTab-conversations" hidden>
-<h2 class="ga-h">Your conversations</h2>
-<p class="output-empty" id="gaConvEmpty">Loading&hellip;</p>
-<ul class="ga-list" id="gaConvList"></ul>
+<!-- Signed out: sign in here, then straight back to this conversation. -->
+<div class="gx-gate" id="gaSignIn" hidden></div>
+<!-- The free tries are used and no plan covers another question. -->
+<div class="gx-gate gx-gate--plans griot-topup" id="gaTopup" hidden></div>
+<!-- The site has no Worker configured. -->
+<div class="gx-gate" id="gaOffline" hidden>
+<div class="gx-gate-card"><div><strong>GRIOT is being connected.</strong><p>Sign-up opens here shortly. Nothing you type on this page is sent anywhere until then.</p></div><a class="gx-send gx-send--link" href="studio.html">Back to the Studio</a></div>
 </div>
+</section>
 
-<div id="gaPanel-memory" role="tabpanel" aria-labelledby="gaTab-memory" hidden>
-<h2 class="ga-h">What GRIOT remembers about you</h2>
-<p class="builder-note">GRIOT reads these before every answer. It adds what it learns from your conversations; you can add facts yourself, or delete anything.</p>
-<form class="ga-mem-form" id="gaMemForm" novalidate>
-<div class="builder-field"><label for="ga-mem-title">A fact, in a few words</label><input id="ga-mem-title" maxlength="200" placeholder="Our runway"></div>
-<div class="builder-field"><label for="ga-mem-content">The detail</label><textarea id="ga-mem-content" rows="2" maxlength="2000" placeholder="Nine months of cash at the current burn."></textarea></div>
+<section class="gx-view" id="gaPanel-conversations" role="tabpanel" aria-labelledby="gaTab-conversations" hidden>
+<div class="gx-panel">
+<p class="output-empty gx-empty" id="gaConvEmpty">Loading&hellip;</p>
+<ul class="ga-list gx-list" id="gaConvList"></ul>
+</div>
+</section>
+
+<section class="gx-view" id="gaPanel-memory" role="tabpanel" aria-labelledby="gaTab-memory" hidden>
+<div class="gx-panel">
+<form class="ga-mem-form gx-mem-form" id="gaMemForm" novalidate>
+<div class="gx-field"><label for="ga-mem-title">A fact, in a few words</label><input id="ga-mem-title" type="text" maxlength="200" placeholder="Our runway"></div>
+<div class="gx-field gx-field--wide"><label for="ga-mem-content">The detail</label><input id="ga-mem-content" type="text" maxlength="2000" placeholder="Nine months of cash at the current burn."></div>
+<button class="gx-send" type="submit" id="gaMemAdd">Remember this</button>
 <p class="builder-error" id="gaMemError" role="alert" hidden></p>
-<div class="builder-actions"><button class="btn btn-primary" type="submit" id="gaMemAdd">Add to memory</button></div>
 </form>
-<p class="output-empty" id="gaMemEmpty">Loading&hellip;</p>
-<ul class="ga-list" id="gaMemList"></ul>
+<p class="output-empty gx-empty" id="gaMemEmpty">Loading&hellip;</p>
+<ul class="ga-list gx-list" id="gaMemList"></ul>
 </div>
+</section>
 
-<div id="gaPanel-decisions" role="tabpanel" aria-labelledby="gaTab-decisions" hidden>
-<h2 class="ga-h">Decisions log</h2>
-<p class="builder-note">Every question you bring is logged with GRIOT's recommendation, so you can see what was decided and why.</p>
-<p class="output-empty" id="gaDecEmpty">Loading&hellip;</p>
-<ul class="ga-list" id="gaDecList"></ul>
+<section class="gx-view" id="gaPanel-decisions" role="tabpanel" aria-labelledby="gaTab-decisions" hidden>
+<div class="gx-panel">
+<p class="output-empty gx-empty" id="gaDecEmpty">Loading&hellip;</p>
+<ul class="ga-list gx-list" id="gaDecList"></ul>
 </div>
+</section>
 
-<div id="gaPanel-documents" role="tabpanel" aria-labelledby="gaTab-documents" hidden>
-<h2 class="ga-h">Documents GRIOT can read</h2>
-<p class="builder-note">Add a strategy paper, proposal, annual report or spreadsheet. GRIOT reads it once and keeps a short summary and the key facts, with their pages, then cites them when they bear on your question. The file itself is not kept, only you and GRIOT see what was taken from it, and none of it is used to train AI.</p>
-<form class="ga-doc-form" id="gaDocForm" novalidate>
-<div class="builder-field"><label for="ga-doc-file">Choose a file</label>
+<section class="gx-view" id="gaPanel-documents" role="tabpanel" aria-labelledby="gaTab-documents" hidden>
+<div class="gx-panel">
+<form class="ga-doc-form gx-doc-form" id="gaDocForm" novalidate>
+<div class="gx-field gx-field--wide"><label for="ga-doc-file">Add a strategy paper, proposal, report or spreadsheet</label>
 <input type="file" id="ga-doc-file" accept=".pdf,.docx,.odt,.xlsx,.xls,.ods,.csv,.txt,.md,.jpg,.jpeg,.png,.webp"></div>
-<p class="builder-note ga-doc-meta"><span>PDF, Word, Excel, CSV or text, up to 10 MB.</span> <span id="gaDocAllowance"></span></p>
+<button class="gx-send" type="submit" id="gaDocAdd">Read it</button>
+<p class="gx-doc-meta"><span>PDF, Word, Excel, CSV or text, up to 10 MB. GRIOT reads it once and keeps a short summary and the key facts, with their pages. The file itself is not kept, and none of it is used to train AI.</span> <span id="gaDocAllowance"></span> <a class="gx-link" id="gaDocPlans" href="plans.html" hidden>See the plans</a></p>
 <p class="builder-error" id="gaDocError" role="alert" hidden></p>
-<div class="builder-actions"><button class="btn btn-primary" type="submit" id="gaDocAdd">Read it</button><a class="btn btn-ghost" id="gaDocPlans" href="plans.html" hidden>See the plans</a></div>
 </form>
-<div class="ga-doc-reading" id="gaDocReading" role="status" hidden></div>
-<p class="griot-notice" id="gaDocStatus" role="status" hidden></p>
-<p class="output-empty" id="gaDocEmpty">Loading&hellip;</p>
-<ul class="ga-list" id="gaDocList"></ul>
+<div class="ga-doc-reading gx-doc-reading" id="gaDocReading" role="status" hidden></div>
+<p class="gx-notice gx-notice--inline" id="gaDocStatus" role="status" hidden></p>
+<p class="output-empty gx-empty" id="gaDocEmpty">Loading&hellip;</p>
+<ul class="ga-list gx-list" id="gaDocList"></ul>
 </div>
-</div>
-
-<!-- Shown when the free tries are used and no plan covers another question. -->
-<div class="studio-builder-panel griot-topup" id="gaTopup" hidden></div>
-
-<p class="builder-note">GRIOT answers are analysis, not professional advice. What you send is stored against your account so GRIOT can remember it, and is never visible to any other account.</p>
-</div></section>
+</section>
 </main>
+</div>
+</div>
 
-<footer class="site-footer"><div class="wrap"><div class="footer-grid">
-<div><h4>SpeakPower</h4><p class="footer-tagline">Articulate is key.</p><p>Brand storytelling and market development, backed by SEO, writing, design, data, programming and public speaking. Kampala, Uganda.</p></div>
-<div><h4>Explore</h4><div class="footer-links"><a href="index.html">Home</a><a href="services.html">Services</a><a href="studio.html">Studio</a><a href="plans.html">Plans</a><a href="work.html">Work</a><a href="about.html">About</a><a href="https://speakpower1.blogspot.com" target="_blank" rel="noopener">Insights</a><a href="contact.html">Contact</a></div></div>
-<div><h4>Contact</h4><div class="footer-links"><a href="tel:+256743482588">+256 743 482 588</a><a href="mailto:thomasotieno583@gmail.com">thomasotieno583@gmail.com</a><a href="https://wa.me/256743482588" target="_blank" rel="noopener">WhatsApp</a></div></div>
-<div><h4>Follow</h4><div class="footer-links"><a href="https://www.linkedin.com/in/otieno-thomas-a39b1b21b/" target="_blank" rel="noopener">LinkedIn</a><a href="https://www.instagram.com/otienothomas8/" target="_blank" rel="noopener">Instagram</a><a href="https://www.tiktok.com/@otom323" target="_blank" rel="noopener">TikTok</a></div></div>
-</div><div class="footer-bottom">&copy; 2026 SpeakPower. All rights reserved.</div></div></footer>
 <script src="site-config.js"></script>
 <script src="script.js"></script>
 <script src="account.js"></script>

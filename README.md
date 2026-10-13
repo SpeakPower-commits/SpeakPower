@@ -96,7 +96,7 @@ sequenceDiagram
 ├── index.html · services.html · work.html · about.html · contact.html   marketing pages
 ├── studio.html · studio-product.html/.js                                Studio catalogue and builders
 ├── rehearse.html · rehearse.js · rehearse.css                          the Rehearsal Room
-├── studio-griot.html · griot-app.html/.js                               GRIOT page, chat, Memory, Decisions, Documents
+├── studio-griot.html · griot-app.html/.js/.css                          GRIOT page; the GRIOT OS app: chat, projects, Memory, Decisions, Documents
 ├── griot-proverbs.js                                                    the nine proverbs GRIOT shows while it thinks (edit to add your engero)
 ├── account.html · account.js · account-page.js                          sign-up, membership, balance, profile
 ├── welcome.html · welcome.js                                            the two sign-up steps that brief GRIOT
@@ -185,7 +185,8 @@ GRIOT is named after West Africa's griot (*jeli*): the keeper of memory, adviser
 | 6 | Documents for GRIOT, cited by page | shipped |
 | 7 | GRIOT's mark, its own browser-tab icon, and a proverb at each of its nine steps while it thinks | shipped (proverbs are placeholders until your engero) |
 | 8 | GRIOT's Challenge · Diagnose · Plan and + upload; Word and PDF downloads; the original Home restored with Home in the menu; contact pre-filled from every Discuss button | shipped |
-| 9 | The website audit reads the whole site (up to 25 pages), checks private areas, adds Lighthouse with real-visitor speed and a strategic read, and delivers a SpeakPower-branded report in Word and PDF | on the preview |
+| 9 | The website audit reads the whole site (up to 25 pages), checks private areas, adds Lighthouse with real-visitor speed and a strategic read, and delivers a SpeakPower-branded report in Word and PDF | shipped |
+| 10 | GRIOT on the website becomes the GRIOT OS app: full screen, navy sidebar with the Signature, the animated G beside every answer, icons throughout, and clients' own projects | on the preview (projects switch on with claude-central-agent #29) |
 
 ## Principles
 

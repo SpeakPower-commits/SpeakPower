@@ -6,11 +6,11 @@ Open this file on the live site to see which build GitHub Pages is serving:
     https://speakpower-commits.github.io/SpeakPower/version.txt
 
 branch:   claude/studio-griot-live
-build:    venture links (2026-10-12): Tonninyira and CuePointe open their
-          live apps
-expects:  index.html — "Two marketing products. Both mine. Both live.",
-                       and "Open the app" on both ventures (new tab)
-          work.html — the same buttons on each case study
+build:    GRIOT as the GRIOT OS app (2026-10-13): full screen, the Signature,
+          the animated G, icons, and clients' own projects
+expects:  griot-app.html — a navy sidebar with the GRIOT Signature and
+                           "GRIOT OS", "What are we solving?", and GRIOT's
+                           welcome bubble with the G before sign-in
 
 If this file still shows an older build, Pages has not rebuilt yet: wait a
 minute and reload. If it 404s, Pages is serving a different branch.
