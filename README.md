@@ -26,7 +26,7 @@ It pairs a human practice (communication strategy, public speaking, brand narrat
 |---|---|---|---|
 | **Rehearsal Room** | Speak for up to three minutes; get pace, fillers, pauses, a Speak Score and a stronger opening line | In every plan | Live |
 | **GRIOT** | A strategy advisor that remembers your goals and labels fact from inference; choose its lenses, ask it to **Challenge**, **Diagnose** or **Plan**, add documents with **+**, download any answer or conversation as Word or PDF, and browse your conversations, memory and decisions | In every plan | Live |
-| **Studio packs** | Brand Message Kit, Website SEO Audit, Market Plan, SEO Content Starter, Data Story, Speaker Ready Pack | UGX 75,000 to 150,000 each | Live |
+| **Studio packs** | Brand Story, Website SEO Audit, Market Plan, SEO Content Starter, Data Story, Speaker Ready Pack | UGX 75,000 to 150,000 each | Live |
 | **Coaching with Otieno** | Human-led preparation for the rooms that cannot go wrong | On enquiry | Live |
 | **Clarity Audit** | Free in-browser check of a pitch or document: readability, jargon, evidence (a Studio tool) | Free | Live |
 

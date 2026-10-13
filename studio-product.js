@@ -27,9 +27,9 @@
   // (the Worker's test suite fails if any of the three disagree).
   var PRODUCTS = {
     "brand-story": {
-      title: "Brand Message Kit",
+      title: "Brand Story Builder",
       price: 100000,
-      lead: "Clarify your positioning, audience, value proposition and core message, then turn them into a brand story, taglines and pitches people can repeat.",
+      lead: "Turn what you do into a story people can understand, remember and repeat.",
       fields: [
         ["brand", "Brand / organisation name", "", "text"],
         ["offer", "What you offer", "Product, service, programme or expertise.", "textarea"],

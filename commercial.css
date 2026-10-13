@@ -906,35 +906,3 @@
 /* Grid children may shrink below their content, so a wide table scrolls
    inside its own frame rather than pushing the page sideways. */
 .studio-output > *,.audit-report > *,.ar-section > *{min-width:0}
-
-
-/* Launch focus: give the first self-service offer a clear starting-point signal. */
-.brand-message-feature {
-  border-color: rgba(201, 162, 39, .48);
-  background: radial-gradient(55% 100% at 100% 0%, rgba(201, 162, 39, .10), transparent 72%), var(--paper-2);
-}
-.brand-message-points {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
-  gap: .5rem 1.5rem;
-  padding-left: 1.2rem;
-  margin: 1.15rem 0 1.35rem;
-  color: var(--text);
-}
-.brand-message-note {
-  margin: .9rem 0 0;
-  font-size: .88rem;
-}
-.case-preview--featured {
-  border-color: rgba(201, 162, 39, .55);
-  box-shadow: 0 10px 30px rgba(201, 162, 39, .08);
-}
-.studio-start-actions { margin-top: 1rem; }
-.studio-product--start {
-  border-color: rgba(201, 162, 39, .65);
-  box-shadow: 0 12px 32px rgba(201, 162, 39, .11);
-}
-.studio-product--start .studio-status {
-  background: rgba(201, 162, 39, .13);
-  border-color: rgba(201, 162, 39, .4);
-}

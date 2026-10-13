@@ -41,7 +41,7 @@ Studio packs keep a one-off price, paid from a balance in Uganda shillings (`PRI
 
 | Studio pack | Price |
 |---|---|
-| Brand Message Kit | UGX 100,000 |
+| Brand Story Builder | UGX 100,000 |
 | Website SEO & Visibility Audit | UGX 150,000 |
 | Market Development Planner | UGX 125,000 |
 | SEO Content Starter | UGX 75,000 |

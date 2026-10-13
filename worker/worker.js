@@ -601,7 +601,7 @@ function textProduct(title, price, fields, build) {
 }
 
 const PRODUCTS = {
-  "brand-story": textProduct("Brand Message Kit", formatUgx(PRICES["brand-story"]), [
+  "brand-story": textProduct("Brand Story Builder", formatUgx(PRICES["brand-story"]), [
     ["brand", "Brand / organisation name", 120],
     ["offer", "What you offer", 1500],
     ["audience", "Who is it for?", 300],
