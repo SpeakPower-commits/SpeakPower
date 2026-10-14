@@ -887,6 +887,7 @@
     }
 
     setStatus("");
+    if (window.SPAnalytics) window.SPAnalytics.track("clarity_audit", {});
 
     renderScore(result);
     renderTiles(result);

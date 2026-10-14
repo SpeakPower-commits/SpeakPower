@@ -6,11 +6,11 @@ Open this file on the live site to see which build GitHub Pages is serving:
     https://speakpower-commits.github.io/SpeakPower/version.txt
 
 branch:   claude/studio-griot-live
-build:    venture links (2026-10-12): Tonninyira and CuePointe open their
-          live apps
-expects:  index.html — "Two marketing products. Both mine. Both live.",
-                       and "Open the app" on both ventures (new tab)
-          work.html — the same buttons on each case study
+build:    Google Analytics with consent (2026-10-14): Consent Mode v2 banner,
+          scrubbed addresses, events, purchases reported by the Worker
+expects:  any page, first visit — an "Analytics cookies?" banner with Accept
+                           and Decline; "Cookie settings" at the foot of
+                           every page and in GRIOT's sidebar
 
 If this file still shows an older build, Pages has not rebuilt yet: wait a
 minute and reload. If it 404s, Pages is serving a different branch.

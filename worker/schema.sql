@@ -105,7 +105,14 @@ CREATE TABLE IF NOT EXISTS payments (
   --   ALTER TABLE payments ADD COLUMN purpose TEXT NOT NULL DEFAULT 'topup';
   purpose      TEXT NOT NULL DEFAULT 'topup',
   created_at   INTEGER NOT NULL,
-  paid_at      INTEGER
+  paid_at      INTEGER,
+  -- The buyer's anonymous Google Analytics ids, sent by the page only when
+  -- they accepted analytics; used once, to report the settled purchase.
+  -- Added 14 Oct 2026; on an older database run:
+  --   ALTER TABLE payments ADD COLUMN ga_client_id TEXT;
+  --   ALTER TABLE payments ADD COLUMN ga_session_id TEXT;
+  ga_client_id  TEXT,
+  ga_session_id TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_payments_user ON payments (user_id, created_at);
 

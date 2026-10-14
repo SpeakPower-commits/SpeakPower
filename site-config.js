@@ -28,5 +28,12 @@ window.SP_CONFIG = {
 
   // Turnstile site key (public), used by email-code sign-in only.
   // Cloudflare dashboard → Turnstile → your widget.
-  turnstileSiteKey: ""
+  turnstileSiteKey: "",
+
+  // Google Analytics 4 web stream's Measurement ID (public). Google Analytics
+  // → Admin → Data streams → SpeakPower. Set the same value as
+  // GA4_MEASUREMENT_ID on the Worker. While empty, analytics.js does nothing:
+  // no cookie banner, no Google tag. With it set, visitors are asked first and
+  // nothing is stored on their device unless they accept (see analytics.js).
+  gaMeasurementId: "G-QMCCT15QTM"
 };

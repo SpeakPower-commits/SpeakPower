@@ -438,6 +438,8 @@
         "success",
         "Opening your email client with the enquiry ready to send. If nothing opens, email " + CONTACT_EMAIL + " directly."
       );
+      // Google Analytics: the form and the service chosen, never what was typed.
+      if (window.SPAnalytics) window.SPAnalytics.track("generate_lead", { form: "contact", service: serviceSelect.value });
       openMail(subject, body);
     });
   }
@@ -453,6 +455,7 @@
       var name = (document.getElementById("mc-name") || {}).value || "";
       var email = (document.getElementById("mc-email") || {}).value || "";
 
+      if (window.SPAnalytics) window.SPAnalytics.track("generate_lead", { form: "masterclass" });
       openMail(
         "Masterclass seat request — " + name.trim(),
         "Name: " + name.trim() + "\n"
