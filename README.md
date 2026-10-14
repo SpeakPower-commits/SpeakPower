@@ -104,6 +104,7 @@ sequenceDiagram
 ├── audit.html · audit.js                                                free Clarity Audit, a Studio tool (runs in the browser)
 ├── styles.css · home.css · commercial.css · *.css                       design system and page styles
 ├── script.js · site-config.js                                           shared behaviour; public settings
+├── analytics.js                                                         Google Analytics, only after the visitor accepts cookies
 ├── sitemap.xml · robots.txt · llms.txt                                   for search engines and AI assistants
 ├── assets/                                                              photos, logos, README illustrations
 │   └── brand/griot/                                                     GRIOT marks (SVG for the site; PNG and PDF for Canva)
@@ -115,8 +116,8 @@ sequenceDiagram
 
 ## Configuration
 
-- **`site-config.js`** holds the website's public settings: `apiBase` (the Worker's address) and `googleClientId`, plus switches for email codes and Turnstile. Nothing in it is secret.
-- **`worker/wrangler.toml`** holds the Worker's public variables: allowed origin, free tries, top-up amounts, GRIOT address, Google client ID.
+- **`site-config.js`** holds the website's public settings: `apiBase` (the Worker's address), `googleClientId` and `gaMeasurementId` (Google Analytics), plus switches for email codes and Turnstile. Nothing in it is secret.
+- **`worker/wrangler.toml`** holds the Worker's public variables: allowed origin, free tries, top-up amounts, GRIOT address, Google client ID, Google Analytics Measurement ID.
 - **Worker secrets** are set in Cloudflare → *speakpower* → Settings → **Variables and Secrets** (the top, runtime section), type *Secret*. They are never written in this repository:
 
   | Secret | Used for |
@@ -126,6 +127,18 @@ sequenceDiagram
   | `FLW_SECRET_KEY` · `FLW_SECRET_HASH` | Flutterwave checkout and webhook checks |
   | `PAGESPEED_KEY` | optional: Lighthouse scores in the SEO audit |
   | `ANTHROPIC_API_KEY` | optional: written coaching in the Rehearsal Room (without it, scores only at half price) |
+  | `GA4_API_SECRET` | optional: lets the Worker report settled plan and top-up purchases to Google Analytics |
+
+## Google Analytics, with consent
+
+The site reports to Google Analytics 4 (stream **SpeakPower**, Measurement ID `G-QMCCT15QTM`) through `analytics.js`, with Google's Consent Mode v2:
+
+- **Asked first.** A banner offers **Accept** and **Decline**, equal in size. Until someone accepts, nothing is stored on their device; Google gets only cookieless pings, which it uses to estimate totals. **Cookie settings** at the foot of every page (and in GRIOT's sidebar) changes the choice, and declining after accepting deletes Google's cookies.
+- **Never for advertising.** Ad storage, ad user data and ad personalisation are always denied; Google signals are off.
+- **No personal data.** Addresses lose their query string and hash (only `?product=` and `?service=` stay), so payment references and sign-in returns never leave. No name, email, account id, GRIOT question or answer is sent; event values that look like an email or a phone number are dropped.
+- **Purchases come from the Worker**, not the browser: when a plan or top-up settles, the Worker sends one `purchase` to Google's Measurement Protocol, and only for a visitor who accepted. A closed tab or an ad blocker cannot lose it, and a replayed payment cannot count twice.
+
+What is counted: sign-ups and log-ins, the welcome steps, pay walls, checkouts and purchases, GRIOT questions, projects and documents, rehearsals, Studio packs, the free Clarity Audit, the contact form, and WhatsApp, phone, email, "Discuss" and venture clicks. The full list, and the steps in Google Analytics itself, are in [`worker/README.md`](worker/README.md#google-analytics).
 
 ## Deploying
 
@@ -143,9 +156,9 @@ Full setup, step by step: [`worker/README.md`](worker/README.md).
 
 | Suite | What it proves |
 |---|---|
-| **Worker logic** (`worker/test/run-tests.mjs`, 181 checks) | prices match the site; free tries and plans; exact charge and refund; parallel uses never overdraw; payments settled exactly once; sign-in; the sign-up profile and GRIOT's briefing, account by account; documents read once, chosen per question, kept apart by account; the website audit's stages, private areas, scores and strategic read |
-| **Worker on workerd** (`worker/test/run-workerd-tests.mjs`, 20 checks) | the same Worker on Cloudflare's real runtime, with D1 and the HTML reader |
-| **Browser end to end** (over 200 checks) | Try → sign up → welcome steps → use → plan wall → plan or top-up, the Rehearsal Room, the GRIOT workspace, on desktop and phone |
+| **Worker logic** (`worker/test/run-tests.mjs`, 197 checks) | prices match the site; free tries and plans; exact charge and refund; parallel uses never overdraw; payments settled exactly once, and reported to Google Analytics once, only with consent; sign-in; the sign-up profile and GRIOT's briefing, account by account; documents read once, chosen per question, kept apart by account; the website audit's stages, private areas, scores and strategic read |
+| **Worker on workerd** (`worker/test/run-workerd-tests.mjs`, 21 checks) | the same Worker on Cloudflare's real runtime, with D1 and the HTML reader |
+| **Browser end to end** (over 200 checks) | Try → sign up → welcome steps → use → plan wall → plan or top-up, the Rehearsal Room, the GRIOT workspace, on desktop and phone; the cookie banner, Consent Mode, scrubbed addresses and every Analytics event |
 | **Site structure** | every page parses, local links resolve, structured data is valid |
 
 ## Design system

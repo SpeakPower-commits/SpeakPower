@@ -84,6 +84,8 @@ const googleJwks = { keys: [] };
 // A stand-in Flutterwave: checkouts it was asked for, and the transactions it
 // will vouch for when the Worker re-verifies a payment.
 const flw = { checkouts: [], transactions: {}, verifies: 0 };
+// A stand-in for Google Analytics' Measurement Protocol: every hit it got.
+const ga4 = { hits: [] };
 // Every request that reaches the fake GRIOT, so tests can assert exactly what
 // crossed the boundary: which tenant, which key, and that no project leaked.
 const griotCalls = [];
@@ -209,6 +211,15 @@ globalThis.fetch = async (input, init) => {
     return new Response(JSON.stringify({ status: "ok", tenancy: true, tenant_header: "X-Tenant-Id", workspace: true, documents: true, modes: true }));
   }
   if (url.startsWith("https://griot-noproj.test/")) url = url.replace("https://griot-noproj.test/", "https://griot.test/");
+  if (url.startsWith("https://www.google-analytics.com/mp/collect")) {
+    const u = new URL(url);
+    ga4.hits.push({ id: u.searchParams.get("measurement_id"), secret: u.searchParams.get("api_secret"),
+      contentType: new Headers(init.headers).get("Content-Type"), body: JSON.parse(init.body) });
+    if (net.ga4 === "hang") await stall(Infinity, init);
+    if (net.ga4 === "fail") return new Response("nope", { status: 500 });
+    if (net.ga4 === "throw") throw new TypeError("fetch failed");
+    return new Response(null, { status: 204 });
+  }
   if (url === "https://api.flutterwave.com/v3/payments") {
     const body = JSON.parse(init.body);
     flw.checkouts.push({ body, auth: new Headers(init.headers).get("Authorization") });
@@ -459,10 +470,11 @@ db.db.exec(readFileSync(join(here, "..", "schema.sql"), "utf8"));
 // Every account in the older tests has finished both sign-up steps, without
 // briefing GRIOT, so they exercise exactly what they did before profiles
 // existed. The profile tests delete this row to start from a bare account.
-db.db.exec(`CREATE TRIGGER test_profile_for_every_account AFTER INSERT ON users BEGIN
+const PROFILE_TRIGGER = `CREATE TRIGGER test_profile_for_every_account AFTER INSERT ON users BEGIN
   INSERT INTO profiles (user_id, name, expertise, position, company, problem, goal, step1_at, step2_at, created_at, updated_at)
   VALUES (NEW.id, 'Test', 'Testing', 'Tester', 'Test Co', 'A problem', 'A goal', NEW.created_at, NEW.created_at, NEW.created_at, NEW.created_at);
-END`);
+END`;
+db.db.exec(PROFILE_TRIGGER);
 
 const mailbox = [];
 const env = {
@@ -2524,6 +2536,176 @@ await test("plans: switching to Pro starts it now and ends Starter today", async
   const r = await chat(s.token, "now on Pro");
   eq(r.status, 200); eq(r.data.account.membership.plan, "pro");
 });
+
+/* ------------------------------------------------- Google Analytics */
+
+const GA = { clientId: "1234567890.1712345678", sessionId: "1712345678" };
+
+await test("analytics: email sign-in says whether it is the account's first", async () => {
+  const email = "ga-email@example.com";
+  const first = await signUp(email);
+  eq(first.isNew, true, "first sign-in");
+  const again = await signUp(email);
+  eq(again.isNew, false, "second sign-in, same second or not");
+});
+
+await test("analytics: Google sign-in says whether it is the account's first", async () => {
+  const first = await google(await googleToken({ email: "ga.google@gmail.com", sub: "ga-sub" }));
+  eq(first.status, 200); eq(first.data.isNew, true, "first sign-in");
+  const again = await google(await googleToken({ email: "ga.google@gmail.com", sub: "ga-sub" }));
+  eq(again.data.isNew, false, "returning");
+  const viaEmail = await signUp("ga.google@gmail.com");
+  eq(viaEmail.isNew, false, "the same account by email code is not new either");
+});
+
+await test("analytics: no purchase is reported until both the ID and the Secret are set", async () => {
+  ga4.hits.length = 0;
+  const s = await signUp("ga-off@example.com");
+  const c = await planCheckout(s.token, "starter", { ga: GA });
+  eq(payment(c.data.txRef).ga_client_id, GA.clientId, "ids kept for later");
+  await webhook(charge(pay(c.data.txRef, { amount: 60000 }), c.data.txRef));
+  eq(payment(c.data.txRef).status, "paid");
+  env.GA4_MEASUREMENT_ID = "G-QMCCT15QTM";
+  const c2 = await planCheckout(s.token, "starter", { ga: GA });
+  await webhook(charge(pay(c2.data.txRef, { amount: 60000 }), c2.data.txRef));
+  eq(payment(c2.data.txRef).status, "paid");
+  eq(ga4.hits.length, 0, "nothing sent without the API secret");
+  delete env.GA4_MEASUREMENT_ID;
+  env.GA4_API_SECRET = "mp-secret";
+  const c3 = await planCheckout(s.token, "starter", { ga: GA });
+  await webhook(charge(pay(c3.data.txRef, { amount: 60000 }), c3.data.txRef));
+  eq(ga4.hits.length, 0, "nothing sent without the Measurement ID");
+  env.GA4_MEASUREMENT_ID = "not-a-ga4-id";
+  const c4 = await planCheckout(s.token, "starter", { ga: GA });
+  await webhook(charge(pay(c4.data.txRef, { amount: 60000 }), c4.data.txRef));
+  eq(ga4.hits.length, 0, "nothing sent to a malformed Measurement ID");
+  delete env.GA4_MEASUREMENT_ID; delete env.GA4_API_SECRET;
+});
+
+env.GA4_MEASUREMENT_ID = "G-QMCCT15QTM";
+env.GA4_API_SECRET = "mp-secret";
+
+await test("analytics: a plan purchase is reported once, with the visitor's ids and nothing personal", async () => {
+  ga4.hits.length = 0;
+  const email = "ga-plan@example.com";
+  const s = await signUp(email);
+  const c = await planCheckout(s.token, "pro", { ga: GA });
+  eq(c.status, 200);
+  const id = pay(c.data.txRef, { amount: 150000 });
+  await Promise.all([webhook(charge(id, c.data.txRef)), webhook(charge(id, c.data.txRef)), confirm(s.token, c.data.txRef, id)]);
+  await confirm(s.token, c.data.txRef, id);
+  eq(ga4.hits.length, 1, "exactly one purchase hit");
+  const hit = ga4.hits[0];
+  eq(hit.id, "G-QMCCT15QTM"); eq(hit.secret, "mp-secret"); eq(hit.contentType, "application/json");
+  eq(hit.body.client_id, GA.clientId);
+  eq(hit.body.non_personalized_ads, true);
+  ok(!("user_id" in hit.body), "no user id");
+  eq(hit.body.events.length, 1);
+  const ev = hit.body.events[0];
+  eq(ev.name, "purchase");
+  eq(ev.params.transaction_id, c.data.txRef); eq(ev.params.currency, "UGX"); eq(ev.params.value, 150000);
+  eq(ev.params.session_id, GA.sessionId);
+  eq(ev.params.items.length, 1);
+  eq(ev.params.items[0].item_id, "plan_pro"); eq(ev.params.items[0].item_category, "plan");
+  eq(ev.params.items[0].price, 150000); eq(ev.params.items[0].quantity, 1);
+  ok(/Pro plan, 30 days/.test(ev.params.items[0].item_name));
+  const sent = JSON.stringify(hit.body);
+  ok(!sent.includes(email) && !sent.includes(userId(email)) && !sent.includes("Test"), "no email, account id or name");
+});
+
+await test("analytics: a top-up is reported as a top-up, without a session id when none was given", async () => {
+  ga4.hits.length = 0;
+  const s = await signUp("ga-topup@example.com");
+  const c = await call("POST", "/wallet/checkout", { token: s.token, body: { amount: 100000, ga: { clientId: GA.clientId } } });
+  eq(c.status, 200);
+  await webhook(charge(pay(c.data.txRef, { amount: 100000 }), c.data.txRef));
+  eq(ga4.hits.length, 1);
+  const ev = ga4.hits[0].body.events[0];
+  eq(ev.params.items[0].item_id, "topup"); eq(ev.params.value, 100000);
+  ok(!("session_id" in ev.params), "no session id invented");
+});
+
+await test("analytics: a visitor who declined analytics (no ids) is never reported", async () => {
+  ga4.hits.length = 0;
+  const s = await signUp("ga-declined@example.com");
+  const c = await planCheckout(s.token, "starter");
+  await webhook(charge(pay(c.data.txRef, { amount: 60000 }), c.data.txRef));
+  eq(payment(c.data.txRef).status, "paid");
+  eq(payment(c.data.txRef).ga_client_id, null);
+  eq(ga4.hits.length, 0);
+});
+
+await test("analytics: ids that are not GA's own shape are dropped at checkout", async () => {
+  const s = await signUp("ga-junk@example.com");
+  for (const [ga, client, session] of [
+    [{ clientId: "user@example.com", sessionId: "1" }, null, null],
+    [{ clientId: "123.456<script>", sessionId: "1" }, null, null],
+    [{ clientId: 1234.5678 }, null, null],
+    [{ clientId: "1".repeat(21) + ".1" }, null, null],
+    [{ sessionId: "1712345678" }, null, null],
+    [{ clientId: GA.clientId, sessionId: "abc" }, GA.clientId, null],
+    [{ clientId: GA.clientId, sessionId: 1712345678 }, GA.clientId, null],
+    ["1234567890.1712345678", null, null],
+    [[GA.clientId], null, null]
+  ]) {
+    const c = await planCheckout(s.token, "starter", { ga });
+    eq(c.status, 200, "checkout still opens for " + JSON.stringify(ga));
+    const p = payment(c.data.txRef);
+    eq(p.ga_client_id, client, "client id from " + JSON.stringify(ga));
+    eq(p.ga_session_id, session, "session id from " + JSON.stringify(ga));
+  }
+});
+
+await test("analytics: a database without the GA columns still takes payments, and reports nothing", async () => {
+  // The live database as it was before 14 Oct: schema.sql without the two
+  // GA columns. The Worker must record the payment anyway.
+  const old = new FakeD1();
+  const schema = readFileSync(join(here, "..", "schema.sql"), "utf8");
+  const withoutGa = schema.replace(/,\s*(--[^\n]*\n\s*)*ga_client_id\s+TEXT,\s*ga_session_id\s+TEXT/, "");
+  ok(withoutGa !== schema, "the old schema was rebuilt");
+  old.db.exec(withoutGa);
+  old.db.exec(PROFILE_TRIGGER);
+  ok(!old.q("SELECT name FROM pragma_table_info('payments')").some((c) => c.name.startsWith("ga_")), "no GA columns");
+  ga4.hits.length = 0;
+  const live = env.DB;
+  env.DB = old;
+  try {
+    const email = "ga-oldschema@example.com";
+    const s = await signUp(email);
+    const c = await planCheckout(s.token, "starter", { ga: GA });
+    eq(c.status, 200, "checkout opens");
+    const row = old.one("SELECT status, purpose FROM payments WHERE tx_ref = ?", c.data.txRef);
+    eq(row && row.status, "pending", "payment recorded");
+    const r = await confirm(s.token, c.data.txRef, pay(c.data.txRef, { amount: 60000 }));
+    eq(r.data.status, "credited");
+    eq(old.q("SELECT id FROM subscriptions").length, 1, "the plan opened");
+    eq(ga4.hits.length, 0, "no ids stored, so no report");
+  } finally {
+    env.DB = live;
+  }
+});
+
+for (const mode of ["fail", "throw", "hang"]) {
+  await test("analytics: Google " + (mode === "hang" ? "hanging" : "failing (" + mode + ")") + " never touches the payment", async () => {
+    ga4.hits.length = 0;
+    net.ga4 = mode;
+    const email = "ga-" + mode + "@example.com";
+    const s = await signUp(email);
+    const c = await planCheckout(s.token, "starter", { ga: GA });
+    const id = pay(c.data.txRef, { amount: 60000 });
+    const started = Date.now();
+    const r = await confirm(s.token, c.data.txRef, id);
+    delete net.ga4;
+    eq(r.status, 200); eq(r.data.status, "credited");
+    eq(payment(c.data.txRef).status, "paid");
+    eq(periods(email).length, 1, "the plan opened");
+    eq(ga4.hits.length, 1, "tried once");
+    ok(Date.now() - started < 4500, "gave up within a few seconds");
+  });
+}
+
+delete env.GA4_MEASUREMENT_ID;
+delete env.GA4_API_SECRET;
 
 /* ------------------------------------------------ the Rehearsal Room */
 

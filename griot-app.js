@@ -28,6 +28,8 @@
   var PROJECT_KEY = "sp_griot_project";
 
   function $(id) { return document.getElementById(id); }
+  // Google Analytics (analytics.js): counts what was used, never what was said.
+  function track(name, params) { if (window.SPAnalytics) window.SPAnalytics.track(name, params); }
 
   var app = $("gxApp");
   if (!app || !$("gaLog")) return;
@@ -595,6 +597,7 @@
       : A.call("/griot/my-projects", { name: name });
     req.then(function (r) {
       var p = r.project;
+      if (!renaming) track("griot_project_create", {});
       if (renaming) {
         projects.list.forEach(function (x) { if (x.slug === p.slug) x.name = p.name; });
         renderProjects();
@@ -939,6 +942,7 @@
     input.disabled = true;
     var done = readingState(file.name);
     A.upload("/griot/documents?name=" + encodeURIComponent(file.name), file).then(function (r) {
+      track("griot_document_add", { from: "documents" });
       input.value = "";
       loadDocuments("GRIOT read “" + r.document.name + "” and kept " + r.document.facts.length +
         (r.document.facts.length === 1 ? " key fact." : " key facts."));
@@ -972,6 +976,7 @@
     $("gaAttach").disabled = true;
     say("Reading “" + file.name + "”… This takes up to a minute.", "busy");
     A.upload("/griot/documents?name=" + encodeURIComponent(file.name), file).then(function (r) {
+      track("griot_document_add", { from: "ask" });
       var n = r.document.facts.length;
       say("“" + r.document.name + "” is ready: " + n + (n === 1 ? " key fact" : " key facts") +
         ". GRIOT can use it from your next question.", "ready");
@@ -1143,6 +1148,10 @@
     A.call("/griot/chat", payload).then(function (reply) {
       pending.stop();
       pending.item.remove();
+      track("griot_question", {
+        mode: chosenMode || "standard", lens_count: payload.lenses ? payload.lenses.length : 0,
+        project_type: payload.project && payload.project !== "global" ? "own" : "general", paid_with: reply.paidWith
+      });
       var answer = addMessage("griot", reply.answer, describe(reply));
       answer.classList.add("griot-msg--new");
       if (reply.memoryWritten && ws.ready) {

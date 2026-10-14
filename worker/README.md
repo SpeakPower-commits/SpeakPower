@@ -142,8 +142,9 @@ Only the secrets go here — the public settings are already in `wrangler.toml` 
 | `FLW_SECRET_HASH` | **Secret** | The secret hash you chose in step 5. |
 | `PAGESPEED_KEY` | **Secret** | Optional, from step 6. |
 | `ANTHROPIC_API_KEY` | **Secret** | Optional: written coaching in the Rehearsal Room. Create it at console.anthropic.com. |
+| `GA4_API_SECRET` | **Secret** | Optional: Google Analytics → Data streams → SpeakPower → Measurement Protocol API secrets. Lets the Worker report settled purchases ([Google Analytics](#google-analytics)). |
 
-Already in `wrangler.toml`: `ENVIRONMENT`, `ALLOWED_ORIGINS`, `FREE_TRIALS`, `SITE_URL`, `GRIOT_API_BASE`, `TOPUP_AMOUNTS`. `GOOGLE_CLIENT_ID` is added there (it is public) once step 4 is done.
+Already in `wrangler.toml`: `ENVIRONMENT`, `ALLOWED_ORIGINS`, `FREE_TRIALS`, `SITE_URL`, `GRIOT_API_BASE`, `TOPUP_AMOUNTS`, `GOOGLE_CLIENT_ID` and `GA4_MEASUREMENT_ID` (all public).
 
 Top-up switches on only when `FLW_SECRET_KEY` and `FLW_SECRET_HASH` are both set. Until then the pay wall offers a "talk to me" link instead — it never shows a button that takes money it cannot credit.
 
@@ -291,16 +292,64 @@ SELECT date(paid_at, 'unixepoch') AS day, COUNT(*) AS payments, SUM(amount) AS u
 FROM payments WHERE status = 'paid' GROUP BY day ORDER BY day DESC;
 ```
 
+## Google Analytics
+
+The site reports to Google Analytics 4: property stream **SpeakPower**, stream ID `16127863463`, Measurement ID **`G-QMCCT15QTM`**. The Measurement ID is public; it is in `site-config.js` (`gaMeasurementId`) and `wrangler.toml` (`GA4_MEASUREMENT_ID`). Emptying `gaMeasurementId` switches the whole thing off: no banner, no Google tag.
+
+**Consent (Consent Mode v2, advanced).** `analytics.js` sets every storage type to *denied* before anything reaches Google, then shows a banner with **Accept** and **Decline**. Accept grants `analytics_storage` only; ad storage, ad user data and ad personalisation stay denied, and Google signals and ad personalisation are off in the tag. Declined or undecided visitors send cookieless pings only, which Google uses to model totals once traffic is large enough. The choice is kept in the browser (`localStorage` `sp_consent`); **Cookie settings** in every footer and in GRIOT's sidebar reopens it, and withdrawing consent deletes the `_ga` cookies.
+
+**What never leaves.** Page addresses are scrubbed: the query string and hash are dropped except `?product=` and `?service=`, so `tx_ref`, `transaction_id`, `audit`, `next` and sign-in returns never reach Google; another site's referrer is cut to its origin. No user id, name, email, GRIOT question, answer or form text is sent, and any event value that looks like an email or a phone number is dropped.
+
+**Purchases are reported by the Worker.** At checkout a page that has consent sends GA's anonymous `client_id` and `session_id`; the Worker stores them on the payment row (`ga_client_id`, `ga_session_id`). When the payment settles — webhook or return page, exactly once — the Worker sends one `purchase` to the Measurement Protocol (`transaction_id` = the payment's `tx_ref`, UGX, the plan or top-up as the item). No ids, no report. It needs the **`GA4_API_SECRET`** Secret, and a failure or a slow Google never touches the payment (3 s limit, logged without the secret).
+
+| Event | When | Parameters |
+|---|---|---|
+| `page_view` | every page (automatic) | the scrubbed address |
+| `sign_up` · `login` | Google or email sign-in; `sign_up` the first time the account is verified | `method` |
+| `profile_complete` | welcome step 1 and step 2 | `step`, `briefed_griot`, `focus_count` |
+| `paywall_view` | the plan wall or the top-up wall appears | `wall`, `item_name` or `allowance_used` |
+| `begin_checkout` | just before Flutterwave opens | `currency`, `value`, `items` |
+| `purchase` | a plan or top-up settles (sent by the Worker) | `transaction_id`, `currency`, `value`, `items` |
+| `griot_question` | GRIOT answered | `mode`, `lens_count`, `project_type`, `paid_with` |
+| `griot_project_create` · `griot_document_add` | a client made a project; GRIOT read a document | `from` (documents) |
+| `rehearsal_complete` | a rehearsal was scored | `moment`, `coaching`, `paid_with` |
+| `studio_pack` | a Studio pack was generated, or a website audit started | `product`, `paid_with` |
+| `clarity_audit` | the free Clarity Audit ran | — |
+| `generate_lead` | the contact or masterclass form opened the email | `form`, `service` |
+| `contact_click` | a WhatsApp, phone or email link | `channel`, `link_location` |
+| `discuss_click` · `venture_click` | a "Discuss …" button; Tonninyira or CuePointe | `service` or `venture`, `link_location` |
+| `select_content` | a link into a Studio pack, GRIOT, the Rehearsal Room, the Clarity Audit or Plans | `content_type`, `content_id` |
+
+**Yours, in Google Analytics (Admin), once:**
+
+1. **Measurement Protocol API secret:** Data streams → SpeakPower → Measurement Protocol API secrets → Create. Copy it straight into Cloudflare → `speakpower` → Settings → Variables and Secrets → type **Secret**, name `GA4_API_SECRET` → Deploy. Never into a chat, a file or a screenshot. Until it is set, everything works except the server-side `purchase`.
+2. **Key events:** Events → mark `sign_up`, `purchase` and `generate_lead` as key events (they appear once each has happened once).
+3. **Currency:** Property details → currency **Ugandan Shilling (UGX)**.
+4. **Data retention:** Data collection and modification → Data retention → **14 months**.
+5. **Google signals:** leave **off** (Data collection). The tag also refuses them.
+6. **Custom dimensions** (Custom definitions → Create, event-scoped), so the parameters show in reports: `product`, `mode`, `moment`, `service`, `channel`, `wall`, `paid_with`, `form`, `venture`, `project_type`, `link_location`.
+7. **Search Console:** Product links → Search Console links → link the site's property, so search queries sit beside behaviour.
+8. **Check it works:** Admin → DebugView, or Reports → Realtime, while you accept the banner and click around.
+
+**Database:** `payments` gained `ga_client_id` and `ga_session_id` (14 Oct 2026). Until both exist, checkout still works: the Worker records the payment without the ids, and simply reports no purchase. On an older database run, once:
+
+```sql
+ALTER TABLE payments ADD COLUMN ga_client_id TEXT;
+ALTER TABLE payments ADD COLUMN ga_session_id TEXT;
+```
+
+**Law:** Uganda's Data Protection and Privacy Act 2019 asks for consent before personal data is collected; the banner asks first, explains in plain words and makes declining as easy as accepting.
+
 ## Testing
 
 ```
 cd worker && npm install && cd .. && node --experimental-sqlite worker/test/run-tests.mjs
 ```
 
-The business rules, fast, in plain Node (181 tests): the real `worker.js` against an in-memory D1, with Google, GRIOT, Flutterwave and audited sites faked at the network edge only. Google sign-in is tested with real RS256 signatures, so forged keys, `alg: none` and edited tokens are refused by actual cryptography rather than a stub. It also fails if any page quotes a different price from the Worker.
+The business rules, fast, in plain Node (197 tests): the real `worker.js` against an in-memory D1, with Google, GRIOT, Flutterwave and audited sites faked at the network edge only. Google sign-in is tested with real RS256 signatures, so forged keys, `alg: none` and edited tokens are refused by actual cryptography rather than a stub. It also fails if any page quotes a different price from the Worker.
 
 ```
 cd worker && npm install && npm install --no-save miniflare@4 wrangler@4 && node test/run-workerd-tests.mjs
 ```
 
-The Worker bundled exactly as Workers Builds deploys it (`wrangler deploy --dry-run`), on **workerd**, the engine Cloudflare runs Workers on (20 tests): real D1, the real HTML parser for the SEO audit, WebCrypto sign-in, the exactly-once top-up under truly concurrent notifications, the sign-up profile briefing GRIOT, and a document read and kept as facts. It also audits this site's own pages.
+The Worker bundled exactly as Workers Builds deploys it (`wrangler deploy --dry-run`), on **workerd**, the engine Cloudflare runs Workers on (21 tests): real D1, the real HTML parser for the SEO audit, WebCrypto sign-in, the exactly-once top-up under truly concurrent notifications, the sign-up profile briefing GRIOT, and a document read and kept as facts. It also audits this site's own pages.

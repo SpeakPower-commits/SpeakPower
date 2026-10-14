@@ -239,6 +239,9 @@ async function authVerify(request, env) {
     throw new HttpError(400, "invalid_code", "That code is not right. Check the email and try again.");
   }
 
+  // A first sign-in is the one that verifies the account: the page reports it
+  // to Google Analytics as a sign-up rather than a log-in.
+  const isNew = await firstSignIn(env, canon);
   await env.DB.batch([
     env.DB.prepare("DELETE FROM otp_codes WHERE email_canonical = ?").bind(canon),
     env.DB.prepare(
@@ -253,7 +256,15 @@ async function authVerify(request, env) {
 
   const expiresAt = now + SESSION_TTL;
   const token = await signToken({ uid: user.id, sv: user.session_version, exp: expiresAt }, env);
-  return json(request, env, { token, expiresAt, account: await accountView(env, user, now) });
+  return json(request, env, { token, expiresAt, account: await accountView(env, user, now), isNew });
+}
+
+// True when no verified account exists for this address yet, so this sign-in
+// is the account's first. The page reports it to Google Analytics as a
+// sign-up rather than a log-in; nothing about the person goes with it.
+async function firstSignIn(env, canon) {
+  const row = await env.DB.prepare("SELECT verified_at FROM users WHERE email_canonical = ?").bind(canon).first();
+  return !row || row.verified_at == null;
 }
 
 async function me(request, env) {
@@ -4257,6 +4268,7 @@ async function authGoogle(request, env) {
 
   // Free trials are granted on INSERT only, exactly as with email sign-in, so
   // an account that already exists — by either route — never gets a reset.
+  const isNew = await firstSignIn(env, canon);
   await env.DB.prepare(
     "INSERT INTO users (id, email, email_canonical, name, trials_remaining, verified, verified_at, last_seen_at, created_at) " +
     "VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?) " +
@@ -4272,7 +4284,7 @@ async function authGoogle(request, env) {
 
   const expiresAt = now + SESSION_TTL;
   const token = await signToken({ uid: user.id, sv: user.session_version, exp: expiresAt }, env);
-  return json(request, env, { token, expiresAt, account: await accountView(env, user, now) });
+  return json(request, env, { token, expiresAt, account: await accountView(env, user, now), isNew });
 }
 
 // Returns the claims only when the signature, issuer, audience, expiry and
@@ -4422,10 +4434,7 @@ async function openCheckout(env, user, body, amount, purpose, description) {
   // Unpredictable, and prefixed so the webhook can tell our payments from any
   // other payment arriving on the same Flutterwave account.
   const txRef = TX_PREFIX + crypto.randomUUID();
-  await env.DB.prepare(
-    "INSERT INTO payments (tx_ref, user_id, amount, currency, provider, purpose, created_at) " +
-    "VALUES (?, ?, ?, ?, 'flutterwave', ?, ?)"
-  ).bind(txRef, user.id, amount, CURRENCY, purpose, nowSec()).run();
+  await recordPayment(env, txRef, user.id, amount, purpose, analyticsIds(body.ga));
 
   let res = null;
   let data = null;
@@ -4566,7 +4575,88 @@ async function settlePayment(env, payment, txId) {
 
   await logEvent(env, plan ? "plan_paid" : "topup_paid",
     { userId: payment.user_id, anonId: null, product: plan ? payment.purpose : null, page: null });
+  await reportPurchase(env, payment, plan ? planKey : null, plan);
   return "credited";
+}
+
+/* --------------------------------------------------------------------------
+   Google Analytics: the settled payment, server to server
+
+   A plan or top-up completes on Flutterwave's page, so the browser can miss
+   it (a closed tab, an ad blocker). The Worker reports each payment to GA4's
+   Measurement Protocol itself, exactly once: from the one place a payment
+   settles, after the credit. Only for a visitor who accepted analytics on
+   the site (the page then sends its anonymous GA ids at checkout); never an
+   email, a name or an account id. Off until GA4_MEASUREMENT_ID (public) and
+   the GA4_API_SECRET Secret are both set. A failure here never touches the
+   payment.
+   ------------------------------------------------------------------------ */
+
+const GA_MP_URL = "https://www.google-analytics.com/mp/collect";
+
+// GA's own ids, as gtag.js makes them: "123.456" and a number. Anything else
+// is dropped rather than stored.
+function analyticsIds(ga) {
+  const clientId = ga && typeof ga.clientId === "string" && /^\d{1,20}\.\d{1,20}$/.test(ga.clientId) ? ga.clientId : null;
+  const sessionId = clientId && typeof ga.sessionId === "string" && /^\d{1,20}$/.test(ga.sessionId) ? ga.sessionId : null;
+  return { clientId, sessionId };
+}
+
+// Records a checkout. The GA ids go in their own columns when the page sent
+// them. On a database not yet given those columns (schema.sql has the two
+// ALTER lines) the payment is recorded without them: checkout never depends
+// on analytics, and the purchase report switches on once the columns exist.
+async function recordPayment(env, txRef, userId, amount, purpose, ga) {
+  const plain = () => env.DB.prepare(
+    "INSERT INTO payments (tx_ref, user_id, amount, currency, provider, purpose, created_at) " +
+    "VALUES (?, ?, ?, ?, 'flutterwave', ?, ?)"
+  ).bind(txRef, userId, amount, CURRENCY, purpose, nowSec()).run();
+  if (!ga.clientId) return plain();
+  try {
+    return await env.DB.prepare(
+      "INSERT INTO payments (tx_ref, user_id, amount, currency, provider, purpose, created_at, ga_client_id, ga_session_id) " +
+      "VALUES (?, ?, ?, ?, 'flutterwave', ?, ?, ?, ?)"
+    ).bind(txRef, userId, amount, CURRENCY, purpose, nowSec(), ga.clientId, ga.sessionId).run();
+  } catch (e) {
+    if (!/no such column|has no column named/i.test(String(e && e.message))) throw e;
+    console.error("payments has no Google Analytics columns yet; recorded without them");
+    return plain();
+  }
+}
+
+async function reportPurchase(env, payment, planKey, plan) {
+  const id = String(env.GA4_MEASUREMENT_ID || "").trim();
+  const apiSecret = String(env.GA4_API_SECRET || "").trim();
+  const ga = analyticsIds({ clientId: payment.ga_client_id || "", sessionId: payment.ga_session_id || "" });
+  if (!/^G-[A-Z0-9]{4,20}$/.test(id) || !apiSecret || !ga.clientId) return false;
+  const item = plan
+    ? { item_id: "plan_" + planKey, item_name: plan.name + " plan, " + PLAN_DAYS + " days", item_category: "plan" }
+    : { item_id: "topup", item_name: "Studio balance top-up", item_category: "topup" };
+  const params = {
+    transaction_id: payment.tx_ref,
+    currency: payment.currency,
+    value: payment.amount,
+    items: [Object.assign(item, { price: payment.amount, quantity: 1 })],
+    engagement_time_msec: 1
+  };
+  if (ga.sessionId) params.session_id = ga.sessionId;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 3000);
+  try {
+    const res = await fetch(GA_MP_URL + "?measurement_id=" + encodeURIComponent(id) + "&api_secret=" + encodeURIComponent(apiSecret), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ client_id: ga.clientId, non_personalized_ads: true, events: [{ name: "purchase", params }] }),
+      signal: controller.signal
+    });
+    if (!res.ok) console.error("Analytics purchase not accepted", res.status);
+    return res.ok;
+  } catch (e) {
+    console.error("Analytics purchase not sent");
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /* --------------------------------------------------------------------------

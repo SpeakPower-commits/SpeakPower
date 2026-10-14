@@ -6,11 +6,11 @@ Open this file on the live site to see which build GitHub Pages is serving:
     https://speakpower-commits.github.io/SpeakPower/version.txt
 
 branch:   claude/studio-griot-live
-build:    GRIOT as the GRIOT OS app (2026-10-13): full screen, the Signature,
-          the animated G, icons, and clients' own projects
-expects:  griot-app.html — a navy sidebar with the GRIOT Signature and
-                           "GRIOT OS", "What are we solving?", and GRIOT's
-                           welcome bubble with the G before sign-in
+build:    Google Analytics with consent (2026-10-14): Consent Mode v2 banner,
+          scrubbed addresses, events, purchases reported by the Worker
+expects:  any page, first visit — an "Analytics cookies?" banner with Accept
+                           and Decline; "Cookie settings" at the foot of
+                           every page and in GRIOT's sidebar
 
 If this file still shows an older build, Pages has not rebuilt yet: wait a
 minute and reload. If it 404s, Pages is serving a different branch.

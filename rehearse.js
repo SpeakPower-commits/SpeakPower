@@ -30,6 +30,8 @@
   var stage = $("rrStage");
   var steps = { pick: $("rrPick"), recording: $("rrRecording"), scoring: $("rrScoring") };
   var account = null;
+  // Google Analytics (analytics.js): counts what was used, never what was said.
+  function track(name, params) { if (window.SPAnalytics) window.SPAnalytics.track(name, params); }
   var moment = null;
   var momentTitle = "";
 
@@ -265,6 +267,7 @@
       });
     }).then(function (result) {
       clearTimeout(slow);
+      track("rehearsal_complete", { moment: moment, coaching: result.kind === "speak" && !!result.coaching, paid_with: result.paidWith });
       A.setAccount(result.account);
       renderAccount(result.account);
       showStep("pick");
