@@ -142,7 +142,7 @@
       // The plan, or the free tries left; never shillings. This part hides on
       // mid-width screens, where the header has no room for it; it always
       // shows on wide screens and in the phone menu.
-      var note = plan || (free ? free + " free " + (free === 1 ? "try" : "tries") : "");
+      var note = acct.admin ? "Admin" : plan || (free ? free + " free " + (free === 1 ? "try" : "tries") : "");
       if (note) {
         var extra = document.createElement("span");
         extra.className = "nav-account-extra";

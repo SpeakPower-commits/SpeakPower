@@ -58,11 +58,33 @@
   }
 
   // The membership card: the plan, when it renews, and how much of the month
-  // each allowance has used. Without a plan, the plans themselves.
+  // each allowance has used. Without a plan, the plans themselves. An admin
+  // account has neither: it says so, with a way into each service.
   function drawPlan(acct) {
     var host = $("acPlan");
     var m = acct.membership;
     host.textContent = "";
+    if (acct.admin) {
+      var h = document.createElement("h2");
+      h.textContent = "Admin access";
+      var p = document.createElement("p");
+      p.className = "builder-note";
+      p.textContent = "Every service, with no free tries, plan, balance or document limit. Each use is still listed below, at no charge.";
+      var links = document.createElement("div");
+      links.className = "builder-actions";
+      [["griot-app.html", "Open GRIOT"], ["rehearse.html", "Rehearsal Room"], ["studio.html", "Studio packs"],
+        ["youtube.html", "YouTube research"]].forEach(function (pair, i) {
+        var a = document.createElement("a");
+        a.className = i ? "btn btn-ghost" : "btn btn-primary";
+        a.href = pair[0];
+        a.textContent = pair[1];
+        links.appendChild(a);
+      });
+      host.appendChild(h);
+      host.appendChild(p);
+      host.appendChild(links);
+      return;
+    }
     if (!m || !m.plan) {
       A.renderPlanWall(host, {
         heading: m && m.next ? "Your " + m.next.name + " plan starts " + A.dayMonth(m.next.startsAt) : "Choose a plan",
@@ -185,6 +207,7 @@
 
     fillTable("acUses", "acUsesEmpty", (data.uses || []).map(function (u) {
       var paid = u.paidWith === "trial" ? "Free try"
+        : u.paidWith === "admin" ? "Admin access"
         : u.paidWith === "plan" ? "Included in your plan"
         : A.formatUgx(u.amount) + " from your balance";
       if (u.status === "refunded") paid += " — did not count";

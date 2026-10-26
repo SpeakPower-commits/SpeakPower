@@ -320,9 +320,11 @@
     var acct = data.account || {};
     var text = data.paidWith === "trial"
       ? "Free try — " + A.triesText(acct.trialsRemaining) + " left."
-      : data.paidWith === "plan"
-        ? "Included in your plan — this month's Studio pack."
-        : ugx(data.amount) + " from your balance — " + ugx(acct.balance) + " left.";
+      : data.paidWith === "admin"
+        ? "Admin access — not charged."
+        : data.paidWith === "plan"
+          ? "Included in your plan — this month's Studio pack."
+          : ugx(data.amount) + " from your balance — " + ugx(acct.balance) + " left.";
     $("outputPaid").textContent = text;
     $("outputPaid").hidden = false;
   }

@@ -15,8 +15,8 @@
 #   ANTHROPIC_API_KEY optional: written coaching in the Rehearsal Room; without
 #                     it a rehearsal is scores only, at half the price
 #   TURNSTILE_SECRET  only if email-code sign-in is switched on
-#   YOUTUBE_API_KEY   optional: YouTube research (with YOUTUBE_ADMINS, a text
-#                     variable set in the dashboard: who may use it)
+#   YOUTUBE_API_KEY   optional: YouTube research (ADMIN_EMAILS below may use
+#                     it; YOUTUBE_ADMINS, a dashboard text variable, adds others)
 #   GA4_API_SECRET    optional: Google Analytics → Admin → Data streams →
 #                     SpeakPower → Measurement Protocol API secrets; lets the
 #                     Worker report settled plan and top-up purchases
@@ -36,6 +36,11 @@ keep_vars = true
 ENVIRONMENT = "production"
 ALLOWED_ORIGINS = "https://speakpower-commits.github.io"
 FREE_TRIALS = "3"
+# Admin accounts: every service with no free tries, plan, balance or document
+# cap, and YouTube research with the whole day's quota. Comma-separated; a
+# person signs in as usual and must own the address. Change it here, not in
+# the dashboard: a deploy writes this value over the dashboard's.
+ADMIN_EMAILS = "thomasotieno583@gmail.com"
 # Where the site lives; Flutterwave returns customers to a page on it.
 SITE_URL = "https://speakpower-commits.github.io/SpeakPower"
 # Where GRIOT OS is deployed. The Worker refuses to send it any client

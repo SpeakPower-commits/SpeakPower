@@ -49,7 +49,7 @@
     var status = $("plStatus");
     status.textContent = acct ? A.statusText(acct) : "";
     status.hidden = !acct;
-    $("plFreeBtn").hidden = !!(acct && !(Number(acct.trialsRemaining) > 0));
+    $("plFreeBtn").hidden = !!(acct && (acct.admin || !(Number(acct.trialsRemaining) > 0)));
     buttons.forEach(function (b) {
       var key = b.getAttribute("data-plan");
       var card = b.closest(".plan-card");

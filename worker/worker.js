@@ -21,6 +21,9 @@
    - YouTube research for named accounts: topic rankings (current and
      evergreen), video checks and channel comparisons from the YouTube Data
      API, metered against YouTube's daily quota and cached in D1.
+   - Admin accounts (ADMIN_EMAILS): the owner's own sign-ins use every
+     service with no free tries, plan, balance or document cap, so the
+     product can be shown working. Uses are still recorded, at no charge.
 
    Bindings (Settings → Bindings / Variables and Secrets)
      DB               D1 database            (required)
@@ -37,9 +40,11 @@
      ANTHROPIC_API_KEY secret, optional: written coaching in the Rehearsal Room
      ALLOWED_ORIGINS  var, comma-separated   e.g. https://speakpower-commits.github.io
      FREE_TRIALS      var, default "3"
+     ADMIN_EMAILS     var, comma-separated: accounts with every service, no limits
      ENVIRONMENT      var, "production" or "development"
      YOUTUBE_API_KEY  secret, turns on YouTube research (YouTube Data API v3)
-     YOUTUBE_ADMINS   var, comma-separated emails allowed to use it
+     YOUTUBE_ADMINS   var, comma-separated emails also allowed to use it
+                      (ADMIN_EMAILS accounts always are)
      YOUTUBE_DAILY_UNITS / YOUTUBE_USER_DAILY_UNITS  var, optional budgets,
                       default 9000 for the day and 3000 per account
      Email-code sign-in only: SEND_EMAIL binding, MAIL_FROM, TURNSTILE_SECRET,
@@ -314,6 +319,8 @@ function publicAccount(user, env) {
     balance: user.balance,
     currency: CURRENCY,
     plan: user.plan,
+    // An admin account: pages show "Admin access" and never a pay wall.
+    admin: isAdmin(env, user),
     freeTrials: freeTrials(env),
     // What the page needs to show a pay wall without another round trip: the
     // last free try succeeds, so the page must already know what plans and
@@ -445,10 +452,10 @@ function formatUgx(n) {
 }
 
 // Spends one use, in this order: the plan's allowance, then a free try, then
-// (Studio packs only) the pack's price from the balance. Each UPDATE is a
-// single atomic statement that checks its own condition, so parallel requests
-// can never spend past a limit, the same try twice, or the balance below zero.
-// Returns null when nothing covers it.
+// (Studio packs only) the pack's price from the balance. An admin account
+// spends nothing. Each UPDATE is a single atomic statement that checks its
+// own condition, so parallel requests can never spend past a limit, the same
+// try twice, or the balance below zero. Returns null when nothing covers it.
 async function reserveRun(env, user, service) {
   const planOnly = PLAN_SERVICES.has(service);
   if (!planOnly && !Number.isInteger(PRICES[service])) throw new Error("No price for " + service);
@@ -460,14 +467,17 @@ async function reserveRun(env, user, service) {
   let subscriptionId = null;
   let row = null;
 
-  const period = await env.DB.prepare(
+  // An admin account: recorded as a use, never counted or charged.
+  const admin = isAdmin(env, user);
+  const period = admin ? null : await env.DB.prepare(
     "UPDATE subscriptions SET " + used + " = " + used + " + 1 WHERE id = (" +
     "SELECT id FROM subscriptions WHERE user_id = ? AND starts_at <= ? AND ends_at > ? " +
     "ORDER BY starts_at DESC, id DESC LIMIT 1) AND " + used + " < " + limit + " RETURNING id"
   ).bind(user.id, now, now).first();
 
-  if (period) {
-    subscriptionId = period.id;
+  if (admin || period) {
+    if (admin) paidWith = "admin";
+    else subscriptionId = period.id;
     row = await env.DB.prepare(
       "UPDATE users SET last_seen_at = ? WHERE id = ? RETURNING trials_remaining, balance"
     ).bind(now, user.id).first();
@@ -501,22 +511,22 @@ async function reserveRun(env, user, service) {
 }
 
 // Gives back exactly what reserveRun took: the plan use, the free try, or the
-// shillings. The run row and the refund change in one transaction.
+// shillings (an admin's use took nothing). The run row and the refund change
+// in one transaction.
 async function refundRun(env, user, reserved) {
-  let giveBack;
+  let giveBack = null;
   if (reserved.paidWith === "plan") {
     const col = reserved.usedColumn;
     giveBack = env.DB.prepare("UPDATE subscriptions SET " + col + " = " + col + " - 1 WHERE id = ? AND " + col + " > 0")
       .bind(reserved.subscriptionId);
   } else if (reserved.paidWith === "trial") {
     giveBack = env.DB.prepare("UPDATE users SET trials_remaining = trials_remaining + 1 WHERE id = ?").bind(user.id);
-  } else {
+  } else if (reserved.paidWith === "balance") {
     giveBack = env.DB.prepare("UPDATE users SET balance = balance + ? WHERE id = ?").bind(reserved.amount, user.id);
   }
-  await env.DB.batch([
-    giveBack,
+  await env.DB.batch((giveBack ? [giveBack] : []).concat([
     env.DB.prepare("UPDATE runs SET status = 'refunded' WHERE id = ?").bind(reserved.runId)
-  ]);
+  ]));
   if (reserved.paidWith === "trial") reserved.trialsRemaining += 1;
   if (reserved.paidWith === "balance") reserved.balance += reserved.amount;
   reserved.refunded = true;
@@ -2604,8 +2614,7 @@ const YT_METHOD = Object.freeze({
 // Who may use YouTube research, and only once it is configured.
 async function youtubeUser(request, env) {
   const user = await authenticate(request, env);
-  const admins = String(env.YOUTUBE_ADMINS || "").split(",").map((s) => s.trim()).filter(Boolean).map(canonicalEmail);
-  if (admins.indexOf(user.email_canonical) === -1) {
+  if (!isAdmin(env, user) && !emailList(env.YOUTUBE_ADMINS).includes(user.email_canonical)) {
     throw new HttpError(403, "youtube_not_open", "YouTube research is not open to this account yet.");
   }
   if (!env.YOUTUBE_API_KEY) {
@@ -2636,46 +2645,49 @@ function ytUnits(value, fallback) {
 
 // Google's default is 10,000 units a day; the default budget leaves headroom.
 function ytBudget(env) { return ytUnits(env.YOUTUBE_DAILY_UNITS, 9000); }
-function ytUserBudget(env) { return ytUnits(env.YOUTUBE_USER_DAILY_UNITS, 3000); }
+// An admin account may use the whole day's budget; anyone else, their share.
+function ytUserBudget(env, user) {
+  return isAdmin(env, user) ? ytBudget(env) : ytUnits(env.YOUTUBE_USER_DAILY_UNITS, 3000);
+}
 
-async function ytQuota(env, userId) {
+async function ytQuota(env, user) {
   const day = ytDay(nowSec());
   const rows = await env.DB.prepare("SELECT user_id, units FROM yt_quota WHERE day = ? AND user_id IN ('', ?)")
-    .bind(day, userId).all();
+    .bind(day, user.id).all();
   const used = (id) => { const r = (rows.results || []).find((x) => x.user_id === id); return r ? r.units : 0; };
-  return { day, used: used(""), budget: ytBudget(env), mine: used(userId), myBudget: ytUserBudget(env), resets: "midnight Pacific time" };
+  return { day, used: used(""), budget: ytBudget(env), mine: used(user.id), myBudget: ytUserBudget(env, user), resets: "midnight Pacific time" };
 }
 
 // Charges `units` to the account and to the day before YouTube is asked. Each
 // UPDATE checks the limit and adds in one statement, so no interleaving of
 // concurrent requests can push either total past its budget.
-async function ytReserve(env, userId, units) {
+async function ytReserve(env, user, units) {
   const day = ytDay(nowSec());
   await env.DB.batch([
     env.DB.prepare("INSERT INTO yt_quota (day, user_id, units) VALUES (?, '', 0) ON CONFLICT(day, user_id) DO NOTHING").bind(day),
-    env.DB.prepare("INSERT INTO yt_quota (day, user_id, units) VALUES (?, ?, 0) ON CONFLICT(day, user_id) DO NOTHING").bind(day, userId)
+    env.DB.prepare("INSERT INTO yt_quota (day, user_id, units) VALUES (?, ?, 0) ON CONFLICT(day, user_id) DO NOTHING").bind(day, user.id)
   ]);
   const mine = await env.DB.prepare(
     "UPDATE yt_quota SET units = units + ? WHERE day = ? AND user_id = ? AND units + ? <= ? RETURNING units"
-  ).bind(units, day, userId, units, ytUserBudget(env)).first();
+  ).bind(units, day, user.id, units, ytUserBudget(env, user)).first();
   if (!mine) {
     throw new HttpError(429, "youtube_quota_user", "Your YouTube research allowance for today is used up. It resets at midnight Pacific time.",
-      { quota: await ytQuota(env, userId) });
+      { quota: await ytQuota(env, user) });
   }
   const all = await env.DB.prepare(
     "UPDATE yt_quota SET units = units + ? WHERE day = ? AND user_id = '' AND units + ? <= ? RETURNING units"
   ).bind(units, day, units, ytBudget(env)).first();
   if (!all) {
-    await env.DB.prepare("UPDATE yt_quota SET units = units - ? WHERE day = ? AND user_id = ?").bind(units, day, userId).run();
+    await env.DB.prepare("UPDATE yt_quota SET units = units - ? WHERE day = ? AND user_id = ?").bind(units, day, user.id).run();
     throw new HttpError(429, "youtube_quota", "Today's YouTube quota is used up. It resets at midnight Pacific time.",
-      { quota: await ytQuota(env, userId) });
+      { quota: await ytQuota(env, user) });
   }
 }
 
 // One call to the YouTube Data API, paid for first. The key never appears in
 // a log or an answer: only the method and YouTube's reason are reported.
-async function ytFetch(env, userId, method, params) {
-  await ytReserve(env, userId, YT_COST[method]);
+async function ytFetch(env, user, method, params) {
+  await ytReserve(env, user, YT_COST[method]);
   const qs = new URLSearchParams(params);
   qs.set("key", env.YOUTUBE_API_KEY);
   const controller = new AbortController();
@@ -2778,7 +2790,7 @@ function ytChunks(list, size) {
 // Video rows by id: fresh ones from D1, the rest from YouTube 50 at a time.
 // Every fresh fetch also records a view snapshot, which is what later gives
 // a video a real growth rate instead of an average over its whole life.
-async function ytVideos(env, userId, ids) {
+async function ytVideos(env, user, ids) {
   const want = Array.from(new Set(ids));
   const now = nowSec();
   const have = new Map();
@@ -2790,7 +2802,7 @@ async function ytVideos(env, userId, ids) {
   }
   const missing = want.filter((id) => !have.has(id));
   for (const chunk of ytChunks(missing, 50)) {
-    const data = await ytFetch(env, userId, "videos", {
+    const data = await ytFetch(env, user, "videos", {
       part: "snippet,statistics,contentDetails",
       id: chunk.join(","),
       maxResults: "50",
@@ -2866,7 +2878,7 @@ const YT_CHANNEL_PARTS = {
 };
 
 // Channel rows by id, fresh from D1 or from YouTube 50 at a time.
-async function ytChannelsById(env, userId, ids) {
+async function ytChannelsById(env, user, ids) {
   const want = Array.from(new Set(ids));
   const now = nowSec();
   const have = new Map();
@@ -2877,7 +2889,7 @@ async function ytChannelsById(env, userId, ids) {
     for (const r of rows.results || []) have.set(r.id, r);
   }
   for (const chunk of ytChunks(want.filter((id) => !have.has(id)), 50)) {
-    const data = await ytFetch(env, userId, "channels", Object.assign({ id: chunk.join(","), maxResults: "50" }, YT_CHANNEL_PARTS));
+    const data = await ytFetch(env, user, "channels", Object.assign({ id: chunk.join(","), maxResults: "50" }, YT_CHANNEL_PARTS));
     const rows = (data.items || []).filter((i) => YT_CHANNEL_ID.test(i.id || "")).map((i) => ytChannelRow(i, now));
     await ytSaveChannels(env, rows);
     for (const r of rows) have.set(r.id, r);
@@ -2887,7 +2899,7 @@ async function ytChannelsById(env, userId, ids) {
 
 // A channel id from an @handle or a legacy username: from D1 when known and
 // fresh, otherwise one 1-unit lookup.
-async function ytResolveChannel(env, userId, ref) {
+async function ytResolveChannel(env, user, ref) {
   if (ref.id) return ref.id;
   const now = nowSec();
   if (ref.handle) {
@@ -2895,7 +2907,7 @@ async function ytResolveChannel(env, userId, ref) {
       .bind(ref.handle, now - YT_FRESH.channel).first();
     if (known) return known.id;
   }
-  const data = await ytFetch(env, userId, "channels", Object.assign(
+  const data = await ytFetch(env, user, "channels", Object.assign(
     ref.handle ? { forHandle: ref.handle } : { forUsername: ref.username }, YT_CHANNEL_PARTS));
   const item = (data.items || []).find((i) => YT_CHANNEL_ID.test(i.id || ""));
   if (!item) return null;
@@ -2905,13 +2917,13 @@ async function ytResolveChannel(env, userId, ref) {
 
 // The ids of a channel's newest uploads, newest first: one 1-unit call to its
 // uploads playlist, instead of a 100-unit search.
-async function ytUploads(env, userId, channel) {
+async function ytUploads(env, user, channel) {
   const now = nowSec();
   const known = await env.DB.prepare("SELECT video_ids FROM yt_uploads WHERE channel_id = ? AND fetched_at > ?")
     .bind(channel.id, now - YT_FRESH.uploads).first();
   if (known) return JSON.parse(known.video_ids);
   if (!channel.uploads) return [];
-  const data = await ytFetch(env, userId, "playlistItems", {
+  const data = await ytFetch(env, user, "playlistItems", {
     part: "contentDetails", playlistId: channel.uploads, maxResults: String(YT_BASELINE_UPLOADS),
     fields: "items(contentDetails(videoId))"
   });
@@ -3014,13 +3026,13 @@ function ytChannelSummary(channel, uploads, now) {
 
 // The videos and channels behind a set of video ids, with each channel's
 // recent uploads, all through the cache.
-async function ytLoad(env, userId, videoIds) {
-  const videos = await ytVideos(env, userId, videoIds);
+async function ytLoad(env, user, videoIds) {
+  const videos = await ytVideos(env, user, videoIds);
   const channelIds = Array.from(new Set(Array.from(videos.values()).map((v) => v.channel_id).filter(Boolean)));
-  const channels = await ytChannelsById(env, userId, channelIds);
+  const channels = await ytChannelsById(env, user, channelIds);
   const uploadIds = new Map();
-  for (const ch of channels.values()) uploadIds.set(ch.id, await ytUploads(env, userId, ch));
-  const uploadRows = await ytVideos(env, userId, [].concat(...uploadIds.values()));
+  for (const ch of channels.values()) uploadIds.set(ch.id, await ytUploads(env, user, ch));
+  const uploadRows = await ytVideos(env, user, [].concat(...uploadIds.values()));
   const uploads = new Map();
   for (const [chId, ids] of uploadIds) uploads.set(chId, ids.map((id) => uploadRows.get(id)).filter(Boolean));
   const growth = await ytGrowth(env, Array.from(videos.keys()));
@@ -3181,7 +3193,7 @@ function ytSearchOptions(body) {
 
 // One search, reused for 6 hours. Dates are rounded to the day so a repeat
 // within that time is a cache hit rather than another 100 units.
-async function ytSearch(env, userId, o, range) {
+async function ytSearch(env, user, o, range) {
   const now = nowSec();
   const day = Math.floor(now / 86400) * 86400;
   const params = {
@@ -3196,7 +3208,7 @@ async function ytSearch(env, userId, o, range) {
   const known = await env.DB.prepare("SELECT video_ids FROM yt_searches WHERE key = ? AND fetched_at > ?")
     .bind(key, now - YT_FRESH.search).first();
   if (known) return JSON.parse(known.video_ids);
-  const data = await ytFetch(env, userId, "search", params);
+  const data = await ytFetch(env, user, "search", params);
   const ids = (data.items || []).map((i) => i.id && i.id.videoId).filter((id) => YT_ID.test(id || ""));
   await env.DB.prepare(
     "INSERT INTO yt_searches (key, video_ids, fetched_at) VALUES (?, ?, ?) " +
@@ -3209,12 +3221,12 @@ async function ytSearch(env, userId, o, range) {
 
 async function youtubeQuota(request, env) {
   const user = await youtubeUser(request, env);
-  return json(request, env, { quota: await ytQuota(env, user.id), costs: YT_COST });
+  return json(request, env, { quota: await ytQuota(env, user), costs: YT_COST });
 }
 
 // What a request cost, read from the ledger so cache hits show as free.
-async function ytSpent(env, userId, before) {
-  const after = await ytQuota(env, userId);
+async function ytSpent(env, user, before) {
+  const after = await ytQuota(env, user);
   return { spent: after.mine - before.mine, quota: after };
 }
 
@@ -3223,18 +3235,18 @@ async function ytSpent(env, userId, before) {
 async function youtubeAnalyze(request, env) {
   const user = await youtubeUser(request, env);
   const o = ytSearchOptions(await readJson(request, 4096));
-  const before = await ytQuota(env, user.id);
+  const before = await ytQuota(env, user);
   const now = nowSec();
-  const recentIds = await ytSearch(env, user.id, o, { order: "viewCount", afterDays: o.days });
-  const olderIds = await ytSearch(env, user.id, o, { order: "viewCount", beforeDays: o.evergreenDays });
-  const loaded = await ytLoad(env, user.id, recentIds.concat(olderIds));
+  const recentIds = await ytSearch(env, user, o, { order: "viewCount", afterDays: o.days });
+  const olderIds = await ytSearch(env, user, o, { order: "viewCount", beforeDays: o.evergreenDays });
+  const loaded = await ytLoad(env, user, recentIds.concat(olderIds));
   const pick = (ids) => ids.map((id) => loaded.videos.get(id)).filter(Boolean);
   const trending = ytRank(ytScore(pick(recentIds).filter((v) => (now - v.published_at) / 86400 <= o.days + 1),
     loaded, "trending", o.days, now)).slice(0, o.top);
   const evergreen = ytRank(ytScore(pick(olderIds).filter((v) => (now - v.published_at) / 86400 >= o.evergreenDays - 1),
     loaded, "evergreen", o.days, now)).slice(0, o.top);
   const shown = trending.concat(evergreen);
-  const cost = await ytSpent(env, user.id, before);
+  const cost = await ytSpent(env, user, before);
   return json(request, env, {
     query: o.query,
     options: { days: o.days, evergreenDays: o.evergreenDays, region: o.region || null, language: o.language || null, duration: o.duration },
@@ -3265,12 +3277,12 @@ async function youtubeVideos(request, env) {
     if (id) ids.push(id); else invalid.push(str(raw, 120));
   }
   if (!ids.length) throw new HttpError(400, "no_videos", "Paste at least one YouTube video address or id.", { invalid });
-  const before = await ytQuota(env, user.id);
+  const before = await ytQuota(env, user);
   const now = nowSec();
-  const loaded = await ytLoad(env, user.id, ids);
+  const loaded = await ytLoad(env, user, ids);
   const found = Array.from(new Set(ids)).map((id) => loaded.videos.get(id)).filter(Boolean);
   const videos = ytScore(found, loaded, "check", 30, now);
-  const cost = await ytSpent(env, user.id, before);
+  const cost = await ytSpent(env, user, before);
   return json(request, env, {
     checkedAt: new Date(now * 1000).toISOString(),
     videos,
@@ -3291,23 +3303,23 @@ async function youtubeChannels(request, env) {
   const body = await readJson(request, 16384);
   const inputs = Array.isArray(body.channels) ? body.channels.slice(0, YT_MAX_CHANNELS) : [];
   if (!inputs.length) throw new HttpError(400, "no_channels", "Paste at least one channel: an @handle, a channel address or a channel id.");
-  const before = await ytQuota(env, user.id);
+  const before = await ytQuota(env, user);
   const now = nowSec();
   const asked = [];
   for (const raw of inputs) {
     const ref = ytChannelRef(raw);
-    asked.push({ raw: str(raw, 120), id: ref ? await ytResolveChannel(env, user.id, ref) : null });
+    asked.push({ raw: str(raw, 120), id: ref ? await ytResolveChannel(env, user, ref) : null });
   }
   const ids = asked.filter((a) => a.id).map((a) => a.id);
-  const channels = await ytChannelsById(env, user.id, ids);
+  const channels = await ytChannelsById(env, user, ids);
   // Unreadable, unknown handles, and ids YouTube did not return.
   const notFound = asked.filter((a) => !a.id || !channels.has(a.id)).map((a) => a.raw);
   const uploadIds = new Map();
-  for (const ch of channels.values()) uploadIds.set(ch.id, await ytUploads(env, user.id, ch));
-  const rows = await ytVideos(env, user.id, [].concat(...uploadIds.values()));
+  for (const ch of channels.values()) uploadIds.set(ch.id, await ytUploads(env, user, ch));
+  const rows = await ytVideos(env, user, [].concat(...uploadIds.values()));
   const summaries = Array.from(new Set(ids)).map((id) => channels.get(id)).filter(Boolean)
     .map((c) => ytChannelSummary(c, (uploadIds.get(c.id) || []).map((id) => rows.get(id)).filter(Boolean), now));
-  const cost = await ytSpent(env, user.id, before);
+  const cost = await ytSpent(env, user, before);
   return json(request, env, {
     checkedAt: new Date(now * 1000).toISOString(),
     channels: summaries,
@@ -3518,6 +3530,19 @@ function canonicalEmail(email) {
   local = local.split("+")[0];
   if (domain === "gmail.com") local = local.replace(/\./g, "");
   return local + "@" + domain;
+}
+
+// A comma-separated list of addresses, as canonical emails.
+function emailList(value) {
+  return String(value || "").split(",").map((s) => s.trim()).filter((s) => EMAIL_RE.test(s)).map(canonicalEmail);
+}
+
+// The owner's own accounts (ADMIN_EMAILS). Matched on the canonical address
+// of a verified sign-in: Google has confirmed it, or a code sent to it was
+// entered, so naming an address here never opens it to anyone else.
+function isAdmin(env, user) {
+  return Boolean(user && user.verified && user.email_canonical) &&
+    emailList(env.ADMIN_EMAILS).includes(user.email_canonical);
 }
 
 function freeTrials(env) {
@@ -4413,7 +4438,9 @@ function sniffDocument(bytes, name) {
   return null;
 }
 
-function documentLimit(period) {
+// null: no limit (an admin account).
+function documentLimit(period, admin) {
+  if (admin) return null;
   return period && PLANS[period.plan] ? PLANS[period.plan].documents : FREE_DOCUMENTS;
 }
 
@@ -4542,7 +4569,7 @@ async function listDocuments(request, env) {
   const ready = Boolean(env.AI && env.ANTHROPIC_API_KEY);
   const griot = env.GRIOT_API_BASE && env.GRIOT_API_KEY ? (await griotHealth(env)).documents : false;
   const list = (rows.results || []).map((d) => publicDocument(d, false));
-  return json(request, env, { documents: list, used: list.length, limit: documentLimit(period), canRead: ready, griotUses: griot });
+  return json(request, env, { documents: list, used: list.length, limit: documentLimit(period, isAdmin(env, user)), canRead: ready, griotUses: griot });
 }
 
 async function getDocument(request, env, url) {
@@ -4566,9 +4593,9 @@ async function uploadDocument(request, env, url) {
   }
   const now = nowSec();
   const period = await activePeriod(env, user.id, now);
-  const limit = documentLimit(period);
+  const limit = documentLimit(period, isAdmin(env, user));
   const count = (await env.DB.prepare("SELECT COUNT(*) AS n FROM documents WHERE user_id = ?").bind(user.id).first()).n;
-  if (count >= limit) throw new HttpError(402, "documents_full", documentsFullMessage(period), { limit });
+  if (limit !== null && count >= limit) throw new HttpError(402, "documents_full", documentsFullMessage(period), { limit });
 
   const name = cleanText(url.searchParams.get("name"), 120).replace(/[\\/\n]/g, " ") || "Document";
   if (Number(request.headers.get("Content-Length") || 0) > DOC_MAX_BYTES) {
@@ -4619,9 +4646,9 @@ async function uploadDocument(request, env, url) {
   // 3. Kept, unless another upload filled the last place meanwhile.
   const row = await env.DB.prepare(
     "INSERT INTO documents (user_id, name, kind, bytes, pages, enabled, brief, facts, truncated, created_at, updated_at) " +
-    "SELECT ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM documents WHERE user_id = ?) < ? RETURNING *"
+    "SELECT ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ? WHERE ? = 1 OR (SELECT COUNT(*) FROM documents WHERE user_id = ?) < ? RETURNING *"
   ).bind(user.id, name, kind, bytes.length, pages, reading.brief, JSON.stringify(reading.facts), truncated ? 1 : 0,
-    now, now, user.id, limit).first();
+    now, now, limit === null ? 1 : 0, user.id, limit === null ? 0 : limit).first();
   if (!row) throw new HttpError(402, "documents_full", documentsFullMessage(period), { limit });
   await logEvent(env, "document_read", { userId: user.id, page: kind });
   return json(request, env, { document: publicDocument(row, true) });
