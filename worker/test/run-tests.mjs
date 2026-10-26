@@ -84,6 +84,8 @@ const googleJwks = { keys: [] };
 // A stand-in Flutterwave: checkouts it was asked for, and the transactions it
 // will vouch for when the Worker re-verifies a payment.
 const flw = { checkouts: [], transactions: {}, verifies: 0 };
+// A stand-in for Google Analytics' Measurement Protocol: every hit it got.
+const ga4 = { hits: [] };
 // Every request that reaches the fake GRIOT, so tests can assert exactly what
 // crossed the boundary: which tenant, which key, and that no project leaked.
 const griotCalls = [];
@@ -118,7 +120,7 @@ const COACHING = {
 let griotOldChats = 0;
 let griotHealthChecks = 0;
 // GRIOT's client workspace, per tenant, as the real one keeps it.
-const griotStore = { memories: [], messages: [], decisions: [] };
+const griotStore = { memories: [], messages: [], decisions: [], projects: [] };
 const griotWsCalls = [];
 const GRIOT_AGENTS = { story: "StoryAgent", market: "MarketAgent", data: "DataAgent", dev: "DevAgent", research: "ResearchAgent",
   growth: "GrowthAgent", operations: "OperationsAgent", brand: "BrandAgent", strategy: "StrategyAgent" };
@@ -137,9 +139,16 @@ async function griotWorkspaceFake(url, init) {
   if (u.pathname === "/agents") return out(GRIOT_AGENTS);
   if (u.pathname === "/protocol") return out({ steps: GRIOT_STEPS });
   if (u.pathname === "/projects") return out({ speakpower: { name: "SpeakPower" } });
-  if (u.pathname === "/memories" && method === "GET") return out(griotStore.memories.filter((m) => m.tenant_id === tenant));
+  const ownProject = (slug) => griotStore.projects.some((x) => x.tenant === tenant && x.slug === slug);
+  const projectOk = (slug) => !slug || slug === "global" || slug === "speakpower" || ownProject(slug);
+  const wantProject = u.searchParams.get("project");
+  if (u.pathname === "/memories" && method === "GET") {
+    return out(griotStore.memories.filter((m) => m.tenant_id === tenant &&
+      (!wantProject || m.project === wantProject || m.project === "global")));
+  }
   if (u.pathname === "/memory" && method === "POST") {
     if (net.griotMemoryDelay) await new Promise((r) => setTimeout(r, net.griotMemoryDelay));
+    if (!projectOk(JSON.parse(init.body).project)) return out({ detail: "Unknown project" }, 400);
     const row = Object.assign({ id: crypto.randomUUID(), tenant_id: tenant, created_at: new Date().toISOString() }, JSON.parse(init.body));
     griotStore.memories.push(row);
     return out(row);
@@ -152,11 +161,11 @@ async function griotWorkspaceFake(url, init) {
     return out({ deleted: md[1] });
   }
   if (u.pathname === "/threads") {
-    const mine = griotStore.messages.filter((m) => m.tenant === tenant);
+    const mine = griotStore.messages.filter((m) => m.tenant === tenant && (!wantProject || (m.project || "global") === wantProject));
     const ids = [...new Set(mine.map((m) => m.thread))];
     return out(ids.map((id) => {
       const ms = mine.filter((m) => m.thread === id);
-      return { thread_id: id, first_question: ms[0].content, last_at: ms[ms.length - 1].at, messages: ms.length };
+      return { thread_id: id, first_question: ms[0].content, last_at: ms[ms.length - 1].at, messages: ms.length, project: ms[0].project || "global" };
     }));
   }
   const mt = u.pathname.match(/^\/threads\/(.+)$/);
@@ -165,12 +174,150 @@ async function griotWorkspaceFake(url, init) {
     if (!ms.length) return out({ detail: "No such thread" }, 404);
     return out({ thread_id: mt[1], messages: ms.map((m) => ({ role: m.role, content: m.content, created_at: m.at })) });
   }
-  if (u.pathname === "/decisions") return out(griotStore.decisions.filter((d) => d.tenant_id === tenant));
+  if (u.pathname === "/decisions") {
+    return out(griotStore.decisions.filter((d) => d.tenant_id === tenant && (!wantProject || d.project === wantProject)));
+  }
+  // A client's own projects, as GRIOT keeps them (claude-central-agent #29).
+  if (u.pathname === "/tenant/projects" && method === "GET") {
+    return out(griotStore.projects.filter((x) => x.tenant === tenant).map((x) => ({ slug: x.slug, name: x.name, created_at: x.at })));
+  }
+  if (u.pathname === "/tenant/projects" && method === "POST") {
+    if (griotStore.projects.filter((x) => x.tenant === tenant).length >= (net.griotProjectCap || 20)) return out({ detail: "Project limit reached" }, 409);
+    const row = { tenant, slug: "p-" + crypto.randomUUID().replace(/-/g, "").slice(0, 8), name: JSON.parse(init.body).name, at: new Date().toISOString() };
+    griotStore.projects.push(row);
+    return out({ slug: row.slug, name: row.name, created_at: row.at }, 201);
+  }
+  const mp = u.pathname.match(/^\/tenant\/projects\/(.+)$/);
+  if (mp) {
+    const row = griotStore.projects.find((x) => x.tenant === tenant && x.slug === mp[1]);
+    if (!row) return out({ detail: "No such project" }, 404);
+    if (method === "PATCH") { row.name = JSON.parse(init.body).name; return out({ slug: row.slug, name: row.name, created_at: row.at }); }
+    if (method === "DELETE") {
+      griotStore.projects.splice(griotStore.projects.indexOf(row), 1);
+      griotStore.messages = griotStore.messages.filter((m) => !(m.tenant === tenant && m.project === row.slug));
+      griotStore.decisions = griotStore.decisions.filter((d) => !(d.tenant_id === tenant && d.project === row.slug));
+      griotStore.memories = griotStore.memories.filter((m) => !(m.tenant_id === tenant && m.project === row.slug));
+      return out({ deleted: row.slug });
+    }
+  }
   return out({ detail: "not here" }, 404);
 }
+// A stand-in YouTube Data API v3: three channels, their uploads, and the
+// calls the Worker made (method and parameters, never the key).
+const YT_NOW = Math.floor(Date.now() / 1000);
+const ytIso = (daysAgo) => new Date((YT_NOW - daysAgo * 86400) * 1000).toISOString();
+const ytVid = (prefix, n) => prefix + String(n).padStart(11 - prefix.length, "0");
+const ytChan = (c) => "UC" + c.repeat(22);
+const ytFake = { calls: [], error: null, videos: {}, channels: {}, playlists: {} };
+const YT_COST_OF = { search: 100, videos: 1, channels: 1, playlistItems: 1 };
+function ytAddVideo(id, channelId, channelTitle, daysAgo, views, extra = {}) {
+  const stats = { viewCount: String(views), likeCount: String(Math.round(views * 0.04)), commentCount: String(Math.round(views * 0.004)) };
+  if (extra.hideLikes) delete stats.likeCount;
+  if (extra.noComments) delete stats.commentCount;
+  ytFake.videos[id] = {
+    id,
+    snippet: { publishedAt: ytIso(daysAgo), channelId, channelTitle, title: extra.title || "Talk " + id },
+    statistics: stats,
+    contentDetails: { duration: extra.duration || "PT8M30S" }
+  };
+}
+function ytAddChannel(c, title, handle, subs, uploads, extra = {}) {
+  const id = ytChan(c);
+  ytFake.channels[id] = {
+    id,
+    snippet: { title, customUrl: handle, country: "UG" },
+    statistics: extra.hidden ? { hiddenSubscriberCount: true, videoCount: String(uploads.length), viewCount: "1000" }
+      : { subscriberCount: String(subs), hiddenSubscriberCount: false, videoCount: String(uploads.length), viewCount: "50000000" },
+    contentDetails: { relatedPlaylists: { uploads: "UU" + c.repeat(22) } }
+  };
+  ytFake.playlists["UU" + c.repeat(22)] = uploads; // newest first
+}
+(function ytFixtures() {
+  // A small channel whose newest talk broke out: ~12× its usual 10,000 views.
+  const a = [ytVid("A", 1)];
+  ytAddVideo(ytVid("A", 1), ytChan("a"), "Speak Academy", 5, 120000, { title: "The 3-second pause that wins rooms" });
+  for (let i = 0; i < 30; i++) {
+    const id = ytVid("A", 100 + i);
+    ytAddVideo(id, ytChan("a"), "Speak Academy", 10 + i * 7, 8000 + (i % 5) * 1000);
+    a.push(id);
+  }
+  ytAddVideo(ytVid("A", 900), ytChan("a"), "Speak Academy", 400, 300000, { title: "Stage fright, explained" });
+  ytAddChannel("a", "Speak Academy", "@speakacademy", 20000, a);
+  // A big channel whose newest talk is ordinary for it, despite 600,000 views.
+  const b = [ytVid("B", 1)];
+  ytAddVideo(ytVid("B", 1), ytChan("b"), "Big Talks", 6, 600000);
+  for (let i = 0; i < 30; i++) {
+    const id = ytVid("B", 100 + i);
+    ytAddVideo(id, ytChan("b"), "Big Talks", 9 + i * 4, 450000 + (i % 5) * 25000);
+    b.push(id);
+  }
+  ytAddVideo(ytVid("B", 900), ytChan("b"), "Big Talks", 800, 900000, { title: "How to open any speech" });
+  ytAddChannel("b", "Big Talks", "@bigtalks", 2000000, b);
+  // A new channel: too few uploads for a baseline, likes hidden, comments off.
+  const c = [ytVid("C", 1), ytVid("C", 2), ytVid("C", 3)];
+  ytAddVideo(ytVid("C", 1), ytChan("c"), "New Voice", 3.5, 50000, { hideLikes: true, noComments: true, duration: "PT58S" });
+  ytAddVideo(ytVid("C", 2), ytChan("c"), "New Voice", 20, 900);
+  ytAddVideo(ytVid("C", 3), ytChan("c"), "New Voice", 40, 1200);
+  ytAddChannel("c", "New Voice", "@newvoice", 0, c, { hidden: true });
+})();
+function youtubeFake(url) {
+  const u = new URL(url);
+  const method = u.pathname.split("/").pop();
+  const params = Object.fromEntries(u.searchParams);
+  const key = params.key;
+  delete params.key;
+  ytFake.calls.push({ method, params });
+  const out = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
+  const fail = (status, reason) => out({ error: { code: status, errors: [{ reason }] } }, status);
+  if (key !== "yt-test-key") return fail(400, "keyInvalid");
+  if (ytFake.error === "quota") return fail(403, "quotaExceeded");
+  if (method === "videos") {
+    return out({ items: params.id.split(",").map((id) => ytFake.videos[id]).filter(Boolean) });
+  }
+  if (method === "channels") {
+    if (params.forHandle) {
+      const ch = Object.values(ytFake.channels).find((c) => c.snippet.customUrl.toLowerCase() === params.forHandle.toLowerCase());
+      return out({ items: ch ? [ch] : [] });
+    }
+    return out({ items: (params.id || "").split(",").map((id) => ytFake.channels[id]).filter(Boolean) });
+  }
+  if (method === "playlistItems") {
+    const ids = ytFake.playlists[params.playlistId];
+    if (!ids) return fail(404, "playlistNotFound");
+    return out({ items: ids.slice(0, Number(params.maxResults)).map((videoId) => ({ contentDetails: { videoId } })) });
+  }
+  if (method === "search") {
+    const after = params.publishedAfter ? Date.parse(params.publishedAfter) : -Infinity;
+    const before = params.publishedBefore ? Date.parse(params.publishedBefore) : Infinity;
+    const items = Object.values(ytFake.videos)
+      .filter((v) => { const t = Date.parse(v.snippet.publishedAt); return t >= after && t <= before; })
+      .sort((x, y) => Number(y.statistics.viewCount) - Number(x.statistics.viewCount))
+      .slice(0, Number(params.maxResults))
+      .map((v) => ({ id: { videoId: v.id } }));
+    return out({ items });
+  }
+  return fail(404, "notFound");
+}
+
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (input, init) => {
-  const url = typeof input === "string" ? input : input.url;
+  let url = typeof input === "string" ? input : input.url;
+  // A GRIOT with the workspace but not client projects yet: otherwise the
+  // same GRIOT as griot.test.
+  if (url.startsWith("https://griot-noproj.test/health")) {
+    return new Response(JSON.stringify({ status: "ok", tenancy: true, tenant_header: "X-Tenant-Id", workspace: true, documents: true, modes: true }));
+  }
+  if (url.startsWith("https://griot-noproj.test/")) url = url.replace("https://griot-noproj.test/", "https://griot.test/");
+  if (url.startsWith("https://www.google-analytics.com/mp/collect")) {
+    const u = new URL(url);
+    ga4.hits.push({ id: u.searchParams.get("measurement_id"), secret: u.searchParams.get("api_secret"),
+      contentType: new Headers(init.headers).get("Content-Type"), body: JSON.parse(init.body) });
+    if (net.ga4 === "hang") await stall(Infinity, init);
+    if (net.ga4 === "fail") return new Response("nope", { status: 500 });
+    if (net.ga4 === "throw") throw new TypeError("fetch failed");
+    return new Response(null, { status: 204 });
+  }
+  if (url.startsWith("https://www.googleapis.com/youtube/v3/")) return youtubeFake(url);
   if (url === "https://api.flutterwave.com/v3/payments") {
     const body = JSON.parse(init.body);
     flw.checkouts.push({ body, auth: new Headers(init.headers).get("Authorization") });
@@ -205,7 +352,7 @@ globalThis.fetch = async (input, init) => {
   }
   if (url.startsWith("https://griot.test/health")) {
     griotHealthChecks++;
-    return new Response(JSON.stringify({ status: "ok", tenancy: true, tenant_header: "X-Tenant-Id", workspace: true, documents: true, modes: true }));
+    return new Response(JSON.stringify({ status: "ok", tenancy: true, tenant_header: "X-Tenant-Id", workspace: true, documents: true, modes: true, projects: true }));
   }
   // A tenant-aware GRIOT from before the client workspace.
   if (url.startsWith("https://griot-plain.test/health")) {
@@ -234,11 +381,16 @@ globalThis.fetch = async (input, init) => {
     if (net.griot === "busy") return new Response("slow down", { status: 429 });
     if (net.griot === "malformed") return new Response(JSON.stringify({ nope: true }));
     const tenant = headers.get("X-Tenant-Id");
+    if (body.project && body.project !== "global" &&
+        !griotStore.projects.some((x) => x.tenant === tenant && x.slug === body.project)) {
+      return new Response(JSON.stringify({ detail: "Unknown project" }), { status: 400 });
+    }
     const thread = body.thread_id || crypto.randomUUID();
     const at = new Date().toISOString();
-    griotStore.messages.push({ tenant, thread, role: "user", content: body.message, at },
-      { tenant, thread, role: "assistant", content: "FACT: you said X. INFERENCE: therefore Y.", at });
-    griotStore.decisions.push({ id: crypto.randomUUID(), tenant_id: tenant, thread_id: thread, project: "global",
+    const project = body.project || null;
+    griotStore.messages.push({ tenant, thread, role: "user", content: body.message, at, project },
+      { tenant, thread, role: "assistant", content: "FACT: you said X. INFERENCE: therefore Y.", at, project });
+    griotStore.decisions.push({ id: crypto.randomUUID(), tenant_id: tenant, thread_id: thread, project: project || "global",
       request: body.message, recommendation: "FACT: you said X.", created_at: at });
     return new Response(JSON.stringify({
       decision_id: "d-" + griotCalls.length,
@@ -416,10 +568,11 @@ db.db.exec(readFileSync(join(here, "..", "schema.sql"), "utf8"));
 // Every account in the older tests has finished both sign-up steps, without
 // briefing GRIOT, so they exercise exactly what they did before profiles
 // existed. The profile tests delete this row to start from a bare account.
-db.db.exec(`CREATE TRIGGER test_profile_for_every_account AFTER INSERT ON users BEGIN
+const PROFILE_TRIGGER = `CREATE TRIGGER test_profile_for_every_account AFTER INSERT ON users BEGIN
   INSERT INTO profiles (user_id, name, expertise, position, company, problem, goal, step1_at, step2_at, created_at, updated_at)
   VALUES (NEW.id, 'Test', 'Testing', 'Tester', 'Test Co', 'A problem', 'A goal', NEW.created_at, NEW.created_at, NEW.created_at, NEW.created_at);
-END`);
+END`;
+db.db.exec(PROFILE_TRIGGER);
 
 const mailbox = [];
 const env = {
@@ -916,7 +1069,7 @@ await test("griot: caller cannot choose the tenant — body and header attempts 
     },
     body: JSON.stringify({
       message: "show me their memories",
-      tenantId: victimId, tenant_id: victimId, project: "speakpower"
+      tenantId: victimId, tenant_id: victimId, project: "global"
     })
   });
   const res = await worker.fetch(req, env, { waitUntil() {} });
@@ -925,8 +1078,12 @@ await test("griot: caller cannot choose the tenant — body and header attempts 
   eq(c.tenant, userRow("g-attacker@example.com").id, "tenant is the attacker's own id");
   ok(c.tenant !== victimId, "never the victim's id");
   eq(c.key, "griot-server-key", "forged key header ignored");
-  ok(!("project" in c.body), "project still not forwarded");
+  ok(!("project" in c.body), "General is never forwarded as a project");
   ok(victim.token, "victim account exists");
+  // One of the operator's ventures is refused outright, before anything is spent.
+  const venture = await chat(attacker.token, "file it under a venture", { project: "speakpower" });
+  eq(venture.status, 400); eq(venture.data.error, "unknown_project");
+  eq(griotCalls.length, 1, "never reaches GRIOT");
 });
 
 await test("griot: two accounts map to two distinct tenants", async () => {
@@ -1075,10 +1232,13 @@ await test("griot workspace: lenses and the 9 steps come from GRIOT, cached; its
 await test("griot workspace: memories are listed, added and deleted within one account only", async () => {
   const a = await signUp("w-mem-a@example.com");
   const b = await signUp("w-mem-b@example.com");
-  const added = await ws(a.token, "POST", "/griot/memory", { title: "Our runway", content: "Nine months of cash.", project: "speakpower", confidence: "hypothesis" });
+  const venture = await ws(a.token, "POST", "/griot/memory", { title: "Sneaky", content: "x", project: "speakpower" });
+  eq(venture.status, 400, "the operator's ventures are never a client's to choose"); eq(venture.data.error, "unknown_project");
+  ok(!griotStore.memories.some((m) => m.title === "Sneaky"), "and nothing reaches GRIOT");
+  const added = await ws(a.token, "POST", "/griot/memory", { title: "Our runway", content: "Nine months of cash.", confidence: "hypothesis" });
   eq(added.status, 200); eq(added.data.memory.title, "Our runway"); eq(added.data.memory.confidence, "fact", "what a client tells GRIOT is a fact");
   const stored = griotStore.memories.find((m) => m.id === added.data.memory.id);
-  eq(stored.project, "global", "the project is never the client's to choose"); eq(stored.tenant_id, userId("w-mem-a@example.com"));
+  eq(stored.project, "global", "without a project, General"); eq(stored.tenant_id, userId("w-mem-a@example.com"));
   ok(!("tenant_id" in added.data.memory) && !("project" in added.data.memory), "no tenant or project echoed back");
   const listA = (await ws(a.token, "GET", "/griot/memories")).data.memories.map((m) => m.title);
   const listB = (await ws(b.token, "GET", "/griot/memories")).data.memories.map((m) => m.title);
@@ -1192,6 +1352,129 @@ await test("griot chat: a GRIOT without modes keeps the buttons hidden and refus
   eq(moded.status, 400); eq(moded.data.error, "unknown_mode");
   eq(plain.status, 200, "asking still works");
   eq(userRow(email).trials_remaining, before - 1, "only the plain question was counted");
+});
+
+/* ----------------------------------------------- a client's own projects */
+
+await test("griot projects: an account creates, lists, renames and deletes only its own", async () => {
+  const a = await signUp("p-own-a@example.com");
+  const b = await signUp("p-own-b@example.com");
+  griotWsCalls.length = 0;
+  const empty = await ws(a.token, "GET", "/griot/my-projects");
+  eq(empty.status, 200); eq(empty.data.ready, true); eq(empty.data.projects.length, 0); eq(empty.data.limit, 20);
+  const made = await ws(a.token, "POST", "/griot/my-projects", { name: "  Coffee\n export   pitch " });
+  eq(made.status, 200); ok(/^p-[0-9a-f]{8}$/.test(made.data.project.slug), made.data.project.slug);
+  eq(made.data.project.name, "Coffee export pitch", "one line, single spaces");
+  const listA = (await ws(a.token, "GET", "/griot/my-projects")).data.projects;
+  const listB = (await ws(b.token, "GET", "/griot/my-projects")).data.projects;
+  eq(listA.map((x) => x.name).join(), "Coffee export pitch"); eq(listB.length, 0, "B sees none of A's");
+  const slug = made.data.project.slug;
+  eq((await ws(b.token, "POST", "/griot/my-projects/rename", { slug, name: "Mine now" })).status, 404, "B cannot rename A's");
+  eq((await ws(b.token, "POST", "/griot/my-projects/delete", { slug })).status, 404, "B cannot delete A's");
+  const renamed = await ws(a.token, "POST", "/griot/my-projects/rename", { slug, name: "Buyer pitch" });
+  eq(renamed.status, 200); eq(renamed.data.project.name, "Buyer pitch");
+  eq((await ws(a.token, "POST", "/griot/my-projects/delete", { slug })).status, 200);
+  eq((await ws(a.token, "GET", "/griot/my-projects")).data.projects.length, 0);
+  ok(griotWsCalls.every((c) => c.tenant === userId("p-own-a@example.com") || c.tenant === userId("p-own-b@example.com") || c.tenant === "catalogue"),
+    "always the signed-in account's own tenant");
+  ok(!griotWsCalls.some((c) => c.path.startsWith("/projects")), "the operator's ventures are never requested");
+  for (const bad of ["global", "speakpower", "../projects", "p-XYZ", ""]) {
+    const r = await ws(a.token, "POST", "/griot/my-projects/delete", { slug: bad });
+    eq(r.status, 400, JSON.stringify(bad));
+  }
+  eq((await ws(a.token, "POST", "/griot/my-projects", { name: "   " })).status, 400, "a name is required");
+  eq((await ws(null, "GET", "/griot/my-projects")).status, 401, "signed out");
+});
+
+await test("griot projects: GRIOT's /projects (the operator's ventures) stays unreachable", async () => {
+  const s = await signUp("p-ventures@example.com");
+  for (const method of ["GET", "POST"]) {
+    eq((await ws(s.token, method, "/griot/projects", method === "POST" ? { name: "x" } : undefined)).status, 404, method);
+  }
+});
+
+await test("griot projects: at most 20 per account, checked here and by GRIOT", async () => {
+  const s = await signUp("p-many@example.com");
+  net.griotProjectCap = 100; // the Worker's own check, on its own
+  let over;
+  try {
+    for (let i = 0; i < 20; i++) eq((await ws(s.token, "POST", "/griot/my-projects", { name: "Project " + i })).status, 200, String(i));
+    over = await ws(s.token, "POST", "/griot/my-projects", { name: "One too many" });
+  } finally { delete net.griotProjectCap; }
+  eq(over.status, 409); eq(over.data.error, "project_limit"); ok(/up to 20 projects/.test(over.data.message), over.data.message);
+  eq((await ws(s.token, "GET", "/griot/my-projects")).data.projects.length, 20, "the 21st was never created");
+  // GRIOT's own limit reads the same, should the two ever disagree.
+  const t = await signUp("p-cap@example.com");
+  net.griotProjectCap = 1;
+  try {
+    eq((await ws(t.token, "POST", "/griot/my-projects", { name: "First" })).status, 200);
+    const capped = await ws(t.token, "POST", "/griot/my-projects", { name: "Second" });
+    eq(capped.status, 409); eq(capped.data.error, "project_limit");
+  } finally { delete net.griotProjectCap; }
+});
+
+await test("griot projects: a question is filed under the account's own project, and the lists follow it", async () => {
+  const email = "p-chat@example.com";
+  const s = await signUp(email);
+  const other = await signUp("p-chat-other@example.com");
+  const slug = (await ws(s.token, "POST", "/griot/my-projects", { name: "Donor pitch" })).data.project.slug;
+  griotCalls.length = 0;
+  const inProject = await chat(s.token, "Filed under the pitch", { project: slug });
+  eq(inProject.status, 200); eq(inProject.data.project, slug);
+  eq(griotCalls[0].body.project, slug, "sent to GRIOT");
+  const general = await chat(s.token, "Filed in General", { project: "global" });
+  eq(general.data.project, "global"); ok(!("project" in griotCalls[1].body), "General is never sent as a project");
+  await chat(s.token, "No project at all");
+  ok(!("project" in griotCalls[2].body));
+
+  const threads = (await ws(s.token, "GET", "/griot/threads?project=" + slug)).data.threads;
+  eq(threads.map((t) => t.firstQuestion).join("|"), "Filed under the pitch"); eq(threads[0].project, slug);
+  const generalThreads = (await ws(s.token, "GET", "/griot/threads?project=global")).data.threads;
+  eq(generalThreads.length, 2); ok(generalThreads.every((t) => t.project === "global"));
+  eq((await ws(s.token, "GET", "/griot/threads")).data.threads.length, 3, "no filter, everything");
+  eq((await ws(s.token, "GET", "/griot/decisions?project=" + slug)).data.decisions.map((d) => d.question).join(), "Filed under the pitch");
+  eq((await ws(s.token, "GET", "/griot/threads?project=speakpower")).status, 400, "a venture is not a filter");
+
+  const fact = await ws(s.token, "POST", "/griot/memory", { title: "Deadline", content: "31 March", project: slug });
+  eq(fact.status, 200);
+  eq(griotStore.memories.find((m) => m.id === fact.data.memory.id).project, slug);
+  const mem = (await ws(s.token, "GET", "/griot/memories?project=" + slug)).data.memories.map((m) => m.title);
+  ok(mem.includes("Deadline"), JSON.stringify(mem));
+
+  // Another account holding the slug: GRIOT refuses, and the use comes back.
+  const before = userRow("p-chat-other@example.com").trials_remaining;
+  const stolen = await chat(other.token, "Using A's project", { project: slug });
+  eq(stolen.status, 400); ok(/project could not be found/.test(stolen.data.message), stolen.data.message);
+  ok(/not charged/.test(stolen.data.message), stolen.data.message);
+  eq(userRow("p-chat-other@example.com").trials_remaining, before, "given back");
+  eq((await ws(other.token, "POST", "/griot/memory", { title: "x", content: "y", project: slug })).status, 400);
+
+  // A bad shape never reaches GRIOT and costs nothing.
+  const calls = griotCalls.length;
+  const was = userRow(email).trials_remaining;
+  for (const bad of ["speakpower", "tonninyira", "P-1234ABCD", "p-123", ["p-12345678"], "../x"]) {
+    const r = await chat(s.token, "bad project", { project: bad });
+    eq(r.status, 400, JSON.stringify(bad)); eq(r.data.error, "unknown_project");
+  }
+  eq(griotCalls.length, calls, "never reaches GRIOT"); eq(userRow(email).trials_remaining, was, "and costs nothing");
+});
+
+await test("griot projects: before GRIOT keeps projects, the picker stays hidden and General works", async () => {
+  const email = "p-noproj@example.com";
+  const s = await signUp(email);
+  env.GRIOT_API_BASE = "https://griot-noproj.test";
+  try {
+    const list = await ws(s.token, "GET", "/griot/my-projects");
+    eq(list.status, 200); eq(list.data.ready, false); eq(list.data.projects.length, 0);
+    eq((await ws(s.token, "POST", "/griot/my-projects", { name: "x" })).status, 503);
+    const before = userRow(email).trials_remaining;
+    const r = await chat(s.token, "in a project", { project: "p-12345678" });
+    eq(r.status, 400); eq(r.data.error, "unknown_project");
+    eq(userRow(email).trials_remaining, before, "refused for free");
+    eq((await chat(s.token, "in General")).status, 200, "asking still works");
+    const all = await ws(s.token, "GET", "/griot/threads?project=global");
+    eq(all.status, 200); ok(!griotWsCalls.some((c) => c.path.includes("project=") && c.tenant === userId(email)), "lists are not filtered yet");
+  } finally { env.GRIOT_API_BASE = "https://griot.test/"; }
 });
 
 /* ------------------------------------------------------- Google sign-in */
@@ -2352,6 +2635,176 @@ await test("plans: switching to Pro starts it now and ends Starter today", async
   eq(r.status, 200); eq(r.data.account.membership.plan, "pro");
 });
 
+/* ------------------------------------------------- Google Analytics */
+
+const GA = { clientId: "1234567890.1712345678", sessionId: "1712345678" };
+
+await test("analytics: email sign-in says whether it is the account's first", async () => {
+  const email = "ga-email@example.com";
+  const first = await signUp(email);
+  eq(first.isNew, true, "first sign-in");
+  const again = await signUp(email);
+  eq(again.isNew, false, "second sign-in, same second or not");
+});
+
+await test("analytics: Google sign-in says whether it is the account's first", async () => {
+  const first = await google(await googleToken({ email: "ga.google@gmail.com", sub: "ga-sub" }));
+  eq(first.status, 200); eq(first.data.isNew, true, "first sign-in");
+  const again = await google(await googleToken({ email: "ga.google@gmail.com", sub: "ga-sub" }));
+  eq(again.data.isNew, false, "returning");
+  const viaEmail = await signUp("ga.google@gmail.com");
+  eq(viaEmail.isNew, false, "the same account by email code is not new either");
+});
+
+await test("analytics: no purchase is reported until both the ID and the Secret are set", async () => {
+  ga4.hits.length = 0;
+  const s = await signUp("ga-off@example.com");
+  const c = await planCheckout(s.token, "starter", { ga: GA });
+  eq(payment(c.data.txRef).ga_client_id, GA.clientId, "ids kept for later");
+  await webhook(charge(pay(c.data.txRef, { amount: 60000 }), c.data.txRef));
+  eq(payment(c.data.txRef).status, "paid");
+  env.GA4_MEASUREMENT_ID = "G-QMCCT15QTM";
+  const c2 = await planCheckout(s.token, "starter", { ga: GA });
+  await webhook(charge(pay(c2.data.txRef, { amount: 60000 }), c2.data.txRef));
+  eq(payment(c2.data.txRef).status, "paid");
+  eq(ga4.hits.length, 0, "nothing sent without the API secret");
+  delete env.GA4_MEASUREMENT_ID;
+  env.GA4_API_SECRET = "mp-secret";
+  const c3 = await planCheckout(s.token, "starter", { ga: GA });
+  await webhook(charge(pay(c3.data.txRef, { amount: 60000 }), c3.data.txRef));
+  eq(ga4.hits.length, 0, "nothing sent without the Measurement ID");
+  env.GA4_MEASUREMENT_ID = "not-a-ga4-id";
+  const c4 = await planCheckout(s.token, "starter", { ga: GA });
+  await webhook(charge(pay(c4.data.txRef, { amount: 60000 }), c4.data.txRef));
+  eq(ga4.hits.length, 0, "nothing sent to a malformed Measurement ID");
+  delete env.GA4_MEASUREMENT_ID; delete env.GA4_API_SECRET;
+});
+
+env.GA4_MEASUREMENT_ID = "G-QMCCT15QTM";
+env.GA4_API_SECRET = "mp-secret";
+
+await test("analytics: a plan purchase is reported once, with the visitor's ids and nothing personal", async () => {
+  ga4.hits.length = 0;
+  const email = "ga-plan@example.com";
+  const s = await signUp(email);
+  const c = await planCheckout(s.token, "pro", { ga: GA });
+  eq(c.status, 200);
+  const id = pay(c.data.txRef, { amount: 150000 });
+  await Promise.all([webhook(charge(id, c.data.txRef)), webhook(charge(id, c.data.txRef)), confirm(s.token, c.data.txRef, id)]);
+  await confirm(s.token, c.data.txRef, id);
+  eq(ga4.hits.length, 1, "exactly one purchase hit");
+  const hit = ga4.hits[0];
+  eq(hit.id, "G-QMCCT15QTM"); eq(hit.secret, "mp-secret"); eq(hit.contentType, "application/json");
+  eq(hit.body.client_id, GA.clientId);
+  eq(hit.body.non_personalized_ads, true);
+  ok(!("user_id" in hit.body), "no user id");
+  eq(hit.body.events.length, 1);
+  const ev = hit.body.events[0];
+  eq(ev.name, "purchase");
+  eq(ev.params.transaction_id, c.data.txRef); eq(ev.params.currency, "UGX"); eq(ev.params.value, 150000);
+  eq(ev.params.session_id, GA.sessionId);
+  eq(ev.params.items.length, 1);
+  eq(ev.params.items[0].item_id, "plan_pro"); eq(ev.params.items[0].item_category, "plan");
+  eq(ev.params.items[0].price, 150000); eq(ev.params.items[0].quantity, 1);
+  ok(/Pro plan, 30 days/.test(ev.params.items[0].item_name));
+  const sent = JSON.stringify(hit.body);
+  ok(!sent.includes(email) && !sent.includes(userId(email)) && !sent.includes("Test"), "no email, account id or name");
+});
+
+await test("analytics: a top-up is reported as a top-up, without a session id when none was given", async () => {
+  ga4.hits.length = 0;
+  const s = await signUp("ga-topup@example.com");
+  const c = await call("POST", "/wallet/checkout", { token: s.token, body: { amount: 100000, ga: { clientId: GA.clientId } } });
+  eq(c.status, 200);
+  await webhook(charge(pay(c.data.txRef, { amount: 100000 }), c.data.txRef));
+  eq(ga4.hits.length, 1);
+  const ev = ga4.hits[0].body.events[0];
+  eq(ev.params.items[0].item_id, "topup"); eq(ev.params.value, 100000);
+  ok(!("session_id" in ev.params), "no session id invented");
+});
+
+await test("analytics: a visitor who declined analytics (no ids) is never reported", async () => {
+  ga4.hits.length = 0;
+  const s = await signUp("ga-declined@example.com");
+  const c = await planCheckout(s.token, "starter");
+  await webhook(charge(pay(c.data.txRef, { amount: 60000 }), c.data.txRef));
+  eq(payment(c.data.txRef).status, "paid");
+  eq(payment(c.data.txRef).ga_client_id, null);
+  eq(ga4.hits.length, 0);
+});
+
+await test("analytics: ids that are not GA's own shape are dropped at checkout", async () => {
+  const s = await signUp("ga-junk@example.com");
+  for (const [ga, client, session] of [
+    [{ clientId: "user@example.com", sessionId: "1" }, null, null],
+    [{ clientId: "123.456<script>", sessionId: "1" }, null, null],
+    [{ clientId: 1234.5678 }, null, null],
+    [{ clientId: "1".repeat(21) + ".1" }, null, null],
+    [{ sessionId: "1712345678" }, null, null],
+    [{ clientId: GA.clientId, sessionId: "abc" }, GA.clientId, null],
+    [{ clientId: GA.clientId, sessionId: 1712345678 }, GA.clientId, null],
+    ["1234567890.1712345678", null, null],
+    [[GA.clientId], null, null]
+  ]) {
+    const c = await planCheckout(s.token, "starter", { ga });
+    eq(c.status, 200, "checkout still opens for " + JSON.stringify(ga));
+    const p = payment(c.data.txRef);
+    eq(p.ga_client_id, client, "client id from " + JSON.stringify(ga));
+    eq(p.ga_session_id, session, "session id from " + JSON.stringify(ga));
+  }
+});
+
+await test("analytics: a database without the GA columns still takes payments, and reports nothing", async () => {
+  // The live database as it was before 14 Oct: schema.sql without the two
+  // GA columns. The Worker must record the payment anyway.
+  const old = new FakeD1();
+  const schema = readFileSync(join(here, "..", "schema.sql"), "utf8");
+  const withoutGa = schema.replace(/,\s*(--[^\n]*\n\s*)*ga_client_id\s+TEXT,\s*ga_session_id\s+TEXT/, "");
+  ok(withoutGa !== schema, "the old schema was rebuilt");
+  old.db.exec(withoutGa);
+  old.db.exec(PROFILE_TRIGGER);
+  ok(!old.q("SELECT name FROM pragma_table_info('payments')").some((c) => c.name.startsWith("ga_")), "no GA columns");
+  ga4.hits.length = 0;
+  const live = env.DB;
+  env.DB = old;
+  try {
+    const email = "ga-oldschema@example.com";
+    const s = await signUp(email);
+    const c = await planCheckout(s.token, "starter", { ga: GA });
+    eq(c.status, 200, "checkout opens");
+    const row = old.one("SELECT status, purpose FROM payments WHERE tx_ref = ?", c.data.txRef);
+    eq(row && row.status, "pending", "payment recorded");
+    const r = await confirm(s.token, c.data.txRef, pay(c.data.txRef, { amount: 60000 }));
+    eq(r.data.status, "credited");
+    eq(old.q("SELECT id FROM subscriptions").length, 1, "the plan opened");
+    eq(ga4.hits.length, 0, "no ids stored, so no report");
+  } finally {
+    env.DB = live;
+  }
+});
+
+for (const mode of ["fail", "throw", "hang"]) {
+  await test("analytics: Google " + (mode === "hang" ? "hanging" : "failing (" + mode + ")") + " never touches the payment", async () => {
+    ga4.hits.length = 0;
+    net.ga4 = mode;
+    const email = "ga-" + mode + "@example.com";
+    const s = await signUp(email);
+    const c = await planCheckout(s.token, "starter", { ga: GA });
+    const id = pay(c.data.txRef, { amount: 60000 });
+    const started = Date.now();
+    const r = await confirm(s.token, c.data.txRef, id);
+    delete net.ga4;
+    eq(r.status, 200); eq(r.data.status, "credited");
+    eq(payment(c.data.txRef).status, "paid");
+    eq(periods(email).length, 1, "the plan opened");
+    eq(ga4.hits.length, 1, "tried once");
+    ok(Date.now() - started < 4500, "gave up within a few seconds");
+  });
+}
+
+delete env.GA4_MEASUREMENT_ID;
+delete env.GA4_API_SECRET;
+
 /* ------------------------------------------------ the Rehearsal Room */
 
 function rehearsalRows(email) {
@@ -2957,6 +3410,237 @@ await test("documents: step 1 of sign-up comes first, and an unconfigured deploy
   const off = await upload(s.token, "Report.pdf", REPORT);
   env.ANTHROPIC_API_KEY = key;
   eq(off.status, 503); eq(off.data.error, "documents_unconfigured");
+});
+
+/* ------------------------------------------------------- YouTube research */
+
+const YT_OWNER = "yt-owner@example.com";
+function ytReset() {
+  ytFake.calls.length = 0;
+  ytFake.error = null;
+  for (const t of ["yt_videos", "yt_channels", "yt_uploads", "yt_searches", "yt_snapshots", "yt_quota"]) db.db.exec("DELETE FROM " + t);
+  env.YOUTUBE_API_KEY = "yt-test-key";
+  env.YOUTUBE_ADMINS = "someone@example.com, " + YT_OWNER.toUpperCase();
+  delete env.YOUTUBE_DAILY_UNITS;
+  delete env.YOUTUBE_USER_DAILY_UNITS;
+}
+const ytUnitsCalled = () => ytFake.calls.reduce((n, c) => n + YT_COST_OF[c.method], 0);
+const ytLedger = () => db.one("SELECT COALESCE(SUM(units), 0) AS u FROM yt_quota WHERE user_id = ''").u;
+let ytOwner;
+const ytAnalyze = (body, token = ytOwner.token) => call("POST", "/youtube/analyze", { token, body: Object.assign({ query: "public speaking" }, body) });
+
+await test("youtube: closed to accounts not named, signed-out sessions refused, and an unset key is said plainly", async () => {
+  ytReset();
+  ytOwner = await signUp(YT_OWNER);
+  const other = await signUp("yt-other@example.com");
+  eq((await call("GET", "/youtube/quota")).status, 401, "signed out");
+  const closed = await call("GET", "/youtube/quota", { token: other.token });
+  eq(closed.status, 403); eq(closed.data.error, "youtube_not_open");
+  delete env.YOUTUBE_API_KEY;
+  const off = await ytAnalyze({});
+  eq(off.status, 503); eq(off.data.error, "youtube_unconfigured");
+  env.YOUTUBE_API_KEY = "yt-test-key";
+  const q = await call("GET", "/youtube/quota", { token: ytOwner.token });
+  eq(q.status, 200, "an admin is matched however the email is cased"); eq(q.data.quota.budget, 9000); eq(q.data.costs.search, 100);
+  eq(ytFake.calls.length, 0, "nothing reached YouTube");
+});
+
+await test("youtube: a small channel's breakout outranks a big channel's ordinary video, with the evidence", async () => {
+  ytReset();
+  const r = await ytAnalyze({});
+  eq(r.status, 200, JSON.stringify(r.data));
+  const top = r.data.trending[0];
+  eq(top.id, ytVid("A", 1), "the breakout is first");
+  eq(top.baseline.uploadsCompared, 29, "compared with the channel's other recent uploads");
+  ok(top.baseline.multiple > 11 && top.baseline.multiple < 13, "about 12× the channel median: " + top.baseline.multiple);
+  ok(top.baseline.z > 3, "a clear outlier");
+  eq(top.confidence, "High"); eq(top.signal.outOf, 60);
+  const big = r.data.trending.find((v) => v.id === ytVid("B", 1));
+  ok(big && big.views > top.views && big.signal.total < top.signal.total, "more views is not more signal");
+  ok(big.baseline.multiple > 1 && big.baseline.multiple < 1.5, "ordinary for its channel");
+  ok(r.data.trending.every((v) => v.ageDays <= 31), "current ranking stays inside the window");
+  ok(r.data.evergreen.length > 0 && r.data.evergreen.every((v) => v.ageDays >= 179), "evergreen ranking holds only older videos");
+  eq(r.data.evergreen[0].id, ytVid("A", 900), "the old video that far outran its channel leads evergreen");
+  ok(r.data.channels.some((c) => c.handle === "@speakacademy" && c.recent.medianViews > 9000 && c.recent.medianViews < 11000), "channel summary");
+  ok(/not YouTube metrics/.test(r.data.method.note), "derived scores are labelled as such");
+  // Every fixture engages at the same raw rate, so engagement must not spread
+  // them across the scale (it used to, when it was a rank).
+  ok(r.data.trending.concat(r.data.evergreen).every((v) => v.signal.engagement >= 6.5 && v.signal.engagement <= 8.5),
+    "near-identical engagement scores near-identically: " + r.data.trending.map((v) => v.signal.engagement).join(","));
+  eq(ytFake.calls.filter((c) => c.method === "search").length, 2, "one search per ranking");
+  eq(r.data.spent, ytUnitsCalled(), "what it reports spending is exactly what YouTube was asked for");
+  eq(ytLedger(), r.data.spent, "and exactly what the ledger holds");
+  ok(ytFake.calls.filter((c) => c.method === "videos").every((c) => c.params.id.split(",").length <= 50), "lookups batched 50 at a time");
+});
+
+await test("youtube: the same research within six hours is answered from D1 and costs nothing", async () => {
+  const calls = ytFake.calls.length;
+  const again = await ytAnalyze({});
+  eq(again.status, 200); eq(again.data.spent, 0); eq(ytFake.calls.length, calls, "YouTube was not asked again");
+  eq(again.data.trending[0].id, ytVid("A", 1));
+});
+
+await test("youtube: a call the allowance cannot cover is refused before YouTube is asked", async () => {
+  ytReset();
+  env.YOUTUBE_USER_DAILY_UNITS = "150";
+  const r = await ytAnalyze({ query: "stage fright" });
+  eq(r.status, 429); eq(r.data.error, "youtube_quota_user");
+  eq(ytFake.calls.filter((c) => c.method === "search").length, 1, "the second search was never sent");
+  eq(r.data.quota.mine, 100); ok(r.data.quota.mine <= 150);
+  env.YOUTUBE_USER_DAILY_UNITS = "3000";
+  env.YOUTUBE_DAILY_UNITS = "120";
+  const day = await ytAnalyze({ query: "storytelling" });
+  eq(day.status, 429); eq(day.data.error, "youtube_quota");
+  eq(day.data.quota.mine, 100, "a refusal by the day's budget gives the account its units back");
+});
+
+await test("youtube: concurrent research can never spend past the day's budget", async () => {
+  ytReset();
+  env.YOUTUBE_DAILY_UNITS = "250";
+  const results = await Promise.all(["pitch", "keynote", "panel", "toast", "debate"].map((q) => ytAnalyze({ query: q })));
+  ok(ytLedger() <= 250, "ledger " + ytLedger() + " within 250");
+  ok(ytUnitsCalled() <= 250, "YouTube was asked for no more than the budget: " + ytUnitsCalled());
+  ok(results.filter((r) => r.status === 200).length <= 1, "at most one full analysis fits");
+  ok(results.some((r) => r.status === 429), "the rest are refused");
+});
+
+await test("youtube: when YouTube says the quota is gone, nothing more is sent until the day turns", async () => {
+  ytReset();
+  ytFake.error = "quota";
+  const r = await ytAnalyze({ query: "voice" });
+  eq(r.status, 429); eq(r.data.error, "youtube_quota");
+  ytFake.error = null;
+  const sent = ytFake.calls.length;
+  const after = await ytAnalyze({ query: "breathing" });
+  eq(after.status, 429); eq(ytFake.calls.length, sent, "no further call reached YouTube");
+});
+
+await test("youtube: video addresses in every common form are read; unknown and unreadable ones are reported", async () => {
+  ytReset();
+  const r = await call("POST", "/youtube/videos", { token: ytOwner.token, body: { videos: [
+    "https://www.youtube.com/watch?v=" + ytVid("A", 1) + "&t=42s",
+    "youtu.be/" + ytVid("B", 1),
+    "https://youtube.com/shorts/" + ytVid("C", 1),
+    "https://www.youtube.com/embed/" + ytVid("A", 900),
+    ytVid("B", 900),
+    "ZZZZZZZZZZZ",
+    "not a video"
+  ] } });
+  eq(r.status, 200);
+  eq(r.data.videos.length, 5); eq(r.data.notFound.join(), "ZZZZZZZZZZZ"); eq(r.data.invalid.join(), "not a video");
+  const breakout = r.data.videos.find((v) => v.id === ytVid("A", 1));
+  ok(breakout.baseline.multiple > 11, "checked videos are judged against their own channel too");
+  eq(r.data.spent, ytUnitsCalled());
+  const none = await call("POST", "/youtube/videos", { token: ytOwner.token, body: { videos: ["nope"] } });
+  eq(none.status, 400); eq(none.data.error, "no_videos");
+});
+
+await test("youtube: 62 videos go to YouTube in two batched lookups, not 62", async () => {
+  ytReset();
+  const ids = ytFake.playlists["UU" + "a".repeat(22)].concat(ytFake.playlists["UU" + "b".repeat(22)]);
+  eq(ids.length, 62);
+  const r = await call("POST", "/youtube/videos", { token: ytOwner.token, body: { videos: ids } });
+  eq(r.status, 200); eq(r.data.videos.length, 62);
+  const lookups = ytFake.calls.filter((c) => c.method === "videos");
+  eq(lookups.length, 2, "50 + 12"); eq(lookups[0].params.id.split(",").length, 50);
+});
+
+await test("youtube: hidden likes and comments turned off are unknown, never zero, and lower the confidence", async () => {
+  ytReset();
+  const r = await call("POST", "/youtube/videos", { token: ytOwner.token, body: { videos: [ytVid("C", 1)] } });
+  const v = r.data.videos[0];
+  eq(v.likes, null); eq(v.comments, null); eq(v.engagementRate, null);
+  eq(v.signal.engagement, 7.5, "unknown engagement is neutral, neither rewarded nor punished");
+  ok(/unknown/.test(v.signal.basis.engagement));
+  eq(v.baseline, null, "two other uploads are too few for a baseline");
+  eq(v.confidence, "Low"); ok(/proxy/.test(v.signal.basis.performance), "the proxy is named as one");
+  eq(v.format, "short-form");
+});
+
+await test("youtube: channels compare by @handle and address; hidden subscribers and unknown channels are reported", async () => {
+  ytReset();
+  const r = await call("POST", "/youtube/channels", { token: ytOwner.token, body: { channels: [
+    "@speakacademy", "https://www.youtube.com/@BigTalks/videos", "https://www.youtube.com/channel/" + ytChan("c"),
+    "@nobodyhere", "https://example.com/@speakacademy"
+  ] } });
+  eq(r.status, 200);
+  eq(r.data.channels.map((c) => c.handle).join(), "@speakacademy,@bigtalks,@newvoice");
+  eq(r.data.notFound.join(), "@nobodyhere,https://example.com/@speakacademy");
+  const [a, b, c] = r.data.channels;
+  eq(c.subscribers, null, "hidden stays hidden");
+  ok(a.recent.topMultiple > 11 && b.recent.topMultiple < 1.5, "who breaks out, and who does not");
+  ok(b.recent.medianViews > a.recent.medianViews * 40, "size shows in typical views");
+  ok(a.viewsPerSubscriber > 0.4 && b.viewsPerSubscriber < 0.3, "reach per subscriber");
+  ok(a.recent.uploadsPerWeek >= 0.9 && a.recent.uploadsPerWeek <= 1.1, "about one upload a week: " + a.recent.uploadsPerWeek);
+  eq(c.recent.shortFormShare, 0.33);
+  eq(r.data.spent, ytUnitsCalled());
+  const again = await call("POST", "/youtube/channels", { token: ytOwner.token, body: { channels: ["@speakacademy"] } });
+  eq(again.data.spent, 0, "a known @handle is resolved from D1");
+});
+
+await test("youtube: a second fresh look gives a real growth rate, which then drives evergreen timing", async () => {
+  ytReset();
+  const id = ytVid("B", 900);
+  await call("POST", "/youtube/videos", { token: ytOwner.token, body: { videos: [id] } });
+  // Two days later, 6,000 more views.
+  db.db.prepare("UPDATE yt_snapshots SET at = at - 2 * 86400 WHERE video_id = ?").run(id);
+  db.db.prepare("UPDATE yt_videos SET fetched_at = fetched_at - 7 * 3600").run();
+  ytFake.videos[id].statistics.viewCount = "906000";
+  const r = await call("POST", "/youtube/videos", { token: ytOwner.token, body: { videos: [id] } });
+  ytFake.videos[id].statistics.viewCount = "900000";
+  const v = r.data.videos[0];
+  eq(v.views, 906000); eq(v.growth.viewsPerDay, 3000); eq(v.growth.overDays, 2);
+  const ev = await ytAnalyze({ query: "openers" });
+  const scored = ev.data.evergreen.find((x) => x.id === id);
+  ok(scored && /lifetime daily average/.test(scored.signal.basis.timing), "measured growth replaces the age proxy");
+});
+
+await test("youtube: the key never reaches an answer, and a rejected key is reported without it", async () => {
+  ytReset();
+  env.YOUTUBE_API_KEY = "wrong-key-value";
+  const r = await ytAnalyze({ query: "debate" });
+  eq(r.status, 503); eq(r.data.error, "youtube_key_rejected");
+  ok(!JSON.stringify(r.data).includes("wrong-key-value"), "the key is not in the answer");
+  env.YOUTUBE_API_KEY = "yt-test-key";
+  const okay = await ytAnalyze({ query: "debate" });
+  ok(!JSON.stringify(okay.data).includes("yt-test-key"));
+  ok(ytFake.calls.length > 0 && ytFake.calls.every((c) => !JSON.stringify(c.params).includes("yt-test-key")), "the key travels only as the key parameter");
+});
+
+await test("youtube: deployed before its tables exist, YouTube says so and the nightly cleanup still runs", async () => {
+  ytReset();
+  const tables = ["yt_videos", "yt_channels", "yt_uploads", "yt_searches", "yt_snapshots", "yt_quota"];
+  for (const t of tables) db.db.exec("ALTER TABLE " + t + " RENAME TO " + t + "_parked");
+  try {
+    const r = await ytAnalyze({ query: "no tables" });
+    eq(r.status, 503); eq(r.data.error, "youtube_unconfigured"); ok(/schema\.sql/.test(r.data.message));
+    db.db.prepare("INSERT INTO rate_log (key, created_at) VALUES ('stale-key', ?)").run(Math.floor(Date.now() / 1000) - 3 * 86400);
+    const pending = [];
+    const quiet = console.error; console.error = () => {};
+    try {
+      await worker.scheduled({}, env, { waitUntil: (p) => pending.push(p) });
+      await Promise.all(pending);
+    } finally { console.error = quiet; }
+    eq(db.one("SELECT COUNT(*) AS n FROM rate_log WHERE key = 'stale-key'").n, 0, "the existing cleanup ran regardless");
+  } finally {
+    for (const t of tables) db.db.exec("ALTER TABLE " + t + "_parked RENAME TO " + t);
+  }
+});
+
+await test("youtube: the daily cron deletes YouTube data older than 30 days and keeps what is fresh", async () => {
+  ytReset();
+  await call("POST", "/youtube/videos", { token: ytOwner.token, body: { videos: [ytVid("A", 1)] } });
+  const old = Math.floor(Date.now() / 1000) - 31 * 86400;
+  db.db.prepare("INSERT INTO yt_videos (id, channel_id, title, published_at, views, fetched_at) VALUES ('OLDOLDOLD00', 'x', 'old', ?, 1, ?)").run(old, old);
+  db.db.prepare("INSERT INTO yt_snapshots (video_id, views, at) VALUES ('OLDOLDOLD00', 1, ?)").run(old);
+  db.db.prepare("INSERT INTO yt_quota (day, user_id, units) VALUES ('2020-01-01', '', 5)").run();
+  const pending = [];
+  await worker.scheduled({}, env, { waitUntil: (p) => pending.push(p) });
+  await Promise.all(pending);
+  eq(db.one("SELECT COUNT(*) AS n FROM yt_videos WHERE id = 'OLDOLDOLD00'").n, 0);
+  eq(db.one("SELECT COUNT(*) AS n FROM yt_snapshots WHERE video_id = 'OLDOLDOLD00'").n, 0);
+  eq(db.one("SELECT COUNT(*) AS n FROM yt_quota WHERE day = '2020-01-01'").n, 0);
+  ok(db.one("SELECT COUNT(*) AS n FROM yt_videos").n > 0, "fresh data stays");
 });
 
 console.log("\n" + passed + " passed, " + failures.length + " failed\n");

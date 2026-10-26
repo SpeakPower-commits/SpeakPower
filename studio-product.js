@@ -448,6 +448,9 @@
     generateBtn.textContent = on ? (product.busy || "Generating…") : ACTION;
   }
 
+  // Google Analytics (analytics.js): counts what was used, never what was said.
+  function track(name, params) { if (window.SPAnalytics) window.SPAnalytics.track(name, params); }
+
   function run() {
     if (running) return;
     clearFormError();
@@ -457,6 +460,7 @@
       return A.call("/studio/generate", { product: key, inputs: body, anonId: SP.anonId, page: location.pathname });
     }).then(function (data) {
       hideGate();
+      track("studio_pack", { product: key, paid_with: data.paidWith });
       A.setAccount(data.account);
       paidLine(data);
       drawStatus();

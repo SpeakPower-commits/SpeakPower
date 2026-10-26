@@ -208,11 +208,15 @@
       anonId: SP.anonId, page: location.pathname
     }).then(function (data) {
       profile = data.profile;
+      track("profile_complete", { step: 1 });
       return refreshAccount().then(function () { show(2); });
     }, function (e) { failed(form, "wError1", e); }).then(function () { busy(form, false); });
   });
 
   /* --------------------------------------------------------------- step 2 */
+
+  // Google Analytics (analytics.js): counts what was used, never what was said.
+  function track(name, params) { if (window.SPAnalytics) window.SPAnalytics.track(name, params); }
 
   var briefChoice = true;
   $("wBrief").addEventListener("click", function () { briefChoice = true; });
@@ -237,6 +241,7 @@
       focus: focus, briefGriot: brief, anonId: SP.anonId, page: location.pathname
     }).then(function (data) {
       profile = data.profile;
+      track("profile_complete", { step: 2, briefed_griot: brief, focus_count: focus.length });
       return refreshAccount().then(function () { drawDone(); show(3); });
     }, function (e) { failed(form, "wError2", e); }).then(function () { busy(form, false); });
   });

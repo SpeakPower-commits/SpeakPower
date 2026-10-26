@@ -105,7 +105,14 @@ CREATE TABLE IF NOT EXISTS payments (
   --   ALTER TABLE payments ADD COLUMN purpose TEXT NOT NULL DEFAULT 'topup';
   purpose      TEXT NOT NULL DEFAULT 'topup',
   created_at   INTEGER NOT NULL,
-  paid_at      INTEGER
+  paid_at      INTEGER,
+  -- The buyer's anonymous Google Analytics ids, sent by the page only when
+  -- they accepted analytics; used once, to report the settled purchase.
+  -- Added 14 Oct 2026; on an older database run:
+  --   ALTER TABLE payments ADD COLUMN ga_client_id TEXT;
+  --   ALTER TABLE payments ADD COLUMN ga_session_id TEXT;
+  ga_client_id  TEXT,
+  ga_session_id TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_payments_user ON payments (user_id, created_at);
 
@@ -245,3 +252,73 @@ CREATE TABLE IF NOT EXISTS audits (
   updated_at         INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_audits_user ON audits (user_id, created_at);
+
+-- YouTube research (added 26 Oct 2026). On an existing database, run this
+-- block once in the D1 console; every statement is idempotent.
+-- Everything below is YouTube API data, so the daily cron deletes any row
+-- older than 30 days (YouTube API Services policy), and quota days after 60.
+
+-- Videos as last fetched. likes NULL = hidden by the creator; comments NULL =
+-- comments turned off. Reused for 6 hours before YouTube is asked again.
+CREATE TABLE IF NOT EXISTS yt_videos (
+  id            TEXT PRIMARY KEY,
+  channel_id    TEXT NOT NULL,
+  channel_title TEXT,
+  title         TEXT NOT NULL,
+  published_at  INTEGER NOT NULL,
+  duration_s    INTEGER,
+  views         INTEGER,
+  likes         INTEGER,
+  comments      INTEGER,
+  fetched_at    INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_yt_videos_fetched ON yt_videos (fetched_at);
+
+-- Channels as last fetched (24 hours). subscribers NULL = hidden. handle is
+-- the channel's @handle; uploads is its uploads playlist.
+CREATE TABLE IF NOT EXISTS yt_channels (
+  id          TEXT PRIMARY KEY,
+  title       TEXT NOT NULL,
+  handle      TEXT,
+  subscribers INTEGER,
+  video_count INTEGER,
+  total_views INTEGER,
+  uploads     TEXT,
+  country     TEXT,
+  fetched_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_yt_channels_handle ON yt_channels (handle);
+
+-- A channel's newest upload ids (12 hours): its baseline sample.
+CREATE TABLE IF NOT EXISTS yt_uploads (
+  channel_id TEXT PRIMARY KEY,
+  video_ids  TEXT NOT NULL,
+  fetched_at INTEGER NOT NULL
+);
+
+-- A search's result ids (6 hours), keyed by a hash of its parameters.
+CREATE TABLE IF NOT EXISTS yt_searches (
+  key        TEXT PRIMARY KEY,
+  video_ids  TEXT NOT NULL,
+  fetched_at INTEGER NOT NULL
+);
+
+-- A video's view count each time it was fetched fresh: two snapshots give a
+-- real growth rate.
+CREATE TABLE IF NOT EXISTS yt_snapshots (
+  video_id TEXT NOT NULL,
+  views    INTEGER NOT NULL,
+  at       INTEGER NOT NULL,
+  PRIMARY KEY (video_id, at)
+);
+CREATE INDEX IF NOT EXISTS idx_yt_snapshots_at ON yt_snapshots (at);
+
+-- The quota ledger, per YouTube quota day (Pacific time). user_id '' is the
+-- day's total across everyone; other rows are one account's share. Units are
+-- added before each call by a single UPDATE that also checks the budget.
+CREATE TABLE IF NOT EXISTS yt_quota (
+  day     TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  units   INTEGER NOT NULL DEFAULT 0 CHECK (units >= 0),
+  PRIMARY KEY (day, user_id)
+);

@@ -217,8 +217,10 @@
       return;
     }
 
-    function finish(data) {
+    function finish(data, method) {
       save({ token: data.token, expiresAt: data.expiresAt, account: data.account });
+      // A first sign-in creates the account: a sign-up, not a log-in.
+      track(data.isNew ? "sign_up" : "login", { method: method });
       if (activeSignIn === controller) activeSignIn = null;
       if (opts.onSignedIn) opts.onSignedIn(data.account);
     }
@@ -232,7 +234,7 @@
         }
         SP.api("/auth/google", {
           body: { credential: response.credential, anonId: SP.anonId, page: location.pathname }
-        }).then(finish, function (e) { showError(e.message); });
+        }).then(function (data) { finish(data, "google"); }, function (e) { showError(e.message); });
       }
     };
     activeSignIn = controller;
@@ -317,7 +319,8 @@
         verifyBtn.disabled = true;
         SP.api("/auth/verify", {
           body: { email: pendingEmail, code: code, anonId: SP.anonId, page: location.pathname }
-        }).then(finish, function (e) { showError(e.message); }).then(function () { verifyBtn.disabled = false; });
+        }).then(function (data) { finish(data, "email"); }, function (e) { showError(e.message); })
+          .then(function () { verifyBtn.disabled = false; });
       });
 
       restart.addEventListener("click", function () {
@@ -364,14 +367,35 @@
     return list.slice(0, 4).map(function (a) { return { amount: a, exact: a === need && presets.indexOf(a) === -1 }; });
   }
 
+  // Google Analytics (analytics.js) counts the checkout before the page
+  // leaves for Flutterwave. The purchase itself is reported by the Worker
+  // once the payment settles, and only when the visitor accepted analytics:
+  // then the page hands over GA's anonymous ids with the checkout.
+  function track(name, params, opts) {
+    return window.SPAnalytics ? window.SPAnalytics.track(name, params, opts) : Promise.resolve(false);
+  }
+  function analyticsIds() {
+    return window.SPAnalytics ? window.SPAnalytics.ids() : Promise.resolve(null);
+  }
+  function leaveForCheckout(data, itemId, itemName, category) {
+    var item = { item_id: itemId, item_name: itemName, item_category: category, price: data.amount, quantity: 1 };
+    return track("begin_checkout", { currency: "UGX", value: data.amount, items: [item] }, { beforeLeave: true })
+      .then(function () { window.location.assign(data.link); });
+  }
+
   function startTopUp(amount, returnTo) {
-    return call("/wallet/checkout", { amount: amount, returnTo: returnTo, anonId: SP.anonId, page: location.pathname })
-      .then(function (data) { window.location.assign(data.link); });
+    return analyticsIds().then(function (ga) {
+      return call("/wallet/checkout", { amount: amount, returnTo: returnTo, anonId: SP.anonId, page: location.pathname, ga: ga || undefined });
+    }).then(function (data) { return leaveForCheckout(data, "topup", "Studio balance top-up", "topup"); });
   }
 
   function startPlan(plan, returnTo) {
-    return call("/plans/checkout", { plan: plan, returnTo: returnTo, anonId: SP.anonId, page: location.pathname })
-      .then(function (data) { window.location.assign(data.link); });
+    return analyticsIds().then(function (ga) {
+      return call("/plans/checkout", { plan: plan, returnTo: returnTo, anonId: SP.anonId, page: location.pathname, ga: ga || undefined });
+    }).then(function (data) {
+      var name = String(data.plan || plan);
+      return leaveForCheckout(data, "plan_" + name, name.charAt(0).toUpperCase() + name.slice(1) + " plan, 30 days", "plan");
+    });
   }
 
   // The wall GRIOT and the Rehearsal Room show: the plans, never a price per
@@ -381,6 +405,7 @@
     var acct = info.account || account() || {};
     var m = acct.membership;
     var plans = info.plans || acct.plans || [];
+    track("paywall_view", { wall: "plans", allowance_used: !!(m && m.plan) });
     host.textContent = "";
     host.appendChild(el("h2", null, info.heading || (m && m.plan ? "Your month's allowance is used" : "Keep going with a plan")));
     var lead = info.message || (m && m.plan ? "It renews on " + dayMonth(m.endsAt) + "." : "Your free tries are used.");
@@ -447,6 +472,7 @@
     info = info || {};
     if (info.plans || info.error === "plan_required") return renderPlanWall(host, info);
     var acct = info.account || account() || {};
+    if (!info.intro) track("paywall_view", { wall: "topup", item_name: info.title });
     host.textContent = "";
     host.appendChild(el("h2", null, info.heading || "Top up to continue"));
 
