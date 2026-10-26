@@ -906,3 +906,46 @@
 /* Grid children may shrink below their content, so a wide table scrolls
    inside its own frame rather than pushing the page sideways. */
 .studio-output > *,.audit-report > *,.ar-section > *{min-width:0}
+
+
+/* ==========================================================================
+   YouTube research (youtube.html, youtube.js)
+   ========================================================================== */
+.yt-quota{margin:0 0 1rem}
+.yt-quota-line{margin:0 0 .45rem;font-size:.9rem;color:var(--text-muted)}
+.yt-quota .builder-note{margin:.45rem 0 0}
+.yt-bar{height:6px;border-radius:999px;background:var(--line);overflow:hidden}
+.yt-bar span{display:block;height:100%;background:var(--gold);border-radius:inherit}
+.yt-tabs{display:flex;flex-wrap:wrap;gap:.35rem;margin:0 0 -1px;position:relative}
+.yt-tab{font:inherit;font-weight:600;font-size:.92rem;padding:.65rem 1rem;border:1px solid var(--line);border-bottom:none;
+  border-radius:var(--radius) var(--radius) 0 0;background:var(--bg-sunken);color:var(--text-muted);cursor:pointer}
+.yt-tab[aria-selected="true"]{background:var(--bg-raised);color:var(--navy);border-color:var(--line)}
+.yt-tab:focus-visible{outline:2px solid var(--navy);outline-offset:2px}
+.yt-panel{border-top-left-radius:0}
+.yt-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.9rem 1rem;align-items:start}
+.yt-form .yt-wide{grid-column:1/-1}
+.yt-form select,.yt-panel textarea{width:100%;padding:.75rem .8rem;border:1px solid var(--line-strong);border-radius:var(--radius);
+  background:var(--paper);font:inherit;color:var(--ink)}
+.yt-optional{font-weight:400;color:var(--text-faint)}
+/* Text boxes and drop-downs at one height, so a row of fields lines up. */
+.yt-form input,.yt-form select{height:3.1rem;box-sizing:border-box}
+.yt-result-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:end;gap:.75rem;margin-top:1.5rem;
+  padding-top:1.25rem;border-top:1px solid var(--line)}
+.yt-result-head h2{margin:0}
+.yt-actions{display:flex;flex-wrap:wrap;gap:.5rem}
+.yt-h3{margin:1.5rem 0 .25rem;font-size:1.05rem}
+.yt-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.yt-table{min-width:760px}
+.yt-table td{white-space:nowrap}
+.yt-table td.yt-main{white-space:normal}
+.yt-video{display:grid;gap:.2rem;min-width:240px}
+.yt-video a{font-weight:600;color:var(--navy)}
+.yt-sub{display:block;font-size:.78rem;color:var(--text-faint)}
+.yt-why{font-size:.8rem;color:var(--text-muted)}
+.yt-conf-high{color:var(--success,#1e5c49);font-weight:600}
+.yt-conf-low{color:var(--text-faint)}
+.yt-method summary{cursor:pointer;font-weight:600}
+.yt-method dl{margin:1rem 0 0}
+.yt-method dt{font-weight:600;margin-top:.75rem}
+.yt-method dd{margin:.2rem 0 0;color:var(--text-muted);font-size:.9rem;line-height:1.55}
+@media(max-width:760px){.yt-form{grid-template-columns:1fr}.yt-actions .btn{width:auto}}

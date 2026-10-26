@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YouTube research — SpeakPower</title>
+<meta name="description" content="Research YouTube topics, compare channels and check videos with exact metrics, each video measured against its own channel.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#16233f">
+<link rel="icon" type="image/png" href="assets/logo-mark.png?v=4" sizes="160x160">
+<link rel="shortcut icon" type="image/png" href="assets/logo-mark.png?v=4">
+<link rel="apple-touch-icon" href="assets/logo-mark.png?v=4">
+<link rel="manifest" href="site.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="commercial.css">
+<script>document.documentElement.classList.add("js");</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><div class="wrap">
+<a href="index.html" class="logo" aria-label="SpeakPower — home"><img class="logo-mark" src="assets/logo-mark.png" alt="" width="160" height="160"><span class="logo-text">Speak<span>Power</span></span></a>
+<nav class="nav-links" id="navLinks" aria-label="Primary">
+<a href="index.html">Home</a><a href="services.html">Services</a><a href="studio.html">Studio</a><a href="plans.html">Plans</a><a href="work.html">Work</a><a href="about.html">About</a><a href="https://speakpower1.blogspot.com" target="_blank" rel="noopener">Insights</a><a href="contact.html" class="nav-cta">Book a discovery call</a>
+</nav>
+<button class="nav-toggle" id="navToggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">&#9776;</button>
+</div></header>
+
+<main id="main">
+<div class="page-hero"><div class="wrap">
+<span class="eyebrow">SpeakPower · YouTube research</span>
+<h1>What is working on YouTube, measured.</h1>
+<p>Research a topic, compare channels or check videos. Every video is measured against its own channel's recent uploads, so a small channel's breakout stands out from a big channel's ordinary day. Views, likes and comments are YouTube's own counts; scores are SpeakPower's analysis.</p>
+</div></div>
+
+<section style="padding-top:0"><div class="wrap">
+
+<div class="studio-builder-panel" id="ytOffline" hidden>
+<h2>Not connected yet.</h2>
+<p>This page needs the SpeakPower service, which is not configured on this copy of the site.</p>
+</div>
+
+<div class="studio-builder-panel" id="ytSignIn" hidden></div>
+
+<p class="griot-notice" id="ytNotice" role="status" hidden></p>
+
+<div id="ytApp" hidden>
+
+<div class="yt-quota" id="ytQuota" aria-live="polite"></div>
+
+<div class="yt-tabs" role="tablist" aria-label="YouTube research">
+<button class="yt-tab" type="button" role="tab" id="tabTopic" aria-controls="panelTopic" aria-selected="true">Research a topic</button>
+<button class="yt-tab" type="button" role="tab" id="tabChannels" aria-controls="panelChannels" aria-selected="false" tabindex="-1">Compare channels</button>
+<button class="yt-tab" type="button" role="tab" id="tabVideos" aria-controls="panelVideos" aria-selected="false" tabindex="-1">Check videos</button>
+</div>
+
+<!-- Research a topic: two rankings, current and evergreen. -->
+<div class="studio-builder-panel yt-panel" role="tabpanel" id="panelTopic" aria-labelledby="tabTopic">
+<form id="topicForm" class="yt-form" novalidate>
+<div class="builder-field yt-wide">
+<label for="ytQuery">Topic or keywords</label>
+<input id="ytQuery" type="text" maxlength="120" required placeholder="e.g. public speaking tips, conservation Uganda">
+</div>
+<div class="builder-field">
+<label for="ytDays">Current window</label>
+<select id="ytDays"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select>
+</div>
+<div class="builder-field">
+<label for="ytEvergreen">Evergreen means older than</label>
+<select id="ytEvergreen"><option value="180" selected>6 months</option><option value="365">1 year</option><option value="730">2 years</option></select>
+</div>
+<div class="builder-field">
+<label for="ytRegion">Country <span class="yt-optional">(optional)</span></label>
+<input id="ytRegion" type="text" maxlength="2" placeholder="UG" autocomplete="off" spellcheck="false">
+</div>
+<div class="builder-field">
+<label for="ytLanguage">Language <span class="yt-optional">(optional)</span></label>
+<input id="ytLanguage" type="text" maxlength="7" placeholder="en" autocomplete="off" spellcheck="false">
+</div>
+<div class="builder-field">
+<label for="ytDuration">Length</label>
+<select id="ytDuration"><option value="any" selected>Any length</option><option value="short">Under 4 minutes</option><option value="medium">4 to 20 minutes</option><option value="long">Over 20 minutes</option></select>
+</div>
+<div class="builder-actions yt-wide"><button class="btn btn-primary" type="submit" id="topicGo">Research this topic</button></div>
+</form>
+<p class="builder-note">A topic search costs about 200&ndash;300 of the day's quota units the first time, and nothing if it is repeated within 6 hours.</p>
+<div class="form-status" id="topicStatus" role="status" aria-live="polite"></div>
+<div id="topicResults" hidden>
+<div class="yt-result-head">
+<h2 id="topicTitle">Results</h2>
+<div class="yt-actions">
+<button class="btn btn-ghost" type="button" id="topicCopy">Copy for a report</button>
+<button class="btn btn-ghost" type="button" id="topicCsv">Download CSV</button>
+</div>
+</div>
+<h3 class="yt-h3">A. Current: published in the window</h3>
+<div class="yt-table-wrap" id="topicTrending"></div>
+<h3 class="yt-h3">B. Evergreen: older and still standing out</h3>
+<div class="yt-table-wrap" id="topicEvergreen"></div>
+<h3 class="yt-h3">Channels behind these videos</h3>
+<div class="yt-table-wrap" id="topicChannels"></div>
+</div>
+</div>
+
+<!-- Compare channels side by side. -->
+<div class="studio-builder-panel yt-panel" role="tabpanel" id="panelChannels" aria-labelledby="tabChannels" hidden>
+<form id="channelsForm" novalidate>
+<div class="builder-field">
+<label for="ytChannelsInput">Channels, one per line</label>
+<textarea id="ytChannelsInput" rows="5" placeholder="@speakpower&#10;https://www.youtube.com/@TEDx&#10;UC… channel id"></textarea>
+</div>
+<div class="builder-actions"><button class="btn btn-primary" type="submit" id="channelsGo">Compare channels</button></div>
+</form>
+<p class="builder-note">Up to 25 channels. Each costs about 3 quota units the first time.</p>
+<div class="form-status" id="channelsStatus" role="status" aria-live="polite"></div>
+<div id="channelsResults" hidden>
+<div class="yt-result-head"><h2>Channels compared</h2><div class="yt-actions"><button class="btn btn-ghost" type="button" id="channelsCsv">Download CSV</button></div></div>
+<div class="yt-table-wrap" id="channelsTable"></div>
+</div>
+</div>
+
+<!-- Check specific videos. -->
+<div class="studio-builder-panel yt-panel" role="tabpanel" id="panelVideos" aria-labelledby="tabVideos" hidden>
+<form id="videosForm" novalidate>
+<div class="builder-field">
+<label for="ytVideosInput">Video addresses, one per line</label>
+<textarea id="ytVideosInput" rows="5" placeholder="https://www.youtube.com/watch?v=…&#10;https://youtu.be/…&#10;https://www.youtube.com/shorts/…"></textarea>
+</div>
+<div class="builder-actions"><button class="btn btn-primary" type="submit" id="videosGo">Check these videos</button></div>
+</form>
+<p class="builder-note">Up to 200 videos. Checking a video again after 6 hours shows how fast it is growing now.</p>
+<div class="form-status" id="videosStatus" role="status" aria-live="polite"></div>
+<div id="videosResults" hidden>
+<div class="yt-result-head"><h2>Videos checked</h2><div class="yt-actions"><button class="btn btn-ghost" type="button" id="videosCsv">Download CSV</button></div></div>
+<div class="yt-table-wrap" id="videosTable"></div>
+</div>
+</div>
+
+<details class="studio-builder-panel yt-method">
+<summary>How the numbers are worked out</summary>
+<dl id="ytMethod"><dd>Run a search to see the method.</dd></dl>
+</details>
+
+</div>
+
+</div></section>
+</main>
+
+<footer class="site-footer"><div class="wrap"><div class="footer-grid">
+<div><h4>SpeakPower</h4><p class="footer-tagline">Articulate is key.</p><p>Brand storytelling and market development, backed by SEO, writing, design, data, programming and public speaking. Kampala, Uganda.</p></div>
+<div><h4>Explore</h4><div class="footer-links"><a href="index.html">Home</a><a href="services.html">Services</a><a href="studio.html">Studio</a><a href="plans.html">Plans</a><a href="work.html">Work</a><a href="about.html">About</a><a href="https://speakpower1.blogspot.com" target="_blank" rel="noopener">Insights</a><a href="contact.html">Contact</a></div></div>
+<div><h4>Contact</h4><div class="footer-links"><a href="tel:+256743482588">+256 743 482 588</a><a href="mailto:thomasotieno583@gmail.com">thomasotieno583@gmail.com</a><a href="https://wa.me/256743482588" target="_blank" rel="noopener">WhatsApp</a></div></div>
+<div><h4>Follow</h4><div class="footer-links"><a href="https://www.linkedin.com/in/otieno-thomas-a39b1b21b/" target="_blank" rel="noopener">LinkedIn</a><a href="https://www.instagram.com/otienothomas8/" target="_blank" rel="noopener">Instagram</a><a href="https://www.tiktok.com/@otom323" target="_blank" rel="noopener">TikTok</a></div></div>
+</div><div class="footer-bottom">&copy; 2026 SpeakPower. All rights reserved. YouTube data via the YouTube Data API.</div></div></footer>
+<script src="site-config.js"></script>
+<script src="analytics.js"></script>
+<script src="script.js"></script>
+<script src="account.js"></script>
+<script src="youtube.js"></script>
+</body>
+</html>

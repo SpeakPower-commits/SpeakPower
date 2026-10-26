@@ -202,6 +202,103 @@ async function griotWorkspaceFake(url, init) {
   }
   return out({ detail: "not here" }, 404);
 }
+// A stand-in YouTube Data API v3: three channels, their uploads, and the
+// calls the Worker made (method and parameters, never the key).
+const YT_NOW = Math.floor(Date.now() / 1000);
+const ytIso = (daysAgo) => new Date((YT_NOW - daysAgo * 86400) * 1000).toISOString();
+const ytVid = (prefix, n) => prefix + String(n).padStart(11 - prefix.length, "0");
+const ytChan = (c) => "UC" + c.repeat(22);
+const ytFake = { calls: [], error: null, videos: {}, channels: {}, playlists: {} };
+const YT_COST_OF = { search: 100, videos: 1, channels: 1, playlistItems: 1 };
+function ytAddVideo(id, channelId, channelTitle, daysAgo, views, extra = {}) {
+  const stats = { viewCount: String(views), likeCount: String(Math.round(views * 0.04)), commentCount: String(Math.round(views * 0.004)) };
+  if (extra.hideLikes) delete stats.likeCount;
+  if (extra.noComments) delete stats.commentCount;
+  ytFake.videos[id] = {
+    id,
+    snippet: { publishedAt: ytIso(daysAgo), channelId, channelTitle, title: extra.title || "Talk " + id },
+    statistics: stats,
+    contentDetails: { duration: extra.duration || "PT8M30S" }
+  };
+}
+function ytAddChannel(c, title, handle, subs, uploads, extra = {}) {
+  const id = ytChan(c);
+  ytFake.channels[id] = {
+    id,
+    snippet: { title, customUrl: handle, country: "UG" },
+    statistics: extra.hidden ? { hiddenSubscriberCount: true, videoCount: String(uploads.length), viewCount: "1000" }
+      : { subscriberCount: String(subs), hiddenSubscriberCount: false, videoCount: String(uploads.length), viewCount: "50000000" },
+    contentDetails: { relatedPlaylists: { uploads: "UU" + c.repeat(22) } }
+  };
+  ytFake.playlists["UU" + c.repeat(22)] = uploads; // newest first
+}
+(function ytFixtures() {
+  // A small channel whose newest talk broke out: ~12× its usual 10,000 views.
+  const a = [ytVid("A", 1)];
+  ytAddVideo(ytVid("A", 1), ytChan("a"), "Speak Academy", 5, 120000, { title: "The 3-second pause that wins rooms" });
+  for (let i = 0; i < 30; i++) {
+    const id = ytVid("A", 100 + i);
+    ytAddVideo(id, ytChan("a"), "Speak Academy", 10 + i * 7, 8000 + (i % 5) * 1000);
+    a.push(id);
+  }
+  ytAddVideo(ytVid("A", 900), ytChan("a"), "Speak Academy", 400, 300000, { title: "Stage fright, explained" });
+  ytAddChannel("a", "Speak Academy", "@speakacademy", 20000, a);
+  // A big channel whose newest talk is ordinary for it, despite 600,000 views.
+  const b = [ytVid("B", 1)];
+  ytAddVideo(ytVid("B", 1), ytChan("b"), "Big Talks", 6, 600000);
+  for (let i = 0; i < 30; i++) {
+    const id = ytVid("B", 100 + i);
+    ytAddVideo(id, ytChan("b"), "Big Talks", 9 + i * 4, 450000 + (i % 5) * 25000);
+    b.push(id);
+  }
+  ytAddVideo(ytVid("B", 900), ytChan("b"), "Big Talks", 800, 900000, { title: "How to open any speech" });
+  ytAddChannel("b", "Big Talks", "@bigtalks", 2000000, b);
+  // A new channel: too few uploads for a baseline, likes hidden, comments off.
+  const c = [ytVid("C", 1), ytVid("C", 2), ytVid("C", 3)];
+  ytAddVideo(ytVid("C", 1), ytChan("c"), "New Voice", 3.5, 50000, { hideLikes: true, noComments: true, duration: "PT58S" });
+  ytAddVideo(ytVid("C", 2), ytChan("c"), "New Voice", 20, 900);
+  ytAddVideo(ytVid("C", 3), ytChan("c"), "New Voice", 40, 1200);
+  ytAddChannel("c", "New Voice", "@newvoice", 0, c, { hidden: true });
+})();
+function youtubeFake(url) {
+  const u = new URL(url);
+  const method = u.pathname.split("/").pop();
+  const params = Object.fromEntries(u.searchParams);
+  const key = params.key;
+  delete params.key;
+  ytFake.calls.push({ method, params });
+  const out = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
+  const fail = (status, reason) => out({ error: { code: status, errors: [{ reason }] } }, status);
+  if (key !== "yt-test-key") return fail(400, "keyInvalid");
+  if (ytFake.error === "quota") return fail(403, "quotaExceeded");
+  if (method === "videos") {
+    return out({ items: params.id.split(",").map((id) => ytFake.videos[id]).filter(Boolean) });
+  }
+  if (method === "channels") {
+    if (params.forHandle) {
+      const ch = Object.values(ytFake.channels).find((c) => c.snippet.customUrl.toLowerCase() === params.forHandle.toLowerCase());
+      return out({ items: ch ? [ch] : [] });
+    }
+    return out({ items: (params.id || "").split(",").map((id) => ytFake.channels[id]).filter(Boolean) });
+  }
+  if (method === "playlistItems") {
+    const ids = ytFake.playlists[params.playlistId];
+    if (!ids) return fail(404, "playlistNotFound");
+    return out({ items: ids.slice(0, Number(params.maxResults)).map((videoId) => ({ contentDetails: { videoId } })) });
+  }
+  if (method === "search") {
+    const after = params.publishedAfter ? Date.parse(params.publishedAfter) : -Infinity;
+    const before = params.publishedBefore ? Date.parse(params.publishedBefore) : Infinity;
+    const items = Object.values(ytFake.videos)
+      .filter((v) => { const t = Date.parse(v.snippet.publishedAt); return t >= after && t <= before; })
+      .sort((x, y) => Number(y.statistics.viewCount) - Number(x.statistics.viewCount))
+      .slice(0, Number(params.maxResults))
+      .map((v) => ({ id: { videoId: v.id } }));
+    return out({ items });
+  }
+  return fail(404, "notFound");
+}
+
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (input, init) => {
   let url = typeof input === "string" ? input : input.url;
@@ -220,6 +317,7 @@ globalThis.fetch = async (input, init) => {
     if (net.ga4 === "throw") throw new TypeError("fetch failed");
     return new Response(null, { status: 204 });
   }
+  if (url.startsWith("https://www.googleapis.com/youtube/v3/")) return youtubeFake(url);
   if (url === "https://api.flutterwave.com/v3/payments") {
     const body = JSON.parse(init.body);
     flw.checkouts.push({ body, auth: new Headers(init.headers).get("Authorization") });
@@ -3312,6 +3410,237 @@ await test("documents: step 1 of sign-up comes first, and an unconfigured deploy
   const off = await upload(s.token, "Report.pdf", REPORT);
   env.ANTHROPIC_API_KEY = key;
   eq(off.status, 503); eq(off.data.error, "documents_unconfigured");
+});
+
+/* ------------------------------------------------------- YouTube research */
+
+const YT_OWNER = "yt-owner@example.com";
+function ytReset() {
+  ytFake.calls.length = 0;
+  ytFake.error = null;
+  for (const t of ["yt_videos", "yt_channels", "yt_uploads", "yt_searches", "yt_snapshots", "yt_quota"]) db.db.exec("DELETE FROM " + t);
+  env.YOUTUBE_API_KEY = "yt-test-key";
+  env.YOUTUBE_ADMINS = "someone@example.com, " + YT_OWNER.toUpperCase();
+  delete env.YOUTUBE_DAILY_UNITS;
+  delete env.YOUTUBE_USER_DAILY_UNITS;
+}
+const ytUnitsCalled = () => ytFake.calls.reduce((n, c) => n + YT_COST_OF[c.method], 0);
+const ytLedger = () => db.one("SELECT COALESCE(SUM(units), 0) AS u FROM yt_quota WHERE user_id = ''").u;
+let ytOwner;
+const ytAnalyze = (body, token = ytOwner.token) => call("POST", "/youtube/analyze", { token, body: Object.assign({ query: "public speaking" }, body) });
+
+await test("youtube: closed to accounts not named, signed-out sessions refused, and an unset key is said plainly", async () => {
+  ytReset();
+  ytOwner = await signUp(YT_OWNER);
+  const other = await signUp("yt-other@example.com");
+  eq((await call("GET", "/youtube/quota")).status, 401, "signed out");
+  const closed = await call("GET", "/youtube/quota", { token: other.token });
+  eq(closed.status, 403); eq(closed.data.error, "youtube_not_open");
+  delete env.YOUTUBE_API_KEY;
+  const off = await ytAnalyze({});
+  eq(off.status, 503); eq(off.data.error, "youtube_unconfigured");
+  env.YOUTUBE_API_KEY = "yt-test-key";
+  const q = await call("GET", "/youtube/quota", { token: ytOwner.token });
+  eq(q.status, 200, "an admin is matched however the email is cased"); eq(q.data.quota.budget, 9000); eq(q.data.costs.search, 100);
+  eq(ytFake.calls.length, 0, "nothing reached YouTube");
+});
+
+await test("youtube: a small channel's breakout outranks a big channel's ordinary video, with the evidence", async () => {
+  ytReset();
+  const r = await ytAnalyze({});
+  eq(r.status, 200, JSON.stringify(r.data));
+  const top = r.data.trending[0];
+  eq(top.id, ytVid("A", 1), "the breakout is first");
+  eq(top.baseline.uploadsCompared, 29, "compared with the channel's other recent uploads");
+  ok(top.baseline.multiple > 11 && top.baseline.multiple < 13, "about 12× the channel median: " + top.baseline.multiple);
+  ok(top.baseline.z > 3, "a clear outlier");
+  eq(top.confidence, "High"); eq(top.signal.outOf, 60);
+  const big = r.data.trending.find((v) => v.id === ytVid("B", 1));
+  ok(big && big.views > top.views && big.signal.total < top.signal.total, "more views is not more signal");
+  ok(big.baseline.multiple > 1 && big.baseline.multiple < 1.5, "ordinary for its channel");
+  ok(r.data.trending.every((v) => v.ageDays <= 31), "current ranking stays inside the window");
+  ok(r.data.evergreen.length > 0 && r.data.evergreen.every((v) => v.ageDays >= 179), "evergreen ranking holds only older videos");
+  eq(r.data.evergreen[0].id, ytVid("A", 900), "the old video that far outran its channel leads evergreen");
+  ok(r.data.channels.some((c) => c.handle === "@speakacademy" && c.recent.medianViews > 9000 && c.recent.medianViews < 11000), "channel summary");
+  ok(/not YouTube metrics/.test(r.data.method.note), "derived scores are labelled as such");
+  // Every fixture engages at the same raw rate, so engagement must not spread
+  // them across the scale (it used to, when it was a rank).
+  ok(r.data.trending.concat(r.data.evergreen).every((v) => v.signal.engagement >= 6.5 && v.signal.engagement <= 8.5),
+    "near-identical engagement scores near-identically: " + r.data.trending.map((v) => v.signal.engagement).join(","));
+  eq(ytFake.calls.filter((c) => c.method === "search").length, 2, "one search per ranking");
+  eq(r.data.spent, ytUnitsCalled(), "what it reports spending is exactly what YouTube was asked for");
+  eq(ytLedger(), r.data.spent, "and exactly what the ledger holds");
+  ok(ytFake.calls.filter((c) => c.method === "videos").every((c) => c.params.id.split(",").length <= 50), "lookups batched 50 at a time");
+});
+
+await test("youtube: the same research within six hours is answered from D1 and costs nothing", async () => {
+  const calls = ytFake.calls.length;
+  const again = await ytAnalyze({});
+  eq(again.status, 200); eq(again.data.spent, 0); eq(ytFake.calls.length, calls, "YouTube was not asked again");
+  eq(again.data.trending[0].id, ytVid("A", 1));
+});
+
+await test("youtube: a call the allowance cannot cover is refused before YouTube is asked", async () => {
+  ytReset();
+  env.YOUTUBE_USER_DAILY_UNITS = "150";
+  const r = await ytAnalyze({ query: "stage fright" });
+  eq(r.status, 429); eq(r.data.error, "youtube_quota_user");
+  eq(ytFake.calls.filter((c) => c.method === "search").length, 1, "the second search was never sent");
+  eq(r.data.quota.mine, 100); ok(r.data.quota.mine <= 150);
+  env.YOUTUBE_USER_DAILY_UNITS = "3000";
+  env.YOUTUBE_DAILY_UNITS = "120";
+  const day = await ytAnalyze({ query: "storytelling" });
+  eq(day.status, 429); eq(day.data.error, "youtube_quota");
+  eq(day.data.quota.mine, 100, "a refusal by the day's budget gives the account its units back");
+});
+
+await test("youtube: concurrent research can never spend past the day's budget", async () => {
+  ytReset();
+  env.YOUTUBE_DAILY_UNITS = "250";
+  const results = await Promise.all(["pitch", "keynote", "panel", "toast", "debate"].map((q) => ytAnalyze({ query: q })));
+  ok(ytLedger() <= 250, "ledger " + ytLedger() + " within 250");
+  ok(ytUnitsCalled() <= 250, "YouTube was asked for no more than the budget: " + ytUnitsCalled());
+  ok(results.filter((r) => r.status === 200).length <= 1, "at most one full analysis fits");
+  ok(results.some((r) => r.status === 429), "the rest are refused");
+});
+
+await test("youtube: when YouTube says the quota is gone, nothing more is sent until the day turns", async () => {
+  ytReset();
+  ytFake.error = "quota";
+  const r = await ytAnalyze({ query: "voice" });
+  eq(r.status, 429); eq(r.data.error, "youtube_quota");
+  ytFake.error = null;
+  const sent = ytFake.calls.length;
+  const after = await ytAnalyze({ query: "breathing" });
+  eq(after.status, 429); eq(ytFake.calls.length, sent, "no further call reached YouTube");
+});
+
+await test("youtube: video addresses in every common form are read; unknown and unreadable ones are reported", async () => {
+  ytReset();
+  const r = await call("POST", "/youtube/videos", { token: ytOwner.token, body: { videos: [
+    "https://www.youtube.com/watch?v=" + ytVid("A", 1) + "&t=42s",
+    "youtu.be/" + ytVid("B", 1),
+    "https://youtube.com/shorts/" + ytVid("C", 1),
+    "https://www.youtube.com/embed/" + ytVid("A", 900),
+    ytVid("B", 900),
+    "ZZZZZZZZZZZ",
+    "not a video"
+  ] } });
+  eq(r.status, 200);
+  eq(r.data.videos.length, 5); eq(r.data.notFound.join(), "ZZZZZZZZZZZ"); eq(r.data.invalid.join(), "not a video");
+  const breakout = r.data.videos.find((v) => v.id === ytVid("A", 1));
+  ok(breakout.baseline.multiple > 11, "checked videos are judged against their own channel too");
+  eq(r.data.spent, ytUnitsCalled());
+  const none = await call("POST", "/youtube/videos", { token: ytOwner.token, body: { videos: ["nope"] } });
+  eq(none.status, 400); eq(none.data.error, "no_videos");
+});
+
+await test("youtube: 62 videos go to YouTube in two batched lookups, not 62", async () => {
+  ytReset();
+  const ids = ytFake.playlists["UU" + "a".repeat(22)].concat(ytFake.playlists["UU" + "b".repeat(22)]);
+  eq(ids.length, 62);
+  const r = await call("POST", "/youtube/videos", { token: ytOwner.token, body: { videos: ids } });
+  eq(r.status, 200); eq(r.data.videos.length, 62);
+  const lookups = ytFake.calls.filter((c) => c.method === "videos");
+  eq(lookups.length, 2, "50 + 12"); eq(lookups[0].params.id.split(",").length, 50);
+});
+
+await test("youtube: hidden likes and comments turned off are unknown, never zero, and lower the confidence", async () => {
+  ytReset();
+  const r = await call("POST", "/youtube/videos", { token: ytOwner.token, body: { videos: [ytVid("C", 1)] } });
+  const v = r.data.videos[0];
+  eq(v.likes, null); eq(v.comments, null); eq(v.engagementRate, null);
+  eq(v.signal.engagement, 7.5, "unknown engagement is neutral, neither rewarded nor punished");
+  ok(/unknown/.test(v.signal.basis.engagement));
+  eq(v.baseline, null, "two other uploads are too few for a baseline");
+  eq(v.confidence, "Low"); ok(/proxy/.test(v.signal.basis.performance), "the proxy is named as one");
+  eq(v.format, "short-form");
+});
+
+await test("youtube: channels compare by @handle and address; hidden subscribers and unknown channels are reported", async () => {
+  ytReset();
+  const r = await call("POST", "/youtube/channels", { token: ytOwner.token, body: { channels: [
+    "@speakacademy", "https://www.youtube.com/@BigTalks/videos", "https://www.youtube.com/channel/" + ytChan("c"),
+    "@nobodyhere", "https://example.com/@speakacademy"
+  ] } });
+  eq(r.status, 200);
+  eq(r.data.channels.map((c) => c.handle).join(), "@speakacademy,@bigtalks,@newvoice");
+  eq(r.data.notFound.join(), "@nobodyhere,https://example.com/@speakacademy");
+  const [a, b, c] = r.data.channels;
+  eq(c.subscribers, null, "hidden stays hidden");
+  ok(a.recent.topMultiple > 11 && b.recent.topMultiple < 1.5, "who breaks out, and who does not");
+  ok(b.recent.medianViews > a.recent.medianViews * 40, "size shows in typical views");
+  ok(a.viewsPerSubscriber > 0.4 && b.viewsPerSubscriber < 0.3, "reach per subscriber");
+  ok(a.recent.uploadsPerWeek >= 0.9 && a.recent.uploadsPerWeek <= 1.1, "about one upload a week: " + a.recent.uploadsPerWeek);
+  eq(c.recent.shortFormShare, 0.33);
+  eq(r.data.spent, ytUnitsCalled());
+  const again = await call("POST", "/youtube/channels", { token: ytOwner.token, body: { channels: ["@speakacademy"] } });
+  eq(again.data.spent, 0, "a known @handle is resolved from D1");
+});
+
+await test("youtube: a second fresh look gives a real growth rate, which then drives evergreen timing", async () => {
+  ytReset();
+  const id = ytVid("B", 900);
+  await call("POST", "/youtube/videos", { token: ytOwner.token, body: { videos: [id] } });
+  // Two days later, 6,000 more views.
+  db.db.prepare("UPDATE yt_snapshots SET at = at - 2 * 86400 WHERE video_id = ?").run(id);
+  db.db.prepare("UPDATE yt_videos SET fetched_at = fetched_at - 7 * 3600").run();
+  ytFake.videos[id].statistics.viewCount = "906000";
+  const r = await call("POST", "/youtube/videos", { token: ytOwner.token, body: { videos: [id] } });
+  ytFake.videos[id].statistics.viewCount = "900000";
+  const v = r.data.videos[0];
+  eq(v.views, 906000); eq(v.growth.viewsPerDay, 3000); eq(v.growth.overDays, 2);
+  const ev = await ytAnalyze({ query: "openers" });
+  const scored = ev.data.evergreen.find((x) => x.id === id);
+  ok(scored && /lifetime daily average/.test(scored.signal.basis.timing), "measured growth replaces the age proxy");
+});
+
+await test("youtube: the key never reaches an answer, and a rejected key is reported without it", async () => {
+  ytReset();
+  env.YOUTUBE_API_KEY = "wrong-key-value";
+  const r = await ytAnalyze({ query: "debate" });
+  eq(r.status, 503); eq(r.data.error, "youtube_key_rejected");
+  ok(!JSON.stringify(r.data).includes("wrong-key-value"), "the key is not in the answer");
+  env.YOUTUBE_API_KEY = "yt-test-key";
+  const okay = await ytAnalyze({ query: "debate" });
+  ok(!JSON.stringify(okay.data).includes("yt-test-key"));
+  ok(ytFake.calls.length > 0 && ytFake.calls.every((c) => !JSON.stringify(c.params).includes("yt-test-key")), "the key travels only as the key parameter");
+});
+
+await test("youtube: deployed before its tables exist, YouTube says so and the nightly cleanup still runs", async () => {
+  ytReset();
+  const tables = ["yt_videos", "yt_channels", "yt_uploads", "yt_searches", "yt_snapshots", "yt_quota"];
+  for (const t of tables) db.db.exec("ALTER TABLE " + t + " RENAME TO " + t + "_parked");
+  try {
+    const r = await ytAnalyze({ query: "no tables" });
+    eq(r.status, 503); eq(r.data.error, "youtube_unconfigured"); ok(/schema\.sql/.test(r.data.message));
+    db.db.prepare("INSERT INTO rate_log (key, created_at) VALUES ('stale-key', ?)").run(Math.floor(Date.now() / 1000) - 3 * 86400);
+    const pending = [];
+    const quiet = console.error; console.error = () => {};
+    try {
+      await worker.scheduled({}, env, { waitUntil: (p) => pending.push(p) });
+      await Promise.all(pending);
+    } finally { console.error = quiet; }
+    eq(db.one("SELECT COUNT(*) AS n FROM rate_log WHERE key = 'stale-key'").n, 0, "the existing cleanup ran regardless");
+  } finally {
+    for (const t of tables) db.db.exec("ALTER TABLE " + t + "_parked RENAME TO " + t);
+  }
+});
+
+await test("youtube: the daily cron deletes YouTube data older than 30 days and keeps what is fresh", async () => {
+  ytReset();
+  await call("POST", "/youtube/videos", { token: ytOwner.token, body: { videos: [ytVid("A", 1)] } });
+  const old = Math.floor(Date.now() / 1000) - 31 * 86400;
+  db.db.prepare("INSERT INTO yt_videos (id, channel_id, title, published_at, views, fetched_at) VALUES ('OLDOLDOLD00', 'x', 'old', ?, 1, ?)").run(old, old);
+  db.db.prepare("INSERT INTO yt_snapshots (video_id, views, at) VALUES ('OLDOLDOLD00', 1, ?)").run(old);
+  db.db.prepare("INSERT INTO yt_quota (day, user_id, units) VALUES ('2020-01-01', '', 5)").run();
+  const pending = [];
+  await worker.scheduled({}, env, { waitUntil: (p) => pending.push(p) });
+  await Promise.all(pending);
+  eq(db.one("SELECT COUNT(*) AS n FROM yt_videos WHERE id = 'OLDOLDOLD00'").n, 0);
+  eq(db.one("SELECT COUNT(*) AS n FROM yt_snapshots WHERE video_id = 'OLDOLDOLD00'").n, 0);
+  eq(db.one("SELECT COUNT(*) AS n FROM yt_quota WHERE day = '2020-01-01'").n, 0);
+  ok(db.one("SELECT COUNT(*) AS n FROM yt_videos").n > 0, "fresh data stays");
 });
 
 console.log("\n" + passed + " passed, " + failures.length + " failed\n");

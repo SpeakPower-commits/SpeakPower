@@ -143,6 +143,8 @@ Only the secrets go here — the public settings are already in `wrangler.toml` 
 | `PAGESPEED_KEY` | **Secret** | Optional, from step 6. |
 | `ANTHROPIC_API_KEY` | **Secret** | Optional: written coaching in the Rehearsal Room. Create it at console.anthropic.com. |
 | `GA4_API_SECRET` | **Secret** | Optional: Google Analytics → Data streams → SpeakPower → Measurement Protocol API secrets. Lets the Worker report settled purchases ([Google Analytics](#google-analytics)). |
+| `YOUTUBE_API_KEY` | **Secret** | Optional: turns on [YouTube research](#youtube-research). |
+| `YOUTUBE_ADMINS` | Text | With the key: the email(s) allowed to use YouTube research, comma-separated. |
 
 Already in `wrangler.toml`: `ENVIRONMENT`, `ALLOWED_ORIGINS`, `FREE_TRIALS`, `SITE_URL`, `GRIOT_API_BASE`, `TOPUP_AMOUNTS`, `GOOGLE_CLIENT_ID` and `GA4_MEASUREMENT_ID` (all public).
 
@@ -270,6 +272,68 @@ The Worker also supports sign-in by a 6-digit emailed code. It stays off (`email
 - **CPU:** the browser sends the recording already in base64 (Opus at 32 kbps: three minutes is about 1 MB), so the Worker only parses it, about 1 ms on the free plan's 10 ms allowance.
 - **The `rehearsals` table** is in `schema.sql`; on an existing database run its `CREATE TABLE IF NOT EXISTS rehearsals …` block once in the D1 console. The same goes for `subscriptions`, plus `ALTER TABLE payments ADD COLUMN purpose TEXT NOT NULL DEFAULT 'topup';`.
 
+## YouTube research
+
+`youtube.html` (not in the menu, not indexed): research a topic, compare channels, or check specific videos, with YouTube's exact counts and each video measured against **its own channel's recent uploads**. It is open only to the accounts named in `YOUTUBE_ADMINS`; anyone else signed in is told it is not open to them.
+
+### Switch it on (once, about 10 minutes, all in a browser)
+
+1. **The key.** Google Cloud Console → **APIs & Services → Library → YouTube Data API v3 → Enable**. If you already have a key, edit it there; otherwise **Credentials → Create credentials → API key**. Then **API restrictions → YouTube Data API v3 only**; **Application restrictions → None** (the call comes from a Cloudflare datacentre, so a website or IP restriction would block it).
+2. **The secret.** Worker → **Settings → Variables and Secrets → Add** → type **Secret**, name `YOUTUBE_API_KEY`, paste the key. Never into a chat, a file or a screenshot.
+3. **Who may use it.** Same place → type **Text**, name `YOUTUBE_ADMINS`, value: your sign-in email. `keep_vars = true` in `wrangler.toml` keeps it through every deploy.
+4. **The tables.** D1 → `speakpower` → **Console** → paste the block of `schema.sql` that starts `-- YouTube research` → run. Every statement is idempotent.
+5. **Check.** Sign in on the site, open `youtube.html`: it shows today's quota. Research a topic.
+
+In any order: until all four are done the page says exactly which one is missing, and nothing else in the Worker changes. In particular, the nightly cleanup runs YouTube's deletions in a batch of their own, so missing tables can never stop the existing cleanup.
+
+### What it measures
+
+| Number | What it is | Whose |
+|---|---|---|
+| Views, likes, comments, published, length | As YouTube reports them when fetched (time shown) | YouTube's |
+| **× channel median** | Views ÷ the median views of the channel's up to 30 newest uploads (leaving out the video itself and anything under 3 days old) | SpeakPower's |
+| **z** | `(ln(1+views) − median) ÷ (1.4826 × MAD)` on the same uploads: how unusual the video is *for that channel*. No baseline is claimed from fewer than 5 uploads. | SpeakPower's |
+| **Engagement** | `(likes + comments) ÷ views`, shrunk toward the set's pooled rate with the weight of 2,000 views. Unknown (not low) when likes are hidden. | SpeakPower's |
+| **Growth** | Views a day between two fresh checks at least an hour apart. Check a video again after 6 hours to get it. | SpeakPower's |
+| **Signal /60** | Performance against the channel (25) + timing (20) + engagement against the set (15). The other 40 of the research skill's 100 (relevance 30, adaptability 10) are an editor's call. Estimates are capped below what a measurement can earn. | SpeakPower's |
+
+A young video is compared with older uploads that had longer to gather views, so a high score on a new video **understates** it. **Confidence** is High with 15+ uploads compared and likes and comments visible, Medium with a baseline, Low without one.
+
+"Copy for a report" gives sections A and B in the YouTube Research Pocket skill's table format, with the evidence filled in. "Download CSV" gives every number, with formula-like cells neutralised for spreadsheets.
+
+### The quota, and growing past it
+
+YouTube allows **10,000 units a day** per Google project by default, resetting at midnight Pacific time. What things cost:
+
+| Call | Units | Used for |
+|---|---|---|
+| `search.list` | **100** | Finding videos for a topic (two per topic: current and evergreen) |
+| `videos.list` | 1 per 50 videos | Exact counts |
+| `channels.list` | 1 per 50 channels, or 1 per @handle | Channel size; resolving handles |
+| `playlistItems.list` | 1 per channel | A channel's newest uploads: its baseline |
+
+A first topic research costs about **200–300 units**; the same research within 6 hours costs **0**. Comparing a channel costs about 3; checking 50 videos about 2 plus 2 per new channel.
+
+- **The ledger** (`yt_quota`) charges every call *before* it is made, with one `UPDATE … WHERE units + cost <= budget` per check, for the account and for the day. Concurrent requests therefore cannot overspend. If YouTube itself says the quota is gone, the day is marked spent and nothing more is sent until it turns.
+- **Budgets:** `YOUTUBE_DAILY_UNITS` (default 9,000, leaving headroom) and `YOUTUBE_USER_DAILY_UNITS` (default 3,000 per account), both optional text variables.
+- **Caching:** videos and searches are reused for 6 hours, a channel's uploads for 12 and channel details for 24.
+- **At product scale** (customers running research themselves), request more quota: Google Cloud → YouTube Data API v3 → **Quotas → request an increase**. That form leads to a YouTube API Services compliance audit. Already true here: data refreshed or deleted within 30 days, derived numbers labelled as such, and attribution on the page. **Still needed before applying:** a public privacy policy page (the site has none yet) that says the app uses YouTube API Services and links to the [Google Privacy Policy](https://policies.google.com/privacy), and a link to the [YouTube Terms of Service](https://www.youtube.com/t/terms) where customers use the tool. Opening it to customers is a pricing decision (a plan allowance like GRIOT's, or a Studio pack): the engine needs no change, only who passes `youtubeUser`.
+
+### Data kept
+
+Only what the analysis needs, and **at most 30 days** (YouTube API Services policy): `yt_videos`, `yt_channels`, `yt_uploads`, `yt_searches` and `yt_snapshots`. The daily cron deletes anything older, plus quota days older than 60. Nothing about who searched for what is stored beyond the quota ledger's unit counts.
+
+### API
+
+All need a session token from an account in `YOUTUBE_ADMINS`.
+
+| Route | Body | Returns |
+|---|---|---|
+| `GET /youtube/quota` | — | Today's units: yours and everyone's, with budgets |
+| `POST /youtube/analyze` | `query`, optional `days` (1–365, default 30), `evergreenDays` (90–3650, default 180), `region` (`UG`), `language` (`en`), `duration` (`any`, `short`, `medium`, `long`), `top` (1–10, default 5), `pool` (5–50, default 25) | `trending`, `evergreen`, `channels`, `coverage`, `spent`, `quota`, `method` |
+| `POST /youtube/videos` | `videos`: up to 200 addresses or ids (`watch?v=`, `youtu.be/`, `/shorts/`, `/live/`, `/embed/`) | `videos`, `channels`, `notFound`, `invalid` |
+| `POST /youtube/channels` | `channels`: up to 25 @handles, channel addresses or `UC…` ids | `channels`, `notFound` |
+
 ## Known limitation
 
 If someone closes the tab while GRIOT is still answering, Cloudflare cancels the Worker's wait and the message is not refunded. GRIOT still finishes and keeps the exchange in that client's thread, so the next message carries on from it.
@@ -346,10 +410,10 @@ ALTER TABLE payments ADD COLUMN ga_session_id TEXT;
 cd worker && npm install && cd .. && node --experimental-sqlite worker/test/run-tests.mjs
 ```
 
-The business rules, fast, in plain Node (197 tests): the real `worker.js` against an in-memory D1, with Google, GRIOT, Flutterwave and audited sites faked at the network edge only. Google sign-in is tested with real RS256 signatures, so forged keys, `alg: none` and edited tokens are refused by actual cryptography rather than a stub. It also fails if any page quotes a different price from the Worker.
+The business rules, fast, in plain Node (211 tests): the real `worker.js` against an in-memory D1, with Google, GRIOT, Flutterwave and audited sites faked at the network edge only. Google sign-in is tested with real RS256 signatures, so forged keys, `alg: none` and edited tokens are refused by actual cryptography rather than a stub. It also fails if any page quotes a different price from the Worker.
 
 ```
 cd worker && npm install && npm install --no-save miniflare@4 wrangler@4 && node test/run-workerd-tests.mjs
 ```
 
-The Worker bundled exactly as Workers Builds deploys it (`wrangler deploy --dry-run`), on **workerd**, the engine Cloudflare runs Workers on (21 tests): real D1, the real HTML parser for the SEO audit, WebCrypto sign-in, the exactly-once top-up under truly concurrent notifications, the sign-up profile briefing GRIOT, and a document read and kept as facts. It also audits this site's own pages.
+The Worker bundled exactly as Workers Builds deploys it (`wrangler deploy --dry-run`), on **workerd**, the engine Cloudflare runs Workers on (22 tests): real D1, the real HTML parser for the SEO audit, WebCrypto sign-in, the exactly-once top-up under truly concurrent notifications, the sign-up profile briefing GRIOT, and a document read and kept as facts. It also audits this site's own pages.

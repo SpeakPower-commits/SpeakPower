@@ -18,6 +18,9 @@
    - Runs every service server-side, so the limits are real: the browser only
      renders what this Worker returns. GRIOT is called server-to-server.
    - Stores contact-form leads and records first-party funnel events.
+   - YouTube research for named accounts: topic rankings (current and
+     evergreen), video checks and channel comparisons from the YouTube Data
+     API, metered against YouTube's daily quota and cached in D1.
 
    Bindings (Settings → Bindings / Variables and Secrets)
      DB               D1 database            (required)
@@ -35,6 +38,10 @@
      ALLOWED_ORIGINS  var, comma-separated   e.g. https://speakpower-commits.github.io
      FREE_TRIALS      var, default "3"
      ENVIRONMENT      var, "production" or "development"
+     YOUTUBE_API_KEY  secret, turns on YouTube research (YouTube Data API v3)
+     YOUTUBE_ADMINS   var, comma-separated emails allowed to use it
+     YOUTUBE_DAILY_UNITS / YOUTUBE_USER_DAILY_UNITS  var, optional budgets,
+                      default 9000 for the day and 3000 per account
      Email-code sign-in only: SEND_EMAIL binding, MAIL_FROM, TURNSTILE_SECRET,
      LEAD_NOTIFY_TO — needs your own domain and the Workers Paid plan.
    ========================================================================== */
@@ -65,11 +72,18 @@ export default {
   // Housekeeping. Add a Cron Trigger (e.g. "0 3 * * *") under Settings → Triggers.
   async scheduled(event, env, ctx) {
     const now = nowSec();
-    ctx.waitUntil(env.DB.batch([
+    const cleanup = env.DB.batch([
       env.DB.prepare("DELETE FROM rate_log WHERE created_at < ?").bind(now - 86400),
       env.DB.prepare("DELETE FROM otp_codes WHERE expires_at < ?").bind(now - 3600),
       env.DB.prepare("DELETE FROM audits WHERE created_at < ?").bind(now - AUDIT_KEEP_DAYS * 86400)
-    ]));
+    ]);
+    ctx.waitUntil(cleanup);
+    // YouTube's in its own batch, after the one above whatever its outcome: a
+    // D1 batch is all-or-nothing, so YouTube's tables (absent until their block
+    // of schema.sql is run) can never stop the cleanup above.
+    ctx.waitUntil(cleanup.catch(() => {})
+      .then(() => env.DB.batch(youtubeHousekeeping(env, now)))
+      .catch((err) => console.error("YouTube housekeeping skipped", err && err.message)));
     // Profile briefings GRIOT could not take, or copies it still holds from
     // a deleted profile.
     ctx.waitUntil(retryProfileBriefings(env));
@@ -110,6 +124,7 @@ async function route(request, env, ctx) {
     if (path === "/studio/audit") return auditGet(request, env, url);
     if (path === "/studio/audits") return auditList(request, env);
     if (path === "/griot/document") return getDocument(request, env, url);
+    if (path === "/youtube/quota") return youtubeQuota(request, env);
   }
 
   if (request.method === "POST") {
@@ -135,6 +150,9 @@ async function route(request, env, ctx) {
     if (path === "/wallet/confirm") return walletConfirm(request, env);
     if (path === "/plans/checkout") return planCheckout(request, env);
     if (path === "/webhooks/flutterwave") return flutterwaveWebhook(request, env);
+    if (path === "/youtube/analyze") return youtubeAnalyze(request, env);
+    if (path === "/youtube/videos") return youtubeVideos(request, env);
+    if (path === "/youtube/channels") return youtubeChannels(request, env);
     if (path === "/lead") return lead(request, env, ctx);
     if (path === "/event") return trackEvent(request, env);
   }
@@ -2532,6 +2550,785 @@ async function logEvent(env, name, opts) {
     // Measurement must never break the product.
     console.error("Event log failed", name, err);
   }
+}
+
+/* --------------------------------------------------------------------------
+   YouTube research
+   Video and channel analysis from the YouTube Data API v3, open to the
+   accounts named in YOUTUBE_ADMINS. Built for volume: the limit that binds is
+   YouTube's daily quota, not compute, so every lookup is batched (50 ids per
+   call), every answer is reused from D1 while fresh, and every call is
+   charged to a quota ledger BEFORE it is made — one atomic UPDATE per check,
+   so concurrent requests can never spend past the day's budget.
+
+   What it measures, per video: exact views, likes and comments; how the
+   video compares with its own channel's recent uploads (a robust z-score on
+   log views, and a plain "× channel median"); engagement shrunk toward the
+   set's average so a small video's lucky ratio does not top the list; and,
+   once a video has been seen twice, its real growth rate. The signal score
+   covers the 60 of the research skill's 100 points that data can support;
+   relevance (30) and adaptability (10) stay an editor's call. Every derived
+   number is labelled SpeakPower's, never presented as a YouTube metric.
+
+   Stored YouTube data is kept at most 30 days (YouTube API Services policy):
+   the daily cron deletes anything older.
+   ------------------------------------------------------------------------ */
+
+const YT_API = "https://www.googleapis.com/youtube/v3/";
+// Quota units per call, as YouTube prices them. A search costs as much as a
+// hundred stats lookups, so the engine searches as little as it can.
+const YT_COST = Object.freeze({ search: 100, videos: 1, channels: 1, playlistItems: 1 });
+// How long a fetched answer is reused before YouTube is asked again.
+const YT_FRESH = Object.freeze({ search: 6 * 3600, video: 6 * 3600, channel: 24 * 3600, uploads: 12 * 3600 });
+const YT_KEEP_DAYS = 30;
+const YT_BASELINE_UPLOADS = 30; // a channel's newest uploads, compared against
+const YT_BASELINE_MIN = 5;      // below this, no baseline is claimed
+const YT_SETTLE_DAYS = 3;       // younger uploads are still gathering views
+const YT_MAX_VIDEOS = 200;
+const YT_MAX_CHANNELS = 25;
+const YT_ID = /^[A-Za-z0-9_-]{11}$/;
+const YT_CHANNEL_ID = /^UC[A-Za-z0-9_-]{22}$/;
+const YT_HANDLE = /^@[\p{L}\p{N}._-]{3,30}$/u;
+// YouTube's quota day turns at midnight Pacific time.
+const YT_DAY = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit" });
+
+const YT_METHOD = Object.freeze({
+  note: "Scores are SpeakPower's derived analysis, not YouTube metrics. Views, likes and comments are YouTube's own counts at the time shown.",
+  baseline: "Each video is compared with up to " + YT_BASELINE_UPLOADS + " of its channel's newest uploads (excluding itself and anything under " + YT_SETTLE_DAYS + " days old). z = (ln(1+views) − median) ÷ (1.4826 × median absolute deviation), all on ln(1+views). No baseline is claimed from fewer than " + YT_BASELINE_MIN + " uploads.",
+  youngVideos: "A young video is compared with older uploads that have had longer to gather views, so a high score on a new video understates it rather than flatters it.",
+  engagement: "(likes + comments) ÷ views, shrunk toward the set's pooled rate with the weight of 2,000 views, so small videos cannot top the list by chance. Points: equal to the pooled rate earns 7.5 of 15, double earns 15, half earns 0. With likes hidden the rate is unknown and scores a neutral 7.5.",
+  score: "Signal out of 60 = performance against the channel (25) + timing (20) + engagement against the set (15). Relevance to the audience (30) and adaptability to the brand (10) are left to the editor.",
+  timing: "Trending: freshness across the chosen window. Evergreen: once a video has been seen twice, how close its current daily views are to its lifetime average; until then, age as a proxy capped at 15 of the 20 points, so an estimate never outweighs a measurement."
+});
+
+// Who may use YouTube research, and only once it is configured.
+async function youtubeUser(request, env) {
+  const user = await authenticate(request, env);
+  const admins = String(env.YOUTUBE_ADMINS || "").split(",").map((s) => s.trim()).filter(Boolean).map(canonicalEmail);
+  if (admins.indexOf(user.email_canonical) === -1) {
+    throw new HttpError(403, "youtube_not_open", "YouTube research is not open to this account yet.");
+  }
+  if (!env.YOUTUBE_API_KEY) {
+    throw new HttpError(503, "youtube_unconfigured", "YouTube research is not connected yet: the YouTube API key has not been added to the Worker.");
+  }
+  try {
+    await env.DB.prepare("SELECT 1 FROM yt_quota LIMIT 1").first();
+  } catch (err) {
+    throw new HttpError(503, "youtube_unconfigured",
+      "YouTube research is not connected yet: its tables are missing. Run the YouTube block of schema.sql in the D1 console.");
+  }
+  if (!(await rateLimit(env, "yt-user:" + user.id, 120, 3600))) {
+    throw new HttpError(429, "rate_limited", "Too many YouTube requests this hour. Please wait a little and try again.");
+  }
+  return user;
+}
+
+/* ---------------------------------------------------------- quota ledger */
+
+function ytDay(now) {
+  return YT_DAY.format(new Date(now * 1000));
+}
+
+function ytUnits(value, fallback) {
+  const n = parseInt(value || "", 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+// Google's default is 10,000 units a day; the default budget leaves headroom.
+function ytBudget(env) { return ytUnits(env.YOUTUBE_DAILY_UNITS, 9000); }
+function ytUserBudget(env) { return ytUnits(env.YOUTUBE_USER_DAILY_UNITS, 3000); }
+
+async function ytQuota(env, userId) {
+  const day = ytDay(nowSec());
+  const rows = await env.DB.prepare("SELECT user_id, units FROM yt_quota WHERE day = ? AND user_id IN ('', ?)")
+    .bind(day, userId).all();
+  const used = (id) => { const r = (rows.results || []).find((x) => x.user_id === id); return r ? r.units : 0; };
+  return { day, used: used(""), budget: ytBudget(env), mine: used(userId), myBudget: ytUserBudget(env), resets: "midnight Pacific time" };
+}
+
+// Charges `units` to the account and to the day before YouTube is asked. Each
+// UPDATE checks the limit and adds in one statement, so no interleaving of
+// concurrent requests can push either total past its budget.
+async function ytReserve(env, userId, units) {
+  const day = ytDay(nowSec());
+  await env.DB.batch([
+    env.DB.prepare("INSERT INTO yt_quota (day, user_id, units) VALUES (?, '', 0) ON CONFLICT(day, user_id) DO NOTHING").bind(day),
+    env.DB.prepare("INSERT INTO yt_quota (day, user_id, units) VALUES (?, ?, 0) ON CONFLICT(day, user_id) DO NOTHING").bind(day, userId)
+  ]);
+  const mine = await env.DB.prepare(
+    "UPDATE yt_quota SET units = units + ? WHERE day = ? AND user_id = ? AND units + ? <= ? RETURNING units"
+  ).bind(units, day, userId, units, ytUserBudget(env)).first();
+  if (!mine) {
+    throw new HttpError(429, "youtube_quota_user", "Your YouTube research allowance for today is used up. It resets at midnight Pacific time.",
+      { quota: await ytQuota(env, userId) });
+  }
+  const all = await env.DB.prepare(
+    "UPDATE yt_quota SET units = units + ? WHERE day = ? AND user_id = '' AND units + ? <= ? RETURNING units"
+  ).bind(units, day, units, ytBudget(env)).first();
+  if (!all) {
+    await env.DB.prepare("UPDATE yt_quota SET units = units - ? WHERE day = ? AND user_id = ?").bind(units, day, userId).run();
+    throw new HttpError(429, "youtube_quota", "Today's YouTube quota is used up. It resets at midnight Pacific time.",
+      { quota: await ytQuota(env, userId) });
+  }
+}
+
+// One call to the YouTube Data API, paid for first. The key never appears in
+// a log or an answer: only the method and YouTube's reason are reported.
+async function ytFetch(env, userId, method, params) {
+  await ytReserve(env, userId, YT_COST[method]);
+  const qs = new URLSearchParams(params);
+  qs.set("key", env.YOUTUBE_API_KEY);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20000);
+  let res;
+  let data;
+  try {
+    res = await fetch(YT_API + method + "?" + qs.toString(), { signal: controller.signal, headers: { Accept: "application/json" } });
+    data = await res.json().catch(() => ({}));
+  } catch (err) {
+    throw new HttpError(504, "youtube_unreachable", "YouTube did not answer in time. Please try again.");
+  } finally {
+    clearTimeout(timer);
+  }
+  if (res.ok) return data;
+
+  const first = data && data.error && Array.isArray(data.error.errors) ? data.error.errors[0] || {} : {};
+  const reason = String(first.reason || "");
+  console.error("YouTube API error", method, res.status, reason);
+  if (reason === "quotaExceeded" || reason === "dailyLimitExceeded") {
+    // Google's own count is the one that matters: stop asking until the day turns.
+    await env.DB.prepare("UPDATE yt_quota SET units = MAX(units, ?) WHERE day = ? AND user_id = ''")
+      .bind(ytBudget(env), ytDay(nowSec())).run();
+    throw new HttpError(429, "youtube_quota", "Today's YouTube quota is used up. It resets at midnight Pacific time.");
+  }
+  if (reason === "rateLimitExceeded" || reason === "userRateLimitExceeded") {
+    throw new HttpError(429, "youtube_busy", "YouTube asked us to slow down. Please try again in a minute.");
+  }
+  if (reason === "keyInvalid" || reason === "accessNotConfigured" || reason === "ipRefererBlocked" ||
+      reason === "keyExpired" || res.status === 401) {
+    throw new HttpError(503, "youtube_key_rejected",
+      "YouTube rejected the API key (" + (reason || res.status) + "). Check that the key is right and that the YouTube Data API v3 is enabled for it.");
+  }
+  if (res.status === 404 && method === "playlistItems") return { items: [] }; // a channel with no public uploads
+  throw new HttpError(502, "youtube_error", "YouTube could not answer that request" + (reason ? " (" + reason + ")" : "") + ".");
+}
+
+/* ------------------------------------------------------------- reading */
+
+// A video id from an id or any common YouTube address: watch?v=, youtu.be/,
+// /shorts/, /live/, /embed/.
+function ytVideoId(input) {
+  const s = str(input, 300);
+  if (YT_ID.test(s)) return s;
+  let u;
+  try { u = new URL(/^https?:\/\//i.test(s) ? s : "https://" + s); } catch (e) { return null; }
+  const host = u.hostname.toLowerCase().replace(/^(www|m|music)\./, "");
+  if (host === "youtu.be") {
+    const id = u.pathname.slice(1).split("/")[0];
+    return YT_ID.test(id) ? id : null;
+  }
+  if (host === "youtube.com" || host === "youtube-nocookie.com") {
+    const v = u.searchParams.get("v");
+    if (v && YT_ID.test(v)) return v;
+    const m = u.pathname.match(/^\/(?:shorts|live|embed|v)\/([A-Za-z0-9_-]{11})(?:[/?#]|$)/);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+// A channel from its id (UC…), its @handle, or a channel address.
+function ytChannelRef(input) {
+  const s = str(input, 300);
+  if (YT_CHANNEL_ID.test(s)) return { id: s };
+  if (YT_HANDLE.test(s)) return { handle: s };
+  let u;
+  try { u = new URL(/^https?:\/\//i.test(s) ? s : "https://" + s); } catch (e) { return null; }
+  const host = u.hostname.toLowerCase().replace(/^(www|m)\./, "");
+  if (host !== "youtube.com") return null;
+  let path;
+  try { path = decodeURIComponent(u.pathname); } catch (e) { return null; }
+  let m = path.match(/^\/channel\/(UC[A-Za-z0-9_-]{22})(?:[/?#]|$)/);
+  if (m) return { id: m[1] };
+  m = path.match(/^\/(@[\p{L}\p{N}._-]{3,30})(?:\/|$)/u);
+  if (m) return { handle: m[1] };
+  m = path.match(/^\/user\/([A-Za-z0-9._-]{1,60})(?:\/|$)/);
+  if (m) return { username: m[1] };
+  return null;
+}
+
+// ISO 8601 duration (PT1H2M3S, P1DT2H) to seconds.
+function ytSeconds(iso) {
+  const m = String(iso || "").match(/^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/);
+  if (!m) return null;
+  return (+(m[1] || 0)) * 86400 + (+(m[2] || 0)) * 3600 + (+(m[3] || 0)) * 60 + (+(m[4] || 0));
+}
+
+function ytCount(value) {
+  if (value === undefined || value === null || value === "") return null; // hidden or disabled
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : null;
+}
+
+function ytChunks(list, size) {
+  const out = [];
+  for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size));
+  return out;
+}
+
+// Video rows by id: fresh ones from D1, the rest from YouTube 50 at a time.
+// Every fresh fetch also records a view snapshot, which is what later gives
+// a video a real growth rate instead of an average over its whole life.
+async function ytVideos(env, userId, ids) {
+  const want = Array.from(new Set(ids));
+  const now = nowSec();
+  const have = new Map();
+  for (const chunk of ytChunks(want, 50)) {
+    const rows = await env.DB.prepare(
+      "SELECT * FROM yt_videos WHERE id IN (SELECT value FROM json_each(?)) AND fetched_at > ?"
+    ).bind(JSON.stringify(chunk), now - YT_FRESH.video).all();
+    for (const r of rows.results || []) have.set(r.id, r);
+  }
+  const missing = want.filter((id) => !have.has(id));
+  for (const chunk of ytChunks(missing, 50)) {
+    const data = await ytFetch(env, userId, "videos", {
+      part: "snippet,statistics,contentDetails",
+      id: chunk.join(","),
+      maxResults: "50",
+      fields: "items(id,snippet(publishedAt,channelId,channelTitle,title),statistics(viewCount,likeCount,commentCount),contentDetails(duration))"
+    });
+    const stmts = [];
+    for (const item of data.items || []) {
+      const sn = item.snippet || {};
+      const st = item.statistics || {};
+      const published = Math.floor(Date.parse(sn.publishedAt) / 1000);
+      if (!YT_ID.test(item.id || "") || !Number.isFinite(published)) continue;
+      const row = {
+        id: item.id,
+        channel_id: str(sn.channelId, 40),
+        channel_title: str(sn.channelTitle, 200),
+        title: str(sn.title, 300),
+        published_at: published,
+        duration_s: ytSeconds(item.contentDetails && item.contentDetails.duration),
+        views: ytCount(st.viewCount),
+        likes: ytCount(st.likeCount),
+        comments: ytCount(st.commentCount),
+        fetched_at: now
+      };
+      have.set(row.id, row);
+      stmts.push(env.DB.prepare(
+        "INSERT INTO yt_videos (id, channel_id, channel_title, title, published_at, duration_s, views, likes, comments, fetched_at) " +
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET channel_id = excluded.channel_id, " +
+        "channel_title = excluded.channel_title, title = excluded.title, published_at = excluded.published_at, " +
+        "duration_s = excluded.duration_s, views = excluded.views, likes = excluded.likes, comments = excluded.comments, " +
+        "fetched_at = excluded.fetched_at"
+      ).bind(row.id, row.channel_id, row.channel_title, row.title, row.published_at, row.duration_s,
+        row.views, row.likes, row.comments, row.fetched_at));
+      if (row.views !== null) {
+        stmts.push(env.DB.prepare("INSERT OR IGNORE INTO yt_snapshots (video_id, views, at) VALUES (?, ?, ?)")
+          .bind(row.id, row.views, now));
+      }
+    }
+    if (stmts.length) await env.DB.batch(stmts);
+  }
+  return have;
+}
+
+function ytChannelRow(item, now) {
+  const sn = item.snippet || {};
+  const st = item.statistics || {};
+  const cd = item.contentDetails || {};
+  return {
+    id: item.id,
+    title: str(sn.title, 200),
+    handle: str(sn.customUrl, 60) || null,
+    subscribers: st.hiddenSubscriberCount ? null : ytCount(st.subscriberCount),
+    video_count: ytCount(st.videoCount),
+    total_views: ytCount(st.viewCount),
+    uploads: str(cd.relatedPlaylists && cd.relatedPlaylists.uploads, 40) || null,
+    country: str(sn.country, 4) || null,
+    fetched_at: now
+  };
+}
+
+async function ytSaveChannels(env, rows) {
+  if (!rows.length) return;
+  await env.DB.batch(rows.map((r) => env.DB.prepare(
+    "INSERT INTO yt_channels (id, title, handle, subscribers, video_count, total_views, uploads, country, fetched_at) " +
+    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title = excluded.title, handle = excluded.handle, " +
+    "subscribers = excluded.subscribers, video_count = excluded.video_count, total_views = excluded.total_views, " +
+    "uploads = excluded.uploads, country = excluded.country, fetched_at = excluded.fetched_at"
+  ).bind(r.id, r.title, r.handle, r.subscribers, r.video_count, r.total_views, r.uploads, r.country, r.fetched_at)));
+}
+
+const YT_CHANNEL_PARTS = {
+  part: "snippet,statistics,contentDetails",
+  fields: "items(id,snippet(title,customUrl,country),statistics(subscriberCount,hiddenSubscriberCount,videoCount,viewCount),contentDetails(relatedPlaylists(uploads)))"
+};
+
+// Channel rows by id, fresh from D1 or from YouTube 50 at a time.
+async function ytChannelsById(env, userId, ids) {
+  const want = Array.from(new Set(ids));
+  const now = nowSec();
+  const have = new Map();
+  for (const chunk of ytChunks(want, 50)) {
+    const rows = await env.DB.prepare(
+      "SELECT * FROM yt_channels WHERE id IN (SELECT value FROM json_each(?)) AND fetched_at > ?"
+    ).bind(JSON.stringify(chunk), now - YT_FRESH.channel).all();
+    for (const r of rows.results || []) have.set(r.id, r);
+  }
+  for (const chunk of ytChunks(want.filter((id) => !have.has(id)), 50)) {
+    const data = await ytFetch(env, userId, "channels", Object.assign({ id: chunk.join(","), maxResults: "50" }, YT_CHANNEL_PARTS));
+    const rows = (data.items || []).filter((i) => YT_CHANNEL_ID.test(i.id || "")).map((i) => ytChannelRow(i, now));
+    await ytSaveChannels(env, rows);
+    for (const r of rows) have.set(r.id, r);
+  }
+  return have;
+}
+
+// A channel id from an @handle or a legacy username: from D1 when known and
+// fresh, otherwise one 1-unit lookup.
+async function ytResolveChannel(env, userId, ref) {
+  if (ref.id) return ref.id;
+  const now = nowSec();
+  if (ref.handle) {
+    const known = await env.DB.prepare("SELECT id FROM yt_channels WHERE lower(handle) = lower(?) AND fetched_at > ?")
+      .bind(ref.handle, now - YT_FRESH.channel).first();
+    if (known) return known.id;
+  }
+  const data = await ytFetch(env, userId, "channels", Object.assign(
+    ref.handle ? { forHandle: ref.handle } : { forUsername: ref.username }, YT_CHANNEL_PARTS));
+  const item = (data.items || []).find((i) => YT_CHANNEL_ID.test(i.id || ""));
+  if (!item) return null;
+  await ytSaveChannels(env, [ytChannelRow(item, now)]);
+  return item.id;
+}
+
+// The ids of a channel's newest uploads, newest first: one 1-unit call to its
+// uploads playlist, instead of a 100-unit search.
+async function ytUploads(env, userId, channel) {
+  const now = nowSec();
+  const known = await env.DB.prepare("SELECT video_ids FROM yt_uploads WHERE channel_id = ? AND fetched_at > ?")
+    .bind(channel.id, now - YT_FRESH.uploads).first();
+  if (known) return JSON.parse(known.video_ids);
+  if (!channel.uploads) return [];
+  const data = await ytFetch(env, userId, "playlistItems", {
+    part: "contentDetails", playlistId: channel.uploads, maxResults: String(YT_BASELINE_UPLOADS),
+    fields: "items(contentDetails(videoId))"
+  });
+  const ids = (data.items || []).map((i) => i.contentDetails && i.contentDetails.videoId).filter((id) => YT_ID.test(id || ""));
+  await env.DB.prepare(
+    "INSERT INTO yt_uploads (channel_id, video_ids, fetched_at) VALUES (?, ?, ?) " +
+    "ON CONFLICT(channel_id) DO UPDATE SET video_ids = excluded.video_ids, fetched_at = excluded.fetched_at"
+  ).bind(channel.id, JSON.stringify(ids), now).run();
+  return ids;
+}
+
+// Views per day between a video's two most recent snapshots at least an hour
+// apart, within the last 30 days.
+async function ytGrowth(env, ids) {
+  const out = new Map();
+  for (const chunk of ytChunks(Array.from(new Set(ids)), 50)) {
+    const rows = await env.DB.prepare(
+      "SELECT video_id, views, at FROM yt_snapshots WHERE video_id IN (SELECT value FROM json_each(?)) AND at > ? ORDER BY video_id, at DESC"
+    ).bind(JSON.stringify(chunk), nowSec() - YT_KEEP_DAYS * 86400).all();
+    const byId = new Map();
+    for (const r of rows.results || []) {
+      if (!byId.has(r.video_id)) byId.set(r.video_id, []);
+      byId.get(r.video_id).push(r);
+    }
+    for (const [id, snaps] of byId) {
+      const latest = snaps[0];
+      const earlier = snaps.find((s) => latest.at - s.at >= 3600);
+      if (!earlier) continue;
+      const days = (latest.at - earlier.at) / 86400;
+      out.set(id, { viewsPerDay: Math.max(0, (latest.views - earlier.views) / days), overDays: Math.round(days * 10) / 10 });
+    }
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------- analysis */
+
+function ytMedian(xs) {
+  const a = xs.slice().sort((p, q) => p - q);
+  const n = a.length;
+  if (!n) return null;
+  return n % 2 ? a[(n - 1) / 2] : (a[n / 2 - 1] + a[n / 2]) / 2;
+}
+
+function ytClamp01(x) { return Math.max(0, Math.min(1, x)); }
+function ytRound(x, places) { const f = Math.pow(10, places || 0); return Math.round(x * f) / f; }
+
+// A channel's baseline from its recent uploads, leaving out one video (the one
+// being judged) and anything still too young to have settled.
+function ytBaseline(uploads, excludeId, now) {
+  const sample = uploads.filter((v) => v.id !== excludeId && v.views !== null &&
+    (now - v.published_at) / 86400 >= YT_SETTLE_DAYS);
+  if (sample.length < YT_BASELINE_MIN) return null;
+  const logs = sample.map((v) => Math.log1p(v.views));
+  const med = ytMedian(logs);
+  const mad = ytMedian(logs.map((x) => Math.abs(x - med)));
+  return {
+    n: sample.length,
+    medianViews: Math.round(ytMedian(sample.map((v) => v.views))),
+    logMedian: med,
+    // A floor on the spread, so a channel whose uploads all perform alike
+    // does not turn a small difference into an extreme score.
+    logScale: Math.max(1.4826 * mad, 0.25)
+  };
+}
+
+// Everything about one channel that the comparison needs, from its row and
+// its recent uploads.
+function ytChannelSummary(channel, uploads, now) {
+  const base = ytBaseline(uploads, null, now);
+  const settled = uploads.filter((v) => v.views !== null && (now - v.published_at) / 86400 >= YT_SETTLE_DAYS);
+  const rates = settled.filter((v) => v.views > 0 && v.likes !== null)
+    .map((v) => (v.likes + (v.comments || 0)) / v.views);
+  const times = uploads.map((v) => v.published_at).sort((a, b) => b - a);
+  const spanWeeks = times.length > 1 ? (times[0] - times[times.length - 1]) / (7 * 86400) : 0;
+  const durations = uploads.map((v) => v.duration_s).filter((d) => d !== null);
+  const top = settled.reduce((m, v) => (m && m.views >= v.views ? m : v), null);
+  return {
+    id: channel.id,
+    url: "https://www.youtube.com/channel/" + channel.id,
+    title: channel.title,
+    handle: channel.handle,
+    country: channel.country,
+    subscribers: channel.subscribers,
+    videoCount: channel.video_count,
+    totalViews: channel.total_views,
+    recent: {
+      uploadsCompared: base ? base.n : settled.length,
+      medianViews: base ? base.medianViews : null,
+      medianEngagement: rates.length ? ytRound(ytMedian(rates), 4) : null,
+      uploadsPerWeek: spanWeeks > 0 ? ytRound((times.length - 1) / spanWeeks, 1) : null,
+      medianMinutes: durations.length ? ytRound(ytMedian(durations) / 60, 1) : null,
+      topMultiple: base && top && base.medianViews > 0 ? ytRound(top.views / base.medianViews, 1) : null,
+      shortFormShare: durations.length ? ytRound(durations.filter((d) => d <= 180).length / durations.length, 2) : null
+    },
+    viewsPerSubscriber: base && channel.subscribers ? ytRound(base.medianViews / channel.subscribers, 3) : null,
+    fetchedAt: new Date(channel.fetched_at * 1000).toISOString()
+  };
+}
+
+// The videos and channels behind a set of video ids, with each channel's
+// recent uploads, all through the cache.
+async function ytLoad(env, userId, videoIds) {
+  const videos = await ytVideos(env, userId, videoIds);
+  const channelIds = Array.from(new Set(Array.from(videos.values()).map((v) => v.channel_id).filter(Boolean)));
+  const channels = await ytChannelsById(env, userId, channelIds);
+  const uploadIds = new Map();
+  for (const ch of channels.values()) uploadIds.set(ch.id, await ytUploads(env, userId, ch));
+  const uploadRows = await ytVideos(env, userId, [].concat(...uploadIds.values()));
+  const uploads = new Map();
+  for (const [chId, ids] of uploadIds) uploads.set(chId, ids.map((id) => uploadRows.get(id)).filter(Boolean));
+  const growth = await ytGrowth(env, Array.from(videos.keys()));
+  return { videos, channels, uploads, growth };
+}
+
+// Shapes each video for the page, scored as `kind` ("trending", "evergreen"
+// or "check") against the rest of the set.
+function ytScore(rows, loaded, kind, windowDays, now) {
+  const list = rows.map((v) => {
+    const ageDays = Math.max((now - v.published_at) / 86400, 0);
+    const base = ytBaseline(loaded.uploads.get(v.channel_id) || [], v.id, now);
+    const z = base && v.views !== null ? (Math.log1p(v.views) - base.logMedian) / base.logScale : null;
+    // Likes are most of the interaction, so with likes hidden the rate is
+    // unknown rather than a comments-only figure that would look low.
+    const interactions = v.likes === null ? null : v.likes + (v.comments || 0);
+    return {
+      row: v,
+      ageDays,
+      base,
+      z,
+      interactions,
+      viewsPerDay: v.views !== null ? v.views / Math.max(ageDays, 1) : null,
+      growth: loaded.growth.get(v.id) || null
+    };
+  });
+
+  // Engagement, shrunk toward the set's pooled rate.
+  const pooled = list.filter((x) => x.interactions !== null && x.row.views);
+  const sumI = pooled.reduce((s, x) => s + x.interactions, 0);
+  const sumV = pooled.reduce((s, x) => s + x.row.views, 0);
+  const prior = sumV > 0 ? sumI / sumV : 0;
+  const K = 2000;
+  for (const x of list) {
+    x.engagement = x.interactions !== null && x.row.views !== null
+      ? (x.interactions + K * prior) / (x.row.views + K)
+      : null;
+  }
+  const pct = (key) => {
+    const vals = list.filter((x) => x[key] !== null).map((x) => x[key]).sort((a, b) => a - b);
+    return (value) => {
+      if (value === null || !vals.length) return null;
+      if (vals.length === 1) return 0.5;
+      const below = vals.filter((v) => v < value).length;
+      const equal = vals.filter((v) => v === value).length;
+      return (below + (equal - 1) / 2) / (vals.length - 1);
+    };
+  };
+  const speedPct = pct("viewsPerDay");
+  // Equal to the set's pooled rate earns 7.5 of 15; double earns 15, half 0.
+  // A ratio, not a rank, so near-identical rates score nearly the same.
+  const engagementPoints = (e) => e === null || prior <= 0 ? 7.5 : 15 * ytClamp01(0.5 + 0.5 * Math.log2(e / prior));
+
+  return list.map((x) => {
+    const v = x.row;
+    let performance;
+    let performanceBasis;
+    if (x.z !== null) {
+      performance = 25 * ytClamp01((x.z + 1) / 4);
+      performanceBasis = "against " + x.base.n + " of the channel's recent uploads";
+    } else {
+      // Without a channel baseline, only a capped proxy from this set.
+      performance = 15 * (speedPct(x.viewsPerDay) || 0);
+      performanceBasis = "proxy: views per day within this set (no channel baseline)";
+    }
+    let timing;
+    let timingBasis;
+    if (kind === "evergreen") {
+      if (x.growth && x.viewsPerDay > 0) {
+        timing = 20 * ytClamp01(x.growth.viewsPerDay / x.viewsPerDay);
+        timingBasis = "earning " + ytRound(x.growth.viewsPerDay / x.viewsPerDay, 2) + "× its lifetime daily average";
+      } else {
+        // A proxy earns less than a measurement can: at most 15 of the 20,
+        // and half that for a video that did not beat its channel.
+        timing = (10 + 5 * ytClamp01((x.ageDays - 180) / 550)) * (x.z !== null && x.z >= 0 ? 1 : 0.5);
+        timingBasis = "proxy: age (capped at 15), until a second check shows current growth";
+      }
+    } else {
+      timing = 20 * ytClamp01(1 - x.ageDays / Math.max(windowDays, 1));
+      timingBasis = "freshness within " + windowDays + " days";
+    }
+    const engagement = engagementPoints(x.engagement);
+    const visible = v.likes !== null && v.comments !== null;
+    const confidence = x.base && x.base.n >= 15 && visible ? "High" : x.base ? "Medium" : "Low";
+    return {
+      id: v.id,
+      url: "https://www.youtube.com/watch?v=" + v.id,
+      title: v.title,
+      channelId: v.channel_id,
+      channelTitle: v.channel_title,
+      publishedAt: new Date(v.published_at * 1000).toISOString(),
+      ageDays: ytRound(x.ageDays, 1),
+      durationSeconds: v.duration_s,
+      format: v.duration_s === null ? null : v.duration_s <= 180 ? "short-form" : "long-form",
+      views: v.views,
+      likes: v.likes,
+      comments: v.comments,
+      viewsPerDay: x.viewsPerDay === null ? null : Math.round(x.viewsPerDay),
+      engagementRate: x.interactions !== null && v.views ? ytRound(x.interactions / v.views, 4) : null,
+      engagementAdjusted: x.engagement === null ? null : ytRound(x.engagement, 4),
+      baseline: x.base ? {
+        uploadsCompared: x.base.n,
+        channelMedianViews: x.base.medianViews,
+        multiple: x.base.medianViews > 0 && v.views !== null ? ytRound(v.views / x.base.medianViews, 2) : null,
+        z: ytRound(x.z, 2)
+      } : null,
+      growth: x.growth ? { viewsPerDay: Math.round(x.growth.viewsPerDay), overDays: x.growth.overDays } : null,
+      signal: {
+        performance: ytRound(performance, 1),
+        timing: ytRound(timing, 1),
+        engagement: ytRound(engagement, 1),
+        total: ytRound(performance + timing + engagement, 1),
+        outOf: 60,
+        basis: {
+          performance: performanceBasis,
+          timing: timingBasis,
+          engagement: x.engagement === null ? "unknown (likes hidden): scored neutral"
+            : ytRound(x.engagement / prior, 2) + "× the set's pooled engagement"
+        }
+      },
+      confidence,
+      fetchedAt: new Date(v.fetched_at * 1000).toISOString()
+    };
+  });
+}
+
+function ytRank(list) {
+  return list.slice().sort((a, b) => b.signal.total - a.signal.total ||
+    ((b.baseline && b.baseline.z) || -99) - ((a.baseline && a.baseline.z) || -99) || (b.views || 0) - (a.views || 0));
+}
+
+function ytChannelsFor(loaded, videos, now) {
+  const seen = new Set(videos.map((v) => v.channelId));
+  return Array.from(loaded.channels.values()).filter((c) => seen.has(c.id))
+    .map((c) => ytChannelSummary(c, loaded.uploads.get(c.id) || [], now));
+}
+
+/* ---------------------------------------------------------------- search */
+
+function ytSearchOptions(body) {
+  const query = str(body.query, 120);
+  if (query.length < 2) throw new HttpError(400, "missing_query", "Type a topic or keyword to research.", { field: "query" });
+  const region = str(body.region, 2).toUpperCase();
+  const language = str(body.language, 7);
+  const duration = ["any", "short", "medium", "long"].indexOf(body.duration) === -1 ? "any" : body.duration;
+  const clampInt = (v, lo, hi, d) => { const n = parseInt(v, 10); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : d; };
+  return {
+    query,
+    region: /^[A-Z]{2}$/.test(region) ? region : "",
+    language: /^[a-z]{2}(-[A-Za-z]{2,4})?$/.test(language) ? language : "",
+    duration,
+    days: clampInt(body.days, 1, 365, 30),
+    evergreenDays: clampInt(body.evergreenDays, 90, 3650, 180),
+    pool: clampInt(body.pool, 5, 50, 25),
+    top: clampInt(body.top, 1, 10, 5)
+  };
+}
+
+// One search, reused for 6 hours. Dates are rounded to the day so a repeat
+// within that time is a cache hit rather than another 100 units.
+async function ytSearch(env, userId, o, range) {
+  const now = nowSec();
+  const day = Math.floor(now / 86400) * 86400;
+  const params = {
+    part: "id", type: "video", q: o.query, maxResults: String(o.pool), order: range.order,
+    videoDuration: o.duration, safeSearch: "moderate", fields: "items(id(videoId))"
+  };
+  if (range.afterDays) params.publishedAfter = new Date((day - range.afterDays * 86400) * 1000).toISOString();
+  if (range.beforeDays) params.publishedBefore = new Date((day - range.beforeDays * 86400) * 1000).toISOString();
+  if (o.region) params.regionCode = o.region;
+  if (o.language) params.relevanceLanguage = o.language;
+  const key = await sha256Hex("yt-search:" + JSON.stringify(params));
+  const known = await env.DB.prepare("SELECT video_ids FROM yt_searches WHERE key = ? AND fetched_at > ?")
+    .bind(key, now - YT_FRESH.search).first();
+  if (known) return JSON.parse(known.video_ids);
+  const data = await ytFetch(env, userId, "search", params);
+  const ids = (data.items || []).map((i) => i.id && i.id.videoId).filter((id) => YT_ID.test(id || ""));
+  await env.DB.prepare(
+    "INSERT INTO yt_searches (key, video_ids, fetched_at) VALUES (?, ?, ?) " +
+    "ON CONFLICT(key) DO UPDATE SET video_ids = excluded.video_ids, fetched_at = excluded.fetched_at"
+  ).bind(key, JSON.stringify(ids), now).run();
+  return ids;
+}
+
+/* --------------------------------------------------------------- routes */
+
+async function youtubeQuota(request, env) {
+  const user = await youtubeUser(request, env);
+  return json(request, env, { quota: await ytQuota(env, user.id), costs: YT_COST });
+}
+
+// What a request cost, read from the ledger so cache hits show as free.
+async function ytSpent(env, userId, before) {
+  const after = await ytQuota(env, userId);
+  return { spent: after.mine - before.mine, quota: after };
+}
+
+// Two rankings for a topic: current (published within `days`) and evergreen
+// (older than `evergreenDays`), each from its own search.
+async function youtubeAnalyze(request, env) {
+  const user = await youtubeUser(request, env);
+  const o = ytSearchOptions(await readJson(request, 4096));
+  const before = await ytQuota(env, user.id);
+  const now = nowSec();
+  const recentIds = await ytSearch(env, user.id, o, { order: "viewCount", afterDays: o.days });
+  const olderIds = await ytSearch(env, user.id, o, { order: "viewCount", beforeDays: o.evergreenDays });
+  const loaded = await ytLoad(env, user.id, recentIds.concat(olderIds));
+  const pick = (ids) => ids.map((id) => loaded.videos.get(id)).filter(Boolean);
+  const trending = ytRank(ytScore(pick(recentIds).filter((v) => (now - v.published_at) / 86400 <= o.days + 1),
+    loaded, "trending", o.days, now)).slice(0, o.top);
+  const evergreen = ytRank(ytScore(pick(olderIds).filter((v) => (now - v.published_at) / 86400 >= o.evergreenDays - 1),
+    loaded, "evergreen", o.days, now)).slice(0, o.top);
+  const shown = trending.concat(evergreen);
+  const cost = await ytSpent(env, user.id, before);
+  return json(request, env, {
+    query: o.query,
+    options: { days: o.days, evergreenDays: o.evergreenDays, region: o.region || null, language: o.language || null, duration: o.duration },
+    checkedAt: new Date(now * 1000).toISOString(),
+    trending,
+    evergreen,
+    channels: ytChannelsFor(loaded, shown, now),
+    coverage: {
+      candidates: recentIds.length + olderIds.length,
+      withBaseline: shown.filter((v) => v.baseline).length,
+      shown: shown.length
+    },
+    spent: cost.spent,
+    quota: cost.quota,
+    method: YT_METHOD
+  });
+}
+
+// Specific videos, by id or address, scored against their own channels.
+async function youtubeVideos(request, env) {
+  const user = await youtubeUser(request, env);
+  const body = await readJson(request, 32768);
+  const inputs = Array.isArray(body.videos) ? body.videos.slice(0, YT_MAX_VIDEOS) : [];
+  const ids = [];
+  const invalid = [];
+  for (const raw of inputs) {
+    const id = ytVideoId(raw);
+    if (id) ids.push(id); else invalid.push(str(raw, 120));
+  }
+  if (!ids.length) throw new HttpError(400, "no_videos", "Paste at least one YouTube video address or id.", { invalid });
+  const before = await ytQuota(env, user.id);
+  const now = nowSec();
+  const loaded = await ytLoad(env, user.id, ids);
+  const found = Array.from(new Set(ids)).map((id) => loaded.videos.get(id)).filter(Boolean);
+  const videos = ytScore(found, loaded, "check", 30, now);
+  const cost = await ytSpent(env, user.id, before);
+  return json(request, env, {
+    checkedAt: new Date(now * 1000).toISOString(),
+    videos,
+    channels: ytChannelsFor(loaded, videos, now),
+    // Private, deleted or mistyped videos YouTube did not return.
+    notFound: Array.from(new Set(ids)).filter((id) => !loaded.videos.has(id)),
+    invalid,
+    spent: cost.spent,
+    quota: cost.quota,
+    method: YT_METHOD
+  });
+}
+
+// Channels side by side: size, recent typical views, cadence, engagement,
+// and how far their best recent upload outran their usual.
+async function youtubeChannels(request, env) {
+  const user = await youtubeUser(request, env);
+  const body = await readJson(request, 16384);
+  const inputs = Array.isArray(body.channels) ? body.channels.slice(0, YT_MAX_CHANNELS) : [];
+  if (!inputs.length) throw new HttpError(400, "no_channels", "Paste at least one channel: an @handle, a channel address or a channel id.");
+  const before = await ytQuota(env, user.id);
+  const now = nowSec();
+  const asked = [];
+  for (const raw of inputs) {
+    const ref = ytChannelRef(raw);
+    asked.push({ raw: str(raw, 120), id: ref ? await ytResolveChannel(env, user.id, ref) : null });
+  }
+  const ids = asked.filter((a) => a.id).map((a) => a.id);
+  const channels = await ytChannelsById(env, user.id, ids);
+  // Unreadable, unknown handles, and ids YouTube did not return.
+  const notFound = asked.filter((a) => !a.id || !channels.has(a.id)).map((a) => a.raw);
+  const uploadIds = new Map();
+  for (const ch of channels.values()) uploadIds.set(ch.id, await ytUploads(env, user.id, ch));
+  const rows = await ytVideos(env, user.id, [].concat(...uploadIds.values()));
+  const summaries = Array.from(new Set(ids)).map((id) => channels.get(id)).filter(Boolean)
+    .map((c) => ytChannelSummary(c, (uploadIds.get(c.id) || []).map((id) => rows.get(id)).filter(Boolean), now));
+  const cost = await ytSpent(env, user.id, before);
+  return json(request, env, {
+    checkedAt: new Date(now * 1000).toISOString(),
+    channels: summaries,
+    notFound,
+    spent: cost.spent,
+    quota: cost.quota,
+    method: YT_METHOD
+  });
+}
+
+// The daily cron: YouTube data older than 30 days is deleted, not kept.
+function youtubeHousekeeping(env, now) {
+  const cutoff = now - YT_KEEP_DAYS * 86400;
+  return [
+    env.DB.prepare("DELETE FROM yt_videos WHERE fetched_at < ?").bind(cutoff),
+    env.DB.prepare("DELETE FROM yt_channels WHERE fetched_at < ?").bind(cutoff),
+    env.DB.prepare("DELETE FROM yt_uploads WHERE fetched_at < ?").bind(cutoff),
+    env.DB.prepare("DELETE FROM yt_searches WHERE fetched_at < ?").bind(cutoff),
+    env.DB.prepare("DELETE FROM yt_snapshots WHERE at < ?").bind(cutoff),
+    env.DB.prepare("DELETE FROM yt_quota WHERE day < ?").bind(ytDay(now - 60 * 86400))
+  ];
 }
 
 /* --------------------------------------------------------------------------

@@ -15,6 +15,8 @@
 #   ANTHROPIC_API_KEY optional: written coaching in the Rehearsal Room; without
 #                     it a rehearsal is scores only, at half the price
 #   TURNSTILE_SECRET  only if email-code sign-in is switched on
+#   YOUTUBE_API_KEY   optional: YouTube research (with YOUTUBE_ADMINS, a text
+#                     variable set in the dashboard: who may use it)
 #   GA4_API_SECRET    optional: Google Analytics → Admin → Data streams →
 #                     SpeakPower → Measurement Protocol API secrets; lets the
 #                     Worker report settled plan and top-up purchases

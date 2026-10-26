@@ -248,10 +248,45 @@ async function outbound(request) {
       usage: { input_tokens: 900, output_tokens: 600 }
     });
   }
+  if (url.startsWith("https://www.googleapis.com/youtube/v3/")) return youtubeFake(new URL(url));
   // Anything else on an audited site (robots.txt, a sitemap, a page that is
   // not there) answers like a real server would.
   if (audited) return new Response("not found", { status: 404, headers: { "Content-Type": "text/html" } });
   return new Response("unexpected outbound fetch: " + url, { status: 599 });
+}
+
+// A compact YouTube Data API: one channel of eleven uploads, one of which
+// broke out, plus an older evergreen video. Records method and ids sent.
+const ytCalls = [];
+const YT_T = Date.now();
+const ytId = (n) => "W" + String(n).padStart(10, "0");
+const YT_CH = "UC" + "w".repeat(22);
+const ytVideos = {};
+const ytUploads = [];
+function ytVideo(n, daysAgo, views) {
+  ytVideos[ytId(n)] = { id: ytId(n), snippet: { publishedAt: new Date(YT_T - daysAgo * 86400000).toISOString(), channelId: YT_CH,
+    channelTitle: "Workerd Talks", title: "Talk " + n }, statistics: { viewCount: String(views), likeCount: String(views / 25), commentCount: String(views / 250) },
+    contentDetails: { duration: "PT9M" } };
+}
+ytVideo(1, 4, 100000); ytUploads.push(ytId(1));
+for (let i = 0; i < 10; i++) { ytVideo(10 + i, 8 + i * 7, 9000 + i * 200); ytUploads.push(ytId(10 + i)); }
+ytVideo(99, 300, 250000);
+function youtubeFake(u) {
+  const m = u.pathname.split("/").pop();
+  const p = Object.fromEntries(u.searchParams);
+  ytCalls.push({ method: m, ids: p.id || "" });
+  if (p.key !== "yt-workerd-key") return Response.json({ error: { errors: [{ reason: "keyInvalid" }] } }, { status: 400 });
+  if (m === "search") {
+    const after = p.publishedAfter ? Date.parse(p.publishedAfter) : -Infinity;
+    const before = p.publishedBefore ? Date.parse(p.publishedBefore) : Infinity;
+    return Response.json({ items: Object.values(ytVideos).filter((v) => { const t = Date.parse(v.snippet.publishedAt); return t >= after && t <= before; })
+      .map((v) => ({ id: { videoId: v.id } })) });
+  }
+  if (m === "videos") return Response.json({ items: p.id.split(",").map((id) => ytVideos[id]).filter(Boolean) });
+  if (m === "channels") return Response.json({ items: [{ id: YT_CH, snippet: { title: "Workerd Talks", customUrl: "@workerdtalks" },
+    statistics: { subscriberCount: "5000", videoCount: "12", viewCount: "500000" }, contentDetails: { relatedPlaylists: { uploads: "UU" + "w".repeat(22) } } }] });
+  if (m === "playlistItems") return Response.json({ items: ytUploads.slice(0, Number(p.maxResults)).map((videoId) => ({ contentDetails: { videoId } })) });
+  return new Response("{}", { status: 404 });
 }
 
 /* -------------------------------------------------------------- harness */
@@ -297,7 +332,9 @@ const mf = new Miniflare({
     FLW_SECRET_KEY: "FLWSECK_TEST-secret",
     FLW_SECRET_HASH: "flw-hash-secret",
     GRIOT_API_BASE: "https://griot.test",
-    GRIOT_API_KEY: "griot-workerd-key"
+    GRIOT_API_KEY: "griot-workerd-key",
+    YOUTUBE_API_KEY: "yt-workerd-key",
+    YOUTUBE_ADMINS: "yt.owner@example.com"
   },
   outboundService: outbound
   }, {
@@ -667,6 +704,28 @@ await test("rehearse: the bundled Worker transcribes, scores and coaches on work
   eq(row.moment, "donor-presentation"); eq(row.score, r.data.score);
   const h = await call("GET", "/rehearsals", { token: s.token });
   eq(h.data.rehearsals.length, 1);
+});
+
+await test("youtube: on workerd with real D1 — batched json_each lookups, the Pacific quota day, and the cache", async () => {
+  const s = await signIn("yt.owner@example.com");
+  const r = await call("POST", "/youtube/analyze", { token: s.token, body: { query: "public speaking" } });
+  eq(r.status, 200, "status " + JSON.stringify(r.data).slice(0, 300));
+  eq(r.data.trending[0].id, ytId(1), "the breakout leads");
+  ok(r.data.trending[0].baseline.multiple > 9, "about 10× its channel: " + r.data.trending[0].baseline.multiple);
+  eq(r.data.evergreen[0].id, ytId(99));
+  const pacific = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const ledger = await db.prepare("SELECT day, units FROM yt_quota WHERE user_id = ''").first();
+  eq(ledger.day, pacific, "the quota day is YouTube's Pacific-time day");
+  const sent = ytCalls.reduce((n, c) => n + (c.method === "search" ? 100 : 1), 0);
+  eq(ledger.units, sent, "the ledger holds exactly what was sent");
+  eq(r.data.spent, sent);
+  const cached = await db.prepare("SELECT COUNT(*) AS n FROM yt_videos").first();
+  ok(cached.n >= 12, "videos kept in D1: " + cached.n);
+  const before = ytCalls.length;
+  const again = await call("POST", "/youtube/analyze", { token: s.token, body: { query: "public speaking" } });
+  eq(again.status, 200); eq(again.data.spent, 0); eq(ytCalls.length, before, "answered from D1");
+  const chans = await call("POST", "/youtube/channels", { token: s.token, body: { channels: ["@workerdtalks"] } });
+  eq(chans.status, 200); eq(chans.data.channels[0].handle, "@workerdtalks"); eq(chans.data.spent, 0, "handle known from D1");
 });
 
 await mf.dispose();
