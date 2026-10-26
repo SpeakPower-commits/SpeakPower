@@ -641,9 +641,11 @@
 
   // The one-line summary pages show: "Starter plan · renews 8 Nov", or
   // "2 free tries left (any service)". The balance appears only where it
-  // can be spent: on Studio packs (opts.balance).
+  // can be spent: on Studio packs (opts.balance). An admin account has no
+  // tries, plan or balance to show.
   function statusText(acct, opts) {
     if (!acct) return "";
+    if (acct.admin) return "Admin access · every service, no limits";
     opts = opts || {};
     var m = acct.membership;
     var free = Number(acct.trialsRemaining) || 0;
@@ -664,7 +666,7 @@
   function renderUsage(host, acct, service) {
     if (!host) return;
     host.textContent = "";
-    var m = acct && acct.membership;
+    var m = acct && !acct.admin && acct.membership;
     var pct = m && m.plan && m.usage ? Math.max(0, Math.min(100, Number(m.usage[service]) || 0)) : null;
     host.hidden = pct === null;
     if (pct === null) return;

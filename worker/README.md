@@ -144,9 +144,17 @@ Only the secrets go here — the public settings are already in `wrangler.toml` 
 | `ANTHROPIC_API_KEY` | **Secret** | Optional: written coaching in the Rehearsal Room. Create it at console.anthropic.com. |
 | `GA4_API_SECRET` | **Secret** | Optional: Google Analytics → Data streams → SpeakPower → Measurement Protocol API secrets. Lets the Worker report settled purchases ([Google Analytics](#google-analytics)). |
 | `YOUTUBE_API_KEY` | **Secret** | Optional: turns on [YouTube research](#youtube-research). |
-| `YOUTUBE_ADMINS` | Text | With the key: the email(s) allowed to use YouTube research, comma-separated. |
+| `YOUTUBE_ADMINS` | Text | Optional: more email(s) allowed to use YouTube research, comma-separated. Admin accounts always may. |
 
-Already in `wrangler.toml`: `ENVIRONMENT`, `ALLOWED_ORIGINS`, `FREE_TRIALS`, `SITE_URL`, `GRIOT_API_BASE`, `TOPUP_AMOUNTS`, `GOOGLE_CLIENT_ID` and `GA4_MEASUREMENT_ID` (all public).
+Already in `wrangler.toml`: `ENVIRONMENT`, `ALLOWED_ORIGINS`, `FREE_TRIALS`, `ADMIN_EMAILS`, `SITE_URL`, `GRIOT_API_BASE`, `TOPUP_AMOUNTS`, `GOOGLE_CLIENT_ID` and `GA4_MEASUREMENT_ID` (all public).
+
+### Admin accounts
+
+`ADMIN_EMAILS` in `wrangler.toml` (comma-separated) names the owner's own accounts. Signed in as one of them, every service works with **no free tries, plan, balance or document limit**: GRIOT, the Rehearsal Room, every Studio pack, documents, and YouTube research with the whole day's quota. The pages say "Admin access" and never show a pay wall.
+
+- **Who it opens.** Only a verified sign-in to that address: Google has confirmed it, or a code sent to it was entered. Matching is on the canonical address, so for Gmail `t.o@gmail.com` and `to+demo@gmail.com` are the same inbox and the same admin.
+- **What still applies.** Each use is recorded in `runs` as `paid_with = 'admin'`, amount 0, so the account page and the funnel still show what was used. The per-hour abuse limits stay (for example 30 rehearsals an hour), and so does the 20-project ceiling every account has: they protect the GRIOT, Anthropic and Workers AI bills if a session token ever leaked. YouTube's own 10,000 units a day cannot be lifted from here.
+- **Changing it.** Edit `ADMIN_EMAILS` in `wrangler.toml` and push. A deploy writes this value over the dashboard's, so change it here, not there. Removing an address ends its access on the next request; nothing is stored against the account.
 
 Top-up switches on only when `FLW_SECRET_KEY` and `FLW_SECRET_HASH` are both set. Until then the pay wall offers a "talk to me" link instead — it never shows a button that takes money it cannot credit.
 
@@ -274,17 +282,18 @@ The Worker also supports sign-in by a 6-digit emailed code. It stays off (`email
 
 ## YouTube research
 
-`youtube.html` (not in the menu, not indexed): research a topic, compare channels, or check specific videos, with YouTube's exact counts and each video measured against **its own channel's recent uploads**. It is open only to the accounts named in `YOUTUBE_ADMINS`; anyone else signed in is told it is not open to them.
+`youtube.html` (not in the menu, not indexed): research a topic, compare channels, or check specific videos, with YouTube's exact counts and each video measured against **its own channel's recent uploads**. It is open only to [admin accounts](#admin-accounts) and the accounts named in `YOUTUBE_ADMINS`; anyone else signed in is told it is not open to them.
 
 ### Switch it on (once, about 10 minutes, all in a browser)
 
 1. **The key.** Google Cloud Console → **APIs & Services → Library → YouTube Data API v3 → Enable**. If you already have a key, edit it there; otherwise **Credentials → Create credentials → API key**. Then **API restrictions → YouTube Data API v3 only**; **Application restrictions → None** (the call comes from a Cloudflare datacentre, so a website or IP restriction would block it).
 2. **The secret.** Worker → **Settings → Variables and Secrets → Add** → type **Secret**, name `YOUTUBE_API_KEY`, paste the key. Never into a chat, a file or a screenshot.
-3. **Who may use it.** Same place → type **Text**, name `YOUTUBE_ADMINS`, value: your sign-in email. `keep_vars = true` in `wrangler.toml` keeps it through every deploy.
-4. **The tables.** D1 → `speakpower` → **Console** → paste the block of `schema.sql` that starts `-- YouTube research` → run. Every statement is idempotent.
-5. **Check.** Sign in on the site, open `youtube.html`: it shows today's quota. Research a topic.
+3. **The tables.** D1 → `speakpower` → **Console** → paste the block of `schema.sql` that starts `-- YouTube research` → run. Every statement is idempotent.
+4. **Check.** Sign in on the site with an admin account, open `youtube.html`: it shows today's quota. Research a topic.
 
-In any order: until all four are done the page says exactly which one is missing, and nothing else in the Worker changes. In particular, the nightly cleanup runs YouTube's deletions in a batch of their own, so missing tables can never stop the existing cleanup.
+Admin accounts may use it already. To let anyone else in: Worker → **Settings → Variables and Secrets → Add** → type **Text**, name `YOUTUBE_ADMINS`, their sign-in emails, comma-separated (`keep_vars = true` keeps it through every deploy).
+
+In any order: until the key and the tables are in place the page says exactly which one is missing, and nothing else in the Worker changes. In particular, the nightly cleanup runs YouTube's deletions in a batch of their own, so missing tables can never stop the existing cleanup.
 
 ### What it measures
 
@@ -315,7 +324,7 @@ YouTube allows **10,000 units a day** per Google project by default, resetting a
 A first topic research costs about **200–300 units**; the same research within 6 hours costs **0**. Comparing a channel costs about 3; checking 50 videos about 2 plus 2 per new channel.
 
 - **The ledger** (`yt_quota`) charges every call *before* it is made, with one `UPDATE … WHERE units + cost <= budget` per check, for the account and for the day. Concurrent requests therefore cannot overspend. If YouTube itself says the quota is gone, the day is marked spent and nothing more is sent until it turns.
-- **Budgets:** `YOUTUBE_DAILY_UNITS` (default 9,000, leaving headroom) and `YOUTUBE_USER_DAILY_UNITS` (default 3,000 per account), both optional text variables.
+- **Budgets:** `YOUTUBE_DAILY_UNITS` (default 9,000, leaving headroom) and `YOUTUBE_USER_DAILY_UNITS` (default 3,000 per account; an admin account may use the whole day's), both optional text variables.
 - **Caching:** videos and searches are reused for 6 hours, a channel's uploads for 12 and channel details for 24.
 - **At product scale** (customers running research themselves), request more quota: Google Cloud → YouTube Data API v3 → **Quotas → request an increase**. That form leads to a YouTube API Services compliance audit. Already true here: data refreshed or deleted within 30 days, derived numbers labelled as such, and attribution on the page. **Still needed before applying:** a public privacy policy page (the site has none yet) that says the app uses YouTube API Services and links to the [Google Privacy Policy](https://policies.google.com/privacy), and a link to the [YouTube Terms of Service](https://www.youtube.com/t/terms) where customers use the tool. Opening it to customers is a pricing decision (a plan allowance like GRIOT's, or a Studio pack): the engine needs no change, only who passes `youtubeUser`.
 
@@ -325,7 +334,7 @@ Only what the analysis needs, and **at most 30 days** (YouTube API Services poli
 
 ### API
 
-All need a session token from an account in `YOUTUBE_ADMINS`.
+All need a session token from an admin account or one in `YOUTUBE_ADMINS`.
 
 | Route | Body | Returns |
 |---|---|---|
@@ -410,10 +419,10 @@ ALTER TABLE payments ADD COLUMN ga_session_id TEXT;
 cd worker && npm install && cd .. && node --experimental-sqlite worker/test/run-tests.mjs
 ```
 
-The business rules, fast, in plain Node (211 tests): the real `worker.js` against an in-memory D1, with Google, GRIOT, Flutterwave and audited sites faked at the network edge only. Google sign-in is tested with real RS256 signatures, so forged keys, `alg: none` and edited tokens are refused by actual cryptography rather than a stub. It also fails if any page quotes a different price from the Worker.
+The business rules, fast, in plain Node (217 tests): the real `worker.js` against an in-memory D1, with Google, GRIOT, Flutterwave and audited sites faked at the network edge only. Google sign-in is tested with real RS256 signatures, so forged keys, `alg: none` and edited tokens are refused by actual cryptography rather than a stub. It also fails if any page quotes a different price from the Worker.
 
 ```
 cd worker && npm install && npm install --no-save miniflare@4 wrangler@4 && node test/run-workerd-tests.mjs
 ```
 
-The Worker bundled exactly as Workers Builds deploys it (`wrangler deploy --dry-run`), on **workerd**, the engine Cloudflare runs Workers on (22 tests): real D1, the real HTML parser for the SEO audit, WebCrypto sign-in, the exactly-once top-up under truly concurrent notifications, the sign-up profile briefing GRIOT, and a document read and kept as facts. It also audits this site's own pages.
+The Worker bundled exactly as Workers Builds deploys it (`wrangler deploy --dry-run`), on **workerd**, the engine Cloudflare runs Workers on (23 tests): real D1, the real HTML parser for the SEO audit, WebCrypto sign-in, the exactly-once top-up under truly concurrent notifications, the sign-up profile briefing GRIOT, and a document read and kept as facts. It also audits this site's own pages.

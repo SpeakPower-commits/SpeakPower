@@ -68,7 +68,7 @@
   // Nothing left to rehearse with: say so before anyone records for three
   // minutes. (The Worker decides; a 402 still lands here.)
   function cannotPay() {
-    if (!account || Number(account.trialsRemaining) > 0) return false;
+    if (!account || account.admin || Number(account.trialsRemaining) > 0) return false;
     var m = account.membership;
     return !(m && m.plan && m.usage && m.usage.rehearsal < 100);
   }

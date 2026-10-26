@@ -118,7 +118,7 @@
 
   // No free try left, and no plan with GRIOT left this month.
   function cannotPay() {
-    if (!account || Number(account.trialsRemaining) > 0) return false;
+    if (!account || account.admin || Number(account.trialsRemaining) > 0) return false;
     var m = account.membership;
     return !(m && m.plan && m.usage && m.usage.griot < 100);
   }
@@ -852,9 +852,12 @@
     $("gaDocEmpty").hidden = false;
     A.call("/griot/documents").then(function (data) {
       var docs = data.documents || [];
-      docState = { used: data.used || 0, limit: data.limit || 1 };
+      // A null limit is an admin account's: no limit.
+      docState = { used: data.used || 0, limit: data.limit === null ? Infinity : data.limit || 1 };
       var full = docState.used >= docState.limit;
-      $("gaDocAllowance").textContent = docState.used + " of " + docState.limit + (docState.limit === 1 ? " document" : " documents") + " kept.";
+      $("gaDocAllowance").textContent = docState.limit === Infinity
+        ? docState.used + (docState.used === 1 ? " document" : " documents") + " kept · no limit (admin)."
+        : docState.used + " of " + docState.limit + (docState.limit === 1 ? " document" : " documents") + " kept.";
       $("gaDocAdd").disabled = full || !data.canRead;
       $("ga-doc-file").disabled = full || !data.canRead;
       $("gaDocPlans").hidden = !full || docState.limit >= 50;
@@ -1042,7 +1045,7 @@
 
   function describe(reply) {
     var parts = [];
-    parts.push(reply.paidWith === "trial" ? "Free try" : "Included in your plan");
+    parts.push(reply.paidWith === "trial" ? "Free try" : reply.paidWith === "admin" ? "Admin access" : "Included in your plan");
     if (reply.mode) parts.push("Mode: " + reply.mode.charAt(0).toUpperCase() + reply.mode.slice(1));
     if (reply.agents && reply.agents.length) {
       var lensNames = reply.agents.map(function (a) { return String(a).replace(/Agent$/, ""); });

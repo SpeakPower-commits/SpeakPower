@@ -334,7 +334,8 @@ const mf = new Miniflare({
     GRIOT_API_BASE: "https://griot.test",
     GRIOT_API_KEY: "griot-workerd-key",
     YOUTUBE_API_KEY: "yt-workerd-key",
-    YOUTUBE_ADMINS: "yt.owner@example.com"
+    YOUTUBE_ADMINS: "yt.owner@example.com",
+    ADMIN_EMAILS: "workerd.boss@example.com"
   },
   outboundService: outbound
   }, {
@@ -726,6 +727,27 @@ await test("youtube: on workerd with real D1 — batched json_each lookups, the 
   eq(again.status, 200); eq(again.data.spent, 0); eq(ytCalls.length, before, "answered from D1");
   const chans = await call("POST", "/youtube/channels", { token: s.token, body: { channels: ["@workerdtalks"] } });
   eq(chans.status, 200); eq(chans.data.channels[0].handle, "@workerdtalks"); eq(chans.data.spent, 0, "handle known from D1");
+});
+
+await test("real D1: an admin account uses packs and documents past every limit, recorded at no charge", async () => {
+  const s = await signIn("workerd.boss@example.com");
+  eq(s.account.admin, true, "the bundled Worker reads ADMIN_EMAILS");
+  for (const url of ["https://clean.test", "https://broken.test", "https://moved.test", "https://clean.test"]) {
+    const r = await call("POST", "/studio/generate", { token: s.token, body: { product: "seo-audit", inputs: { url } } });
+    eq(r.status, 200, url + " " + JSON.stringify(r.data).slice(0, 200)); eq(r.data.paidWith, "admin");
+  }
+  const pdf = new TextEncoder().encode("%PDF-1.4\nOur plan for 2025 to 2027, for the board, in two pages of detail.\fEnrolment rose 18% in 2025 across our schools.");
+  for (const name of ["One.pdf", "Two.pdf", "Three.pdf"]) {
+    const r = await mf.dispatchFetch("https://api.test/griot/documents?name=" + name, {
+      method: "POST", headers: { Origin: ORIGIN, Authorization: "Bearer " + s.token, "Content-Type": "application/pdf" }, body: pdf
+    });
+    eq(r.status, 200, name + " kept past the free account's one");
+  }
+  const u = await user("workerd.boss@example.com");
+  eq(u.trials_remaining, 3); eq(u.balance, 0);
+  const runs = await db.prepare("SELECT paid_with, amount FROM runs WHERE user_id = ?").bind(u.id).all();
+  ok(runs.results.length === 4 && runs.results.every((r) => r.paid_with === "admin" && r.amount === 0), JSON.stringify(runs.results));
+  eq((await db.prepare("SELECT COUNT(*) AS n FROM documents WHERE user_id = ?").bind(u.id).first()).n, 3);
 });
 
 await mf.dispose();

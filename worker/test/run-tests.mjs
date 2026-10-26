@@ -3643,5 +3643,104 @@ await test("youtube: the daily cron deletes YouTube data older than 30 days and 
   ok(db.one("SELECT COUNT(*) AS n FROM yt_videos").n > 0, "fresh data stays");
 });
 
+/* ---------------------------------------------------------- admin accounts */
+
+const BOSS = "boss@example.com";
+let boss;
+
+await test("admin: every service with no free tries, plan or balance, each use recorded at no charge", async () => {
+  env.ADMIN_EMAILS = " someone@else.example, " + BOSS.toUpperCase() + " ";
+  try {
+    boss = await signUp(BOSS);
+    const me = await call("GET", "/me", { token: boss.token });
+    eq(me.status, 200); eq(me.data.account.admin, true, "the account says it is an admin");
+    for (let i = 0; i < 5; i++) {
+      const r = await chat(boss.token, "question " + i);
+      eq(r.status, 200, "GRIOT message " + (i + 1)); eq(r.data.paidWith, "admin");
+    }
+    for (const key of Object.keys(PRICES)) {
+      const r = await use(boss.token, key);
+      eq(r.status, 200, key + ": " + JSON.stringify(r.data && r.data.error)); eq(r.data.paidWith, "admin", key);
+    }
+    for (let i = 0; i < 3; i++) eq((await rehearse(boss.token)).status, 200, "rehearsal " + (i + 1));
+    const row = userRow(BOSS);
+    eq(row.trials_remaining, 3, "no free try spent"); eq(row.balance, 0, "nothing taken from the balance");
+    const runs = runsOf(BOSS);
+    eq(runs.length, 5 + Object.keys(PRICES).length + 3, "every use is recorded");
+    ok(runs.every((r) => r.paid_with === "admin" && r.amount === 0 && r.status === "ok"), JSON.stringify(runs));
+    const acct = await call("GET", "/account", { token: boss.token });
+    ok(acct.data.uses.every((u) => u.paidWith === "admin"), "the account page lists them as admin uses");
+  } finally { delete env.ADMIN_EMAILS; }
+});
+
+await test("admin: everyone else is still metered, and removing an address ends its access at once", async () => {
+  env.ADMIN_EMAILS = BOSS;
+  try {
+    const other = await signUp("not-boss@example.com");
+    eq((await call("GET", "/me", { token: other.token })).data.account.admin, false);
+    for (let i = 0; i < 3; i++) eq((await chat(other.token, "q")).data.paidWith, "trial");
+    const walled = await chat(other.token, "one more");
+    eq(walled.status, 402); eq(walled.data.error, "plan_required");
+  } finally { delete env.ADMIN_EMAILS; }
+  eq((await call("GET", "/me", { token: boss.token })).data.account.admin, false, "no longer named, no longer admin");
+  eq((await chat(boss.token, "now a free try")).data.paidWith, "trial");
+});
+
+await test("admin: a failed use is marked as not counting, and gives nothing back because nothing was taken", async () => {
+  env.ADMIN_EMAILS = BOSS;
+  const before = userRow(BOSS);
+  net.griot = "fail";
+  const quiet = console.error; console.error = () => {};
+  try {
+    const r = await chat(boss.token, "this one fails");
+    eq(r.status, 502); eq(r.data.error, "griot_failed");
+  } finally { console.error = quiet; net.griot = "ok"; delete env.ADMIN_EMAILS; }
+  const after = userRow(BOSS);
+  eq(after.trials_remaining, before.trials_remaining); eq(after.balance, before.balance);
+  const last = runsOf(BOSS).pop();
+  eq(last.paid_with, "admin"); eq(last.status, "refunded");
+});
+
+await test("admin: documents past the free account's one, and the list says there is no limit", async () => {
+  env.ADMIN_EMAILS = BOSS;
+  try {
+    for (let i = 1; i <= 3; i++) {
+      const r = await upload(boss.token, "Report " + i + ".pdf", REPORT);
+      eq(r.status, 200, "document " + i + ": " + JSON.stringify(r.data && r.data.error));
+    }
+    const list = await call("GET", "/griot/documents", { token: boss.token });
+    eq(list.status, 200); eq(list.data.used, 3); eq(list.data.limit, null, "no limit");
+  } finally { delete env.ADMIN_EMAILS; }
+  const full = await upload(boss.token, "Report 4.pdf", REPORT);
+  eq(full.status, 402, "without admin access the free account's limit applies again"); eq(full.data.error, "documents_full");
+});
+
+await test("admin: YouTube research without being in YOUTUBE_ADMINS, with the whole day's budget", async () => {
+  ytReset();
+  env.ADMIN_EMAILS = BOSS;
+  env.YOUTUBE_USER_DAILY_UNITS = "100";
+  try {
+    const q = await call("GET", "/youtube/quota", { token: boss.token });
+    eq(q.status, 200, "open to an admin"); eq(q.data.quota.myBudget, q.data.quota.budget, "the day's whole budget");
+    const r = await ytAnalyze({}, boss.token);
+    eq(r.status, 200, "past the 100-unit share others have: " + JSON.stringify(r.data && r.data.error));
+    ok(r.data.spent > 100, "spent " + r.data.spent);
+    const capped = await ytAnalyze({ query: "another topic" });
+    eq(capped.status, 429, "a YouTube admin keeps the per-account share"); eq(capped.data.error, "youtube_quota_user");
+  } finally { delete env.ADMIN_EMAILS; ytReset(); }
+});
+
+await test("admin: Gmail's dots and +tags match, and a list with no real address opens nothing", async () => {
+  const s = await signUp("thomasdemo@gmail.com");
+  env.ADMIN_EMAILS = "Thomas.Demo+studio@GMAIL.com";
+  try {
+    eq((await call("GET", "/me", { token: s.token })).data.account.admin, true, "the same Gmail inbox");
+    for (const junk of ["*", ",", "@", "gmail.com", "@gmail.com", " , *@*"]) {
+      env.ADMIN_EMAILS = junk;
+      eq((await call("GET", "/me", { token: s.token })).data.account.admin, false, JSON.stringify(junk) + " opens nothing");
+    }
+  } finally { delete env.ADMIN_EMAILS; }
+});
+
 console.log("\n" + passed + " passed, " + failures.length + " failed\n");
 if (failures.length) process.exit(1);
