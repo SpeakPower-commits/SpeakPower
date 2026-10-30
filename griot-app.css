@@ -165,6 +165,8 @@ html:has(> body.gx-body) { height: 100%; scroll-padding-top: 0; }
   background: transparent; color: var(--gx-on-navy-soft); font-size: 13px; cursor: pointer; transition: border-color .15s, color .15s;
 }
 .gx-ghost:hover { border-color: var(--gx-gold-500); color: var(--gx-gold-400); }
+/* The way to the AI Video Editor: a link styled as the sidebar's ghost button. */
+a.gx-ghost.gx-video-link { display: block; text-align: center; text-decoration: none; margin-top: 8px; }
 
 .gx-side-foot { margin-top: auto; padding-top: 22px; }
 .gx-principle { margin: 0; color: var(--gx-gold-300); font-size: 14px; font-style: italic; line-height: 1.5; }

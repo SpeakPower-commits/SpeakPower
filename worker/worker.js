@@ -89,6 +89,10 @@ export default {
     ctx.waitUntil(cleanup.catch(() => {})
       .then(() => env.DB.batch(youtubeHousekeeping(env, now)))
       .catch((err) => console.error("YouTube housekeeping skipped", err && err.message)));
+    // Finished video jobs, on their own for the same reason (the table arrives
+    // with its block of schema.sql).
+    ctx.waitUntil(env.DB.prepare("DELETE FROM video_jobs WHERE expires_at < ?").bind(now - 86400).run()
+      .catch((err) => console.error("Video housekeeping skipped", err && err.message)));
     // Profile briefings GRIOT could not take, or copies it still holds from
     // a deleted profile.
     ctx.waitUntil(retryProfileBriefings(env));
@@ -149,6 +153,9 @@ async function route(request, env, ctx) {
     if (path === "/griot/documents/delete") return deleteDocument(request, env);
     if (path === "/rehearse") return rehearse(request, env);
     if (path === "/rehearsals/delete") return deleteRehearsals(request, env);
+    if (path === "/video/start") return videoStart(request, env);
+    if (path === "/video/transcribe") return videoTranscribe(request, env);
+    if (path === "/video/refund") return videoRefund(request, env);
     if (path === "/profile") return saveProfile(request, env);
     if (path === "/profile/delete") return deleteProfile(request, env);
     if (path === "/wallet/checkout") return walletCheckout(request, env);
@@ -370,7 +377,8 @@ async function membership(env, userId, now) {
     renewSoon: Boolean(current && current.ends_at - now <= 3 * 86400 && !queued.length),
     usage: current ? {
       griot: pct(current.griot_used, current.griot_limit),
-      rehearsal: pct(current.rehearsal_used, current.rehearsal_limit)
+      rehearsal: pct(current.rehearsal_used, current.rehearsal_limit),
+      video: pct(current.video_used, current.video_limit)
     } : null,
     packsLeft: current ? Math.max(0, current.pack_limit - current.packs_used) : 0,
     packDiscount: current ? current.pack_discount : 0,
@@ -408,23 +416,24 @@ const PRICES = Object.freeze({
 // alters what someone has already paid for.
 const PLAN_DAYS = 30;
 const PLANS = Object.freeze({
-  starter: Object.freeze({ name: "Starter", price: 60000, griot: 120, rehearsal: 20, packs: 0, packDiscount: 0, documents: 10 }),
-  pro: Object.freeze({ name: "Pro", price: 150000, griot: 300, rehearsal: 60, packs: 1, packDiscount: 15, documents: 50 })
+  starter: Object.freeze({ name: "Starter", price: 60000, griot: 120, rehearsal: 20, video: 10, packs: 0, packDiscount: 0, documents: 10 }),
+  pro: Object.freeze({ name: "Pro", price: 150000, griot: 300, rehearsal: 60, video: 40, packs: 1, packDiscount: 15, documents: 50 })
 });
 
 // Services that come only with a plan (or a free try); everything else is a
 // Studio pack. Column names come from this fixed map, never from input.
-const PLAN_SERVICES = new Set(["griot", "rehearsal"]);
+const PLAN_SERVICES = new Set(["griot", "rehearsal", "video"]);
 const USAGE_COLUMNS = Object.freeze({
   griot: Object.freeze(["griot_used", "griot_limit"]),
   rehearsal: Object.freeze(["rehearsal_used", "rehearsal_limit"]),
+  video: Object.freeze(["video_used", "video_limit"]),
   pack: Object.freeze(["packs_used", "pack_limit"])
 });
 
 function publicPlans() {
   return Object.keys(PLANS).map((key) => ({
     key, name: PLANS[key].name, price: PLANS[key].price, days: PLAN_DAYS,
-    griot: PLANS[key].griot, rehearsal: PLANS[key].rehearsal,
+    griot: PLANS[key].griot, rehearsal: PLANS[key].rehearsal, video: PLANS[key].video,
     packs: PLANS[key].packs, packDiscount: PLANS[key].packDiscount, documents: PLANS[key].documents
   }));
 }
@@ -543,7 +552,7 @@ async function paymentRequired(request, env, user, service, title, body) {
 
   if (PLAN_SERVICES.has(service)) {
     const m = account.membership;
-    const what = service === "griot" ? "GRIOT" : "the Rehearsal Room";
+    const what = { griot: "GRIOT", rehearsal: "the Rehearsal Room", video: "the AI Video Editor" }[service];
     const message = m && m.plan
       ? "You have used this month's " + what + " allowance on " + m.name + ". It renews on " + dayMonth(m.endsAt) +
         (m.plan === "pro" ? "." : ", or move to Pro now.")
@@ -5054,6 +5063,146 @@ async function deleteRehearsals(request, env) {
 }
 
 /* --------------------------------------------------------------------------
+   The AI Video Editor — the words for an edit made in the browser
+
+   video.html edits on the customer's own computer: cutting, captions,
+   graphics and the export never touch this Worker. The Worker only turns the
+   sound into words, with the Rehearsal Room's Whisper and its prompt that
+   keeps the "um"s in, so the editor can find and cut them.
+
+   One edit is one use, reserved at /video/start. The sound then arrives in
+   two-minute pieces, each its own small request (16 kHz mu-law WAV, about
+   2.6 MB of base64), so no request needs more than a few milliseconds of
+   CPU. A job allows twice the pieces its length needs, for retries, and
+   ends after six hours. If no piece could be heard, /video/refund gives the
+   use back. The sound is never stored.
+   ------------------------------------------------------------------------ */
+
+const VIDEO_MAX_SECONDS = 2 * 3600;
+const VIDEO_CHUNK_SECONDS = 120;
+const VIDEO_JOB_SECONDS = 6 * 3600;
+const VIDEO_MAX_AUDIO_B64 = 4000000;
+const VIDEO_LANGUAGES = Object.freeze({ english: "en", swahili: "sw" });
+
+async function videoStart(request, env) {
+  if (!env.AI) {
+    throw new HttpError(503, "video_unconfigured", "The AI Video Editor is being connected. Nothing was charged.");
+  }
+  const user = await authenticate(request, env);
+  const body = await readJson(request, 4096);
+  const seconds = num(body.seconds);
+  if (seconds === null || seconds < 1) throw new HttpError(400, "bad_length", "That video's length could not be read.");
+  if (seconds > VIDEO_MAX_SECONDS) throw new HttpError(400, "too_long", "A video can be up to two hours long.");
+  if (!(await rateLimit(env, "video-start:" + user.id, 20, 3600))) {
+    throw new HttpError(429, "rate_limited", "That is a lot of videos for one hour. Try again soon.");
+  }
+
+  await requireProfile(env, user, "video");
+  const reserved = await reserveRun(env, user, "video");
+  if (!reserved) return paymentRequired(request, env, user, "video", "A video edit", body);
+
+  const id = crypto.randomUUID();
+  const now = nowSec();
+  await env.DB.prepare(
+    "INSERT INTO video_jobs (id, user_id, run_id, paid_with, amount, subscription_id, seconds, chunks_allowed, " +
+    "chunks_tried, chunks_heard, refunded, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?)"
+  ).bind(id, user.id, reserved.runId, reserved.paidWith, reserved.amount, reserved.subscriptionId, Math.round(seconds),
+    2 * Math.ceil(seconds / VIDEO_CHUNK_SECONDS) + 2, now + VIDEO_JOB_SECONDS, now).run();
+  await logEvent(env, "video_edit", { userId: user.id, anonId: body.anonId, product: "video", page: body.page });
+
+  return json(request, env, {
+    job: id,
+    chunkSeconds: VIDEO_CHUNK_SECONDS,
+    paidWith: reserved.paidWith,
+    trialsRemaining: reserved.trialsRemaining
+  });
+}
+
+// The caller's own job, still open; anything else is a 404, never a hint
+// that another customer's job exists.
+async function videoJob(env, user, id) {
+  const job = typeof id === "string" && /^[0-9a-f-]{36}$/.test(id)
+    ? await env.DB.prepare("SELECT * FROM video_jobs WHERE id = ? AND user_id = ?").bind(id, user.id).first()
+    : null;
+  if (!job) throw new HttpError(404, "job_not_found", "That edit was not found. Start it again.");
+  return job;
+}
+
+async function videoTranscribe(request, env) {
+  if (!env.AI) throw new HttpError(503, "video_unconfigured", "The AI Video Editor is being connected.");
+  const user = await authenticate(request, env);
+  const body = await readJson(request, VIDEO_MAX_AUDIO_B64 + 8192);
+  const job = await videoJob(env, user, body.job);
+  if (job.refunded || job.expires_at < nowSec()) {
+    throw new HttpError(410, "job_closed", "This edit has ended. Start it again to keep going.");
+  }
+  const audio = typeof body.audio === "string" ? body.audio : "";
+  if (audio.length < 1000 || audio.length > VIDEO_MAX_AUDIO_B64 || audio.length % 4 !== 0 ||
+      !/^[A-Za-z0-9+/]+={0,2}$/.test(audio.slice(0, 256) + audio.slice(-256))) {
+    throw new HttpError(400, "bad_audio", "That piece of sound could not be read.");
+  }
+  if (!(await rateLimit(env, "video-chunk:" + user.id, 150, 3600))) {
+    throw new HttpError(429, "rate_limited", "Too many pieces of sound in one hour. Try again soon.");
+  }
+  // Count the try before Whisper runs, so a job can never be stretched past its length.
+  const counted = await env.DB.prepare(
+    "UPDATE video_jobs SET chunks_tried = chunks_tried + 1 WHERE id = ? AND chunks_tried < chunks_allowed RETURNING id"
+  ).bind(job.id).first();
+  if (!counted) throw new HttpError(429, "job_used_up", "This edit has used all its pieces. Start it again.");
+
+  const input = { audio, task: "transcribe", initial_prompt: WHISPER_PROMPT };
+  const language = VIDEO_LANGUAGES[str(body.language, 20)];
+  if (language) input.language = language;
+  let heard;
+  try {
+    heard = await env.AI.run(WHISPER_MODEL, input);
+  } catch (err) {
+    console.error("Whisper failed (video)", err && err.message);
+    throw new HttpError(422, "audio_unreadable", "This piece of sound could not be heard.");
+  }
+  await env.DB.prepare("UPDATE video_jobs SET chunks_heard = chunks_heard + 1 WHERE id = ?").bind(job.id).run();
+
+  const segments = Array.isArray(heard && heard.segments) ? heard.segments : [];
+  const round = (n) => Math.round(n * 100) / 100;
+  const words = [];
+  for (const segment of segments) {
+    for (const w of Array.isArray(segment.words) ? segment.words : []) {
+      const start = num(w.start), end = num(w.end), word = str(w.word, 80).trim();
+      if (word && start !== null && end !== null) words.push({ text: word, start: round(start), end: round(end) });
+    }
+  }
+  // Without word timings, the lines stand in; the editor spreads their words.
+  let lines = words.length ? [] : segments
+    .map((x) => ({ text: str(x.text, 2000).trim(), start: num(x.start), end: num(x.end) }))
+    .filter((x) => x.text && x.start !== null && x.end !== null)
+    .map((x) => ({ text: x.text, start: round(x.start), end: round(x.end) }));
+  // Segments with times but no text of their own: the whole text across their span.
+  const spanStart = segments.length ? num(segments[0].start) : null;
+  const spanEnd = segments.length ? num(segments[segments.length - 1].end) : null;
+  const whole = str(heard && heard.text, 20000).trim();
+  if (!words.length && !lines.length && whole && spanStart !== null && spanEnd !== null) {
+    lines = [{ text: whole, start: round(spanStart), end: round(spanEnd) }];
+  }
+  return json(request, env, { words, lines, text: str(heard && heard.text, 20000) });
+}
+
+async function videoRefund(request, env) {
+  const user = await authenticate(request, env);
+  const body = await readJson(request, 4096);
+  const job = await videoJob(env, user, body.job);
+  if (job.chunks_heard > 0 || job.refunded) return json(request, env, { refunded: false });
+  const marked = await env.DB.prepare(
+    "UPDATE video_jobs SET refunded = 1 WHERE id = ? AND refunded = 0 AND chunks_heard = 0 RETURNING id"
+  ).bind(job.id).first();
+  if (!marked) return json(request, env, { refunded: false });
+  await refundRun(env, user, {
+    runId: job.run_id, paidWith: job.paid_with, amount: job.amount, subscriptionId: job.subscription_id,
+    usedColumn: USAGE_COLUMNS.video[0], trialsRemaining: 0, balance: 0
+  });
+  return json(request, env, { refunded: true });
+}
+
+/* --------------------------------------------------------------------------
    Auth: Sign in with Google
 
    Needs no email sending, so it works on Cloudflare's free plan with no
@@ -5377,11 +5526,11 @@ async function settlePayment(env, payment, txId) {
     ).bind(now, now, payment.user_id, planKey, now, payment.tx_ref),
     // Renewing the same plan adds 30 days after what is already paid for.
     env.DB.prepare(
-      "INSERT INTO subscriptions (user_id, plan, starts_at, ends_at, griot_limit, rehearsal_limit, pack_limit, " +
-      "pack_discount, tx_ref, created_at) " +
-      "SELECT ?, ?, s, s + ?, ?, ?, ?, ?, ?, ? FROM (SELECT MAX(?, COALESCE((SELECT MAX(ends_at) FROM subscriptions " +
+      "INSERT INTO subscriptions (user_id, plan, starts_at, ends_at, griot_limit, rehearsal_limit, video_limit, " +
+      "pack_limit, pack_discount, tx_ref, created_at) " +
+      "SELECT ?, ?, s, s + ?, ?, ?, ?, ?, ?, ?, ? FROM (SELECT MAX(?, COALESCE((SELECT MAX(ends_at) FROM subscriptions " +
       "WHERE user_id = ? AND plan = ? AND ends_at > ?), ?)) AS s) WHERE " + pending
-    ).bind(payment.user_id, planKey, PLAN_DAYS * 86400, plan.griot, plan.rehearsal, plan.packs, plan.packDiscount,
+    ).bind(payment.user_id, planKey, PLAN_DAYS * 86400, plan.griot, plan.rehearsal, plan.video, plan.packs, plan.packDiscount,
       payment.tx_ref, now, now, payment.user_id, planKey, now, now, payment.tx_ref)
   ] : [
     env.DB.prepare(

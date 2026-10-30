@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Video Editor · Podcasts and Interviews to Clips | SpeakPower</title>
+<meta name="description" content="Upload a raw podcast or interview and tell the AI what you want: it removes the ums and pauses, picks the best moments, adds captions, titles and your brand, and writes the post. First 3 tries free.">
+<link rel="canonical" href="https://speakpower-commits.github.io/SpeakPower/video.html">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="theme-color" content="#0a1020">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="SpeakPower">
+<meta property="og:locale" content="en_UG">
+<meta property="og:title" content="SpeakPower AI Video Editor">
+<meta property="og:description" content="A raw video in; a clean episode, short clips with captions and graphics, and the post text out.">
+<meta property="og:url" content="https://speakpower-commits.github.io/SpeakPower/video.html">
+<meta property="og:image" content="https://speakpower-commits.github.io/SpeakPower/assets/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="assets/logo-mark.png?v=4" sizes="160x160">
+<link rel="shortcut icon" type="image/png" href="assets/logo-mark.png?v=4">
+<link rel="apple-touch-icon" href="assets/logo-mark.png?v=4">
+<link rel="manifest" href="site.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="commercial.css">
+<link rel="stylesheet" href="video.css">
+<script>document.documentElement.classList.add("js");</script>
+</head>
+<body data-view="auto">
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><div class="wrap">
+<a href="index.html" class="logo" aria-label="SpeakPower — home"><img class="logo-mark" src="assets/logo-mark.png" alt="" width="160" height="160"><span class="logo-text">Speak<span>Power</span></span></a>
+<nav class="nav-links" id="navLinks" aria-label="Primary">
+<a href="index.html">Home</a><a href="services.html">Services</a><a href="studio.html" aria-current="page">Studio</a><a href="plans.html">Plans</a><a href="work.html">Work</a><a href="about.html">About</a><a href="https://speakpower1.blogspot.com" target="_blank" rel="noopener">Insights</a><a href="contact.html" class="nav-cta">Book a discovery call</a>
+</nav>
+<button class="nav-toggle" id="navToggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">&#9776;</button>
+</div></header>
+
+<main id="main">
+<div class="page-hero"><div class="wrap">
+<p class="greeting" data-greeting hidden></p>
+<span class="eyebrow">SpeakPower AI Video Editor &middot; first 3 tries free</span>
+<h1>Raw video in. <em>Clips, captions and the post out.</em></h1>
+<p>Upload a podcast, interview or talk and tell the AI what you want. It cuts the long pauses and the "um"s, picks the best moments, adds captions, titles and your brand, and writes the post. The editing happens on your computer: the video is never uploaded.</p>
+</div></div>
+
+<section style="padding-top:0"><div class="wrap">
+<div class="sve">
+  <!-- Shown only when the site has no Worker configured. -->
+  <div class="studio-builder-panel" id="sv-offline" hidden>
+    <h2>The AI Video Editor opens here shortly.</h2>
+    <p>It is being connected. Until then, the free Clarity Audit checks a written pitch in your browser.</p>
+    <div class="builder-actions"><a class="btn btn-ghost" href="audit.html">Run the free Audit</a></div>
+  </div>
+
+  <!-- Signed out: one button to the shared sign-up page, which comes straight back. -->
+  <div class="studio-builder-panel" id="sv-start" hidden>
+    <h2>Your first video edits are free.</h2>
+    <p>Sign in with Google to edit: you get 3 free tries on any SpeakPower service, then video edits come with every plan. Your video never leaves your computer; only its sound is sent, to be turned into words, and it is not kept.</p>
+    <div class="builder-actions"><button class="btn btn-primary" id="sv-start-btn" type="button">Start editing free</button></div>
+  </div>
+
+  <div class="sv-account" id="sv-account" hidden>
+    <p class="builder-note" id="sv-status"></p>
+    <div class="usage" id="sv-usage" hidden></div>
+  </div>
+  <div class="studio-builder-panel" id="sv-topup" hidden></div>
+<div id="unsupported" class="notice notice-error" hidden>
+    This editor needs a current version of <strong>Chrome</strong> or <strong>Edge</strong>.
+    It uses the browser's built-in video encoder, which this browser doesn't have.
+  </div>
+
+  <div id="auto" class="auto" data-show-in="auto">
+
+    <div class="auto-grid">
+      <div class="auto-main">
+        <section class="auto-card">
+          <h2><span class="step">1</span> Your raw video</h2>
+          <label id="auto-drop" class="auto-drop">
+            <input id="auto-file" type="file" accept="video/*" hidden />
+            <strong id="auto-file-name">Choose a video</strong>
+            <span id="auto-file-info">or drag it here · podcasts, interviews, talks</span>
+          </label>
+        </section>
+
+        <section class="auto-card">
+          <h2><span class="step">2</span> Tell the AI what to do</h2>
+          <textarea id="auto-prompt" class="field auto-prompt" rows="4"
+            placeholder='e.g. "Make 3 TikTok clips about leadership, 30–60 seconds. Remove the ums. Guest is Jane Wanjiku, CEO of Acme. End with: Book a free call"'></textarea>
+          <div class="chips" aria-label="Examples">
+            <button class="chip" type="button" data-prompt="Clean full episode for YouTube: remove long pauses and ums, add captions, chapters and my logo.">Clean episode for YouTube</button>
+            <button class="chip" type="button" data-prompt="Make 3 TikTok clips of the best moments, 30-60 seconds, with captions and pop-up key words.">3 TikTok clips</button>
+            <button class="chip" type="button" data-prompt="Remove ums and pauses only.">Remove ums &amp; pauses only</button>
+            <button class="chip" type="button" data-prompt="Make 1 short teaser clip, 20-30 seconds, with a strong hook title.">One teaser</button>
+          </div>
+          <div class="auto-options">
+            <fieldset>
+              <legend>Give me</legend>
+              <label class="check"><input type="checkbox" id="out-episode" checked /> Clean full episode</label>
+              <label class="check"><input type="checkbox" id="out-clips" checked /> Short clips
+                <select id="out-clip-count" class="field field-inline" aria-label="Number of clips">
+                  <option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option>
+                </select></label>
+              <label class="check"><input type="checkbox" id="out-text" checked /> Text for posting</label>
+            </fieldset>
+            <fieldset>
+              <legend>Style</legend>
+              <label class="check"><input type="checkbox" id="opt-captions" checked /> Captions</label>
+              <label class="check"><input type="checkbox" id="opt-callouts" checked /> Pop-up key words</label>
+              <label class="check"><input type="checkbox" id="opt-logo" checked /> Logo &amp; end card</label>
+              <label class="check">Spoken language
+                <select id="opt-language" class="field field-inline">
+                  <option value="english">English</option><option value="swahili">Swahili</option><option value="">Detect</option>
+                </select></label>
+            </fieldset>
+          </div>
+        </section>
+
+        <button id="auto-go" class="button button-primary button-wide auto-go" type="button" disabled>Edit my video</button>
+
+        <section id="auto-progress" class="auto-card" hidden>
+          <h2>Editing…</h2>
+          <ol id="auto-stages" class="stages"></ol>
+          <div class="progress-bar"><div id="auto-fill" class="progress-fill"></div></div>
+          <div class="progress-row">
+            <span id="auto-progress-text" class="hint">Starting…</span>
+            <button id="auto-cancel" class="button-link" type="button">Cancel</button>
+          </div>
+          <p class="hint">You can use other tabs meanwhile — keep this one open. You'll get a notification when it's done.</p>
+        </section>
+
+        <div id="auto-status" class="notice" hidden></div>
+
+        <section id="auto-results" class="auto-results" hidden>
+          <h2>Your edits</h2>
+          <div id="auto-outputs" class="outputs"></div>
+          <div id="auto-post" class="auto-card post" hidden></div>
+        </section>
+      </div>
+
+      <aside class="auto-side">
+        <section class="auto-card">
+          <h2><span class="step">3</span> Brand kit <small>(optional)</small></h2>
+          <p class="hint">Your logo, intro and end cards, frames and pictures — from Canva or anywhere (PNG, JPG or a short video).
+            Saved in this browser for every edit. A picture is shown when a word from its file name is said, e.g. <em>team.jpg</em>.</p>
+          <label class="button button-small">Add designs<input id="kit-add" type="file" accept="image/*,video/*" multiple hidden /></label>
+          <ul id="kit-list" class="kit-list"></ul>
+        </section>
+        <section class="auto-card">
+          <h2>Good to know</h2>
+          <ul class="hint know">
+            <li>The first edit downloads the free AI (about 1 GB) and the speech model once; later edits start right away.</li>
+            <li>A 20-minute podcast takes roughly 5–15 minutes, depending on the computer.</li>
+            <li>Every result can be fine-tuned by hand: move a title, change a cut, swap a graphic.</li>
+          </ul>
+          <button id="to-manual" class="button-link" type="button">Or edit a video by hand →</button>
+        </section>
+      </aside>
+    </div>
+  </div>
+
+  <div class="finetune-bar" data-show-in="finetune">
+    <button id="to-auto" class="button button-small" type="button">← Back to the automatic editor</button>
+    <span class="hint">Fine-tune: change anything by hand, then Export.</span>
+  </div>
+
+  <div class="studio" data-show-in="finetune">
+    <section class="stage" aria-label="Preview">
+      <div id="drop" class="drop">
+        <div class="drop-inner">
+          <p class="drop-title">Open a video to start</p>
+          <p class="drop-sub">Drag it here, or choose a file. It stays on your computer — nothing is uploaded.</p>
+          <label class="button button-primary">
+            Choose video
+            <input id="file" type="file" accept="video/*" hidden />
+          </label>
+          <div class="drop-record" data-needs-recorder>
+            <span>or record one</span>
+            <button class="button" type="button" data-record="camera">Camera</button>
+            <button class="button" type="button" data-record="screen">Screen</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="viewer" class="viewer" hidden>
+        <div class="preview-frame" id="preview-frame">
+          <canvas id="preview" aria-label="Edited video preview"></canvas>
+        </div>
+
+        <div class="transport">
+          <button id="play" class="button button-icon" type="button" aria-label="Play">▶</button>
+          <span class="clock"><span id="clock-now">0:00.0</span> / <span id="clock-total">0:00.0</span></span>
+          <span class="clock-note" id="clock-note"></span>
+        </div>
+
+        <section class="tracks" aria-labelledby="tracks-title">
+          <div class="section-head">
+            <h2 id="tracks-title">Tracks</h2>
+            <div class="toolbar">
+              <label class="button button-small">Add media<input id="add-media" type="file" accept="video/*,audio/*,image/*" multiple hidden /></label>
+              <button id="add-text" class="button button-small" type="button">Add title</button>
+              <span class="toolbar-group" data-needs-recorder>
+                <button class="button button-small" type="button" data-record="camera">Record camera</button>
+                <button class="button button-small" type="button" data-record="screen">Record screen</button>
+                <button class="button button-small" type="button" data-record="voice">Record voice</button>
+              </span>
+              <label class="zoom">Zoom <input id="zoom" type="range" min="0" max="6" step="0.25" value="0" /></label>
+            </div>
+          </div>
+          <div id="multitrack" class="mt"></div>
+          <p class="hint">Drag clips to move them or onto another track; drag their ends to trim. Higher tracks show on top. Click a track name to hide or mute it. Pictures, video, sound — or drop files anywhere on the page.</p>
+          <div id="inspector" class="inspector" hidden></div>
+        </section>
+
+        <section class="main-edit" aria-labelledby="main-edit-title">
+          <div class="section-head">
+            <h2 id="main-edit-title">Main video · trim &amp; cut</h2>
+            <label class="button button-small">Replace main video<input id="replace-main" type="file" accept="video/*" hidden /></label>
+          </div>
+          <div id="timeline" class="timeline"></div>
+
+          <div class="edit-row">
+            <button id="remove" class="button" type="button" disabled>Remove selection</button>
+            <span class="hint">Drag the gold handles to trim. Drag across the bar to select a part to remove.</span>
+          </div>
+
+          <ul id="cuts" class="cut-list" aria-label="Removed parts"></ul>
+        </section>
+
+        <section id="transcript" class="transcript" hidden aria-labelledby="transcript-title">
+          <div class="transcript-head">
+            <h2 id="transcript-title">Captions <span id="caption-count" class="count"></span></h2>
+            <form id="replace-form" class="replace" autocomplete="off">
+              <input id="replace-find" class="field" aria-label="Wrong word" placeholder="Wrong word, e.g. Sonseno" />
+              <input id="replace-with" class="field" aria-label="Right word" placeholder="Right word, e.g. Otieno" />
+              <button class="button" type="submit">Replace all</button>
+            </form>
+          </div>
+          <p class="hint">Click a time to jump there. Fix any word by typing — the preview updates as you go. Lines in removed parts are greyed out.</p>
+          <ol id="lines" class="lines"></ol>
+        </section>
+      </div>
+    </section>
+
+    <aside class="panel" aria-label="Settings">
+      <div class="panel-group">
+        <h2>Format</h2>
+        <div class="choices" role="radiogroup" aria-label="Format" id="formats"></div>
+      </div>
+
+      <div class="panel-group">
+        <h2>Framing</h2>
+        <div class="choices choices-2" role="radiogroup" aria-label="Framing">
+          <label class="choice"><input type="radio" name="framing" value="blur" checked /><span><strong>Fit</strong><small>Whole picture, blurred edges</small></span></label>
+          <label class="choice"><input type="radio" name="framing" value="crop" /><span><strong>Fill</strong><small>Crop to fill the screen</small></span></label>
+        </div>
+      </div>
+
+      <div class="panel-group">
+        <h2>Main video</h2>
+        <label class="field-label" for="join-transition">At each cut</label>
+        <select id="join-transition" class="field">
+          <option value="cut">Straight cut</option>
+          <option value="fade">Fade through black</option>
+          <option value="flash">Flash (white)</option>
+        </select>
+        <label class="field-label" for="main-volume">Sound <output id="main-volume-value">100%</output></label>
+        <input id="main-volume" type="range" min="0" max="1" step="0.05" value="1" />
+      </div>
+
+      <div class="panel-group">
+        <h2><label for="headline">Headline</label></h2>
+        <input id="headline" class="field" type="text" maxlength="90" placeholder="e.g. Your AI speaking coach" />
+        <p class="hint">Shown in a band near the top. Leave empty for none.</p>
+      </div>
+
+      <div class="panel-group">
+        <h2><label for="logo">Logo</label></h2>
+        <select id="logo" class="field">
+          <option value="none">None</option>
+          <option value="speakpower">SpeakPower</option>
+        </select>
+        <p class="hint">Off by default — a client's video shouldn't carry SpeakPower's mark unless you choose it.</p>
+      </div>
+
+      <div class="panel-group panel-captions">
+        <h2>Captions</h2>
+        <label class="check"><input type="checkbox" id="captions-on" checked /> Show captions on the video</label>
+        <div class="field-row">
+          <select id="caption-model" class="field" aria-label="Speech model">
+            <option value="accurate">Accurate</option>
+            <option value="quick">Quick</option>
+          </select>
+          <select id="caption-language" class="field" aria-label="Spoken language">
+            <option value="english">English</option>
+            <option value="swahili">Swahili</option>
+            <option value="">Detect language</option>
+          </select>
+        </div>
+        <button id="auto-captions" class="button button-wide" type="button" disabled>Auto captions</button>
+        <div id="caption-progress" class="progress" hidden>
+          <div class="progress-bar"><div id="caption-progress-fill" class="progress-fill"></div></div>
+          <div class="progress-row">
+            <span id="caption-progress-text">Starting…</span>
+            <button id="caption-cancel" class="button-link" type="button">Cancel</button>
+          </div>
+        </div>
+        <p class="hint" id="caption-hint">Runs on this computer. The first time, it downloads a speech model (Accurate ≈ 250 MB, Quick ≈ 80 MB); after that it's instant to start.</p>
+        <p class="hint">Or <label class="button-link file-link">import an .srt file<input id="srt" type="file" accept=".srt,.vtt,text/vtt" hidden /></label>.</p>
+      </div>
+
+      <div class="panel-group panel-export">
+        <button id="export" class="button button-primary button-wide" type="button" disabled>Export MP4</button>
+        <div id="progress" class="progress" hidden>
+          <div class="progress-bar"><div id="progress-fill"></div></div>
+          <div class="progress-row">
+            <span id="progress-text">Starting…</span>
+            <button id="cancel" class="button-link" type="button">Cancel</button>
+          </div>
+        </div>
+        <div id="result" class="result" hidden></div>
+      </div>
+
+      <div id="status" class="notice" hidden></div>
+
+    </aside>
+  </div>
+
+  <dialog id="capture" class="capture" aria-labelledby="capture-title">
+    <div class="capture-head">
+      <h2 id="capture-title">Record</h2>
+      <button id="capture-close" class="button-link" type="button">Close</button>
+    </div>
+    <video id="capture-live" class="capture-live" muted playsinline autoplay></video>
+    <div id="capture-voice" class="capture-voice" hidden>
+      <svg viewBox="0 0 24 24" width="56" height="56" aria-hidden="true"><path fill="currentColor" d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-6a3.5 3.5 0 1 0-7 0v6A3.5 3.5 0 0 0 12 15Zm6-3.5a1 1 0 1 0-2 0 4 4 0 0 1-8 0 1 1 0 1 0-2 0 6 6 0 0 0 5 5.91V20H8.5a1 1 0 1 0 0 2h7a1 1 0 1 0 0-2H13v-2.59a6 6 0 0 0 5-5.9Z"/></svg>
+    </div>
+    <div class="capture-meter" title="Microphone level"><div id="capture-level"></div></div>
+    <div class="field-row">
+      <select id="capture-camera" class="field" aria-label="Camera"></select>
+      <select id="capture-mic" class="field" aria-label="Microphone"></select>
+    </div>
+    <label class="check" id="capture-follow-row"><input type="checkbox" id="capture-follow" checked /> Play the video from the playhead while I speak</label>
+    <label class="check" id="capture-hear-row"><input type="checkbox" id="capture-hear" /> Keep the video's sound on (wearing headphones)</label>
+    <div class="capture-actions">
+      <span id="capture-timer" class="capture-timer">0:00</span>
+      <button id="capture-start" class="button button-primary" type="button" disabled>Start recording</button>
+    </div>
+    <p id="capture-note" class="hint"></p>
+  </dialog>
+
+</div>
+</div></section>
+</main>
+
+<footer class="site-footer"><div class="wrap"><div class="footer-grid">
+<div><h4>SpeakPower</h4><p class="footer-tagline">Articulate is key.</p><p>Brand storytelling and market development, backed by SEO, writing, design, data, programming and public speaking. Kampala, Uganda.</p></div>
+<div><h4>Explore</h4><div class="footer-links"><a href="index.html">Home</a><a href="services.html">Services</a><a href="studio.html">Studio</a><a href="plans.html">Plans</a><a href="work.html">Work</a><a href="about.html">About</a><a href="https://speakpower1.blogspot.com" target="_blank" rel="noopener">Insights</a><a href="contact.html">Contact</a></div></div>
+<div><h4>Contact</h4><div class="footer-links"><a href="tel:+256743482588">+256 743 482 588</a><a href="mailto:thomasotieno583@gmail.com">thomasotieno583@gmail.com</a><a href="https://wa.me/256743482588" target="_blank" rel="noopener">WhatsApp</a></div></div>
+<div><h4>Follow</h4><div class="footer-links"><a href="https://www.linkedin.com/in/otieno-thomas-a39b1b21b/" target="_blank" rel="noopener">LinkedIn</a><a href="https://www.instagram.com/otienothomas8/" target="_blank" rel="noopener">Instagram</a><a href="https://www.tiktok.com/@otom323" target="_blank" rel="noopener">TikTok</a></div></div>
+</div><div class="footer-bottom">&copy; 2026 SpeakPower. All rights reserved.</div></div></footer>
+<script src="site-config.js"></script>
+<script src="analytics.js"></script>
+<script src="script.js"></script>
+<script src="account.js"></script>
+<script type="module" src="video/app.js"></script>
+<script type="module" src="video/auto.js"></script>
+<script type="application/ld+json">
+{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "SpeakPower AI Video Editor", "applicationCategory": "MultimediaApplication", "operatingSystem": "Web", "url": "https://speakpower-commits.github.io/SpeakPower/video.html", "description": "Upload a raw podcast or interview and tell the AI what you want: it removes pauses and filler words, picks the best moments for short clips, adds captions, titles and brand graphics, and writes the post text. The video is edited in the browser and never uploaded.", "offers": [{"@type": "Offer", "price": "0", "priceCurrency": "UGX", "description": "First 3 tries free"}, {"@type": "Offer", "price": "60000", "priceCurrency": "UGX", "description": "Starter plan: 30 days of GRIOT, the Rehearsal Room and the AI Video Editor", "url": "https://speakpower-commits.github.io/SpeakPower/plans.html"}], "provider": {"@type": "ProfessionalService", "name": "SpeakPower", "url": "https://speakpower-commits.github.io/SpeakPower/"}}
+</script>
+</body>
+</html>

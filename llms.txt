@@ -28,6 +28,11 @@ POLSΘ (also written POLSSE; Θ, theta, stands for Socioeconomics) is a SpeakPow
 - **Rehearsal Room** — https://speakpower-commits.github.io/SpeakPower/rehearse.html
   Practise a pitch, presentation, interview answer, 60-second introduction or toast out loud, for up to three minutes. It returns a Speak Score out of 100: pace, fillers and long pauses measured from the recording (60%), and the message judged through the POLSΘ lenses (40%), with three fixes, a stronger opening line and a 60-second version. The audio is never stored. First 3 tries free; then included in every SpeakPower plan.
 
+## AI Video Editor
+
+- **AI Video Editor** — https://speakpower-commits.github.io/SpeakPower/video.html
+  Upload a raw podcast, interview or talk and say what you want in one sentence. It cuts long pauses, "um"s and stutters from the full episode, picks the best moments as 9:16 clips with captions, a hook title, pop-up key words, a progress bar and the client's own logo, intro and end cards, and writes the title, description, hashtags and YouTube chapters. The editing runs in the browser and the video is never uploaded; only the sound is turned into words by Whisper and not kept. First 3 tries free; then included in every SpeakPower plan.
+
 ## Free diagnostic (in the Studio)
 
 - **Pitch & Document Clarity Audit** — https://speakpower-commits.github.io/SpeakPower/audit.html
