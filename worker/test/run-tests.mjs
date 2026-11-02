@@ -3842,6 +3842,27 @@ await test("video: an edit where nothing could be heard gives its use back, once
   eq(userRow("v-refund@example.com").trials_remaining, 2);
 });
 
+await test("video: no refund while a piece is still being heard, and no pieces after a refund", async () => {
+  const s = await signUp("v-inflight@example.com");
+  const start = await videoStart(s.token);
+  // A piece accepted and still with Whisper: tried, neither heard nor failed.
+  db.db.prepare("UPDATE video_jobs SET chunks_tried = 1 WHERE id = ?").run(start.data.job);
+  eq((await call("POST", "/video/refund", { token: s.token, body: { job: start.data.job } })).data.refunded, false);
+  eq(userRow("v-inflight@example.com").trials_remaining, 2, "the use stays spent");
+  // Once that piece fails, the refund goes through, and the job takes no more pieces.
+  db.db.prepare("UPDATE video_jobs SET chunks_failed = 1 WHERE id = ?").run(start.data.job);
+  eq((await call("POST", "/video/refund", { token: s.token, body: { job: start.data.job } })).data.refunded, true);
+  eq((await videoChunk(s.token, start.data.job)).status, 410);
+});
+
+await test("video: video.html is a page sign-in and checkout may return to", async () => {
+  const s = await signUp("v-return@example.com");
+  noTrials("v-return@example.com");
+  const r = await planCheckout(s.token, "starter", { returnTo: "video.html" });
+  eq(r.status, 200, "checkout opened");
+  ok(flw.checkouts.at(-1).body.redirect_url.endsWith("/video.html"), flw.checkouts.at(-1).body.redirect_url);
+});
+
 await test("video: signed out, or before the profile, nothing is spent", async () => {
   eq((await videoStart(null)).status, 401);
   const s = await signUp("v-noprofile@example.com");

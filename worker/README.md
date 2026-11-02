@@ -286,7 +286,7 @@ The Worker also supports sign-in by a 6-digit emailed code. It stays off (`email
 
 - **One edit is one use**, like a rehearsal: a free try, then the plan's video edits (`PLANS[*].video`: Starter 10, Pro 40). `POST /video/start {seconds}` reserves it (videos up to two hours) and returns a job.
 - **The sound arrives in two-minute pieces**, `POST /video/transcribe {job, index, audio, language}`: 16 kHz mu-law WAV in base64, about 2.6 MB each, so every request stays small and CPU-light. A job allows twice the pieces its length needs, for retries, and closes after six hours. Another account's job is a 404.
-- **Nothing heard, nothing spent:** if no piece could be heard, the page calls `POST /video/refund {job}` and the use is given back (once).
+- **Nothing heard, nothing spent:** if no piece could be heard, the page calls `POST /video/refund {job}` and the use is given back (once). A refund is refused while any piece is still with Whisper, so it can never come with a transcript.
 - **The sound and the words are never stored.** `video_jobs` keeps only counts, and is cleared a day after each job ends.
 - **Cost:** Workers AI, about $0.0005 an audio minute; the free 10,000 neurons a day cover roughly 3.5 hours.
 - **Switching on**, once, in the D1 console:
