@@ -26,8 +26,8 @@ The browser never sees GRIOT's address or key, never chooses its own tenant, and
 
 | Plan | Price | Fair use in 30 days (shown only in plan details) |
 |---|---|---|
-| Starter | UGX 60,000 | 120 GRIOT questions, 20 rehearsals; keeps 10 documents for GRIOT |
-| Pro | UGX 150,000 | 300 GRIOT questions, 60 rehearsals, 1 Studio pack, 15% off other packs; keeps 50 documents |
+| Starter | UGX 60,000 | 120 GRIOT questions, 20 rehearsals, 10 video edits; keeps 10 documents for GRIOT |
+| Pro | UGX 150,000 | 300 GRIOT questions, 60 rehearsals, 40 video edits, 1 Studio pack, 15% off other packs; keeps 50 documents |
 
 A free account keeps 1 document. Documents are a number held, not a monthly allowance: deleting one frees its place.
 
@@ -279,6 +279,24 @@ The Worker also supports sign-in by a 6-digit emailed code. It stays off (`email
 - **The audio is never stored**, nor the transcript: the browser sends it, Whisper reads it, and it is gone. D1 keeps the scores and the coaching (`rehearsals`) so customers see their progress; "Delete my rehearsals" removes them.
 - **CPU:** the browser sends the recording already in base64 (Opus at 32 kbps: three minutes is about 1 MB), so the Worker only parses it, about 1 ms on the free plan's 10 ms allowance.
 - **The `rehearsals` table** is in `schema.sql`; on an existing database run its `CREATE TABLE IF NOT EXISTS rehearsals …` block once in the D1 console. The same goes for `subscriptions`, plus `ALTER TABLE payments ADD COLUMN purpose TEXT NOT NULL DEFAULT 'topup';`.
+
+## The AI Video Editor
+
+`video.html` edits a raw video **on the customer's own computer**: cutting pauses and "um"s, choosing clips with a free in-browser AI, captions, titles, graphics, the brand kit and the MP4 export never touch the Worker. The Worker does one thing for it: turns the sound into words, with the Rehearsal Room's Whisper and its filler-keeping prompt.
+
+- **One edit is one use**, like a rehearsal: a free try, then the plan's video edits (`PLANS[*].video`: Starter 10, Pro 40). `POST /video/start {seconds}` reserves it (videos up to two hours) and returns a job.
+- **The sound arrives in two-minute pieces**, `POST /video/transcribe {job, index, audio, language}`: 16 kHz mu-law WAV in base64, about 2.6 MB each, so every request stays small and CPU-light. A job allows twice the pieces its length needs, for retries, and closes after six hours. Another account's job is a 404.
+- **Nothing heard, nothing spent:** if no piece could be heard, the page calls `POST /video/refund {job}` and the use is given back (once).
+- **The sound and the words are never stored.** `video_jobs` keeps only counts, and is cleared a day after each job ends.
+- **Cost:** Workers AI, about $0.0005 an audio minute; the free 10,000 neurons a day cover roughly 3.5 hours.
+- **Switching on**, once, in the D1 console:
+
+  ```sql
+  ALTER TABLE subscriptions ADD COLUMN video_limit INTEGER NOT NULL DEFAULT 10;
+  ALTER TABLE subscriptions ADD COLUMN video_used INTEGER NOT NULL DEFAULT 0 CHECK (video_used >= 0);
+  ```
+
+  then the `CREATE TABLE IF NOT EXISTS video_jobs …` block from `schema.sql`. Until then `/video/start` fails without spending anything, and the editor still works for members on its in-browser speech model.
 
 ## YouTube research
 

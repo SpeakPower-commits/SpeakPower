@@ -1626,7 +1626,7 @@ await test("prices: Studio packs cost exactly what studio.html shows; GRIOT and 
   // Every catalog card is either a priced pack, a plan service, or the free
   // audit — no card can sell something the Worker would refuse.
   const cards = [...STUDIO_HTML.matchAll(/id="product-([a-z-]+)"/g)].map((m) => m[1]).sort().join(",");
-  eq(cards, Object.keys(PRICES).concat(["clarity-audit", "griot", "rehearsal"]).sort().join(","), "catalog cards");
+  eq(cards, Object.keys(PRICES).concat(["clarity-audit", "griot", "rehearsal", "video"]).sort().join(","), "catalog cards");
 });
 
 await test("plans: plans.html, studio.html and the Worker agree on every plan price", async () => {
@@ -3740,6 +3740,115 @@ await test("admin: Gmail's dots and +tags match, and a list with no real address
       eq((await call("GET", "/me", { token: s.token })).data.account.admin, false, JSON.stringify(junk) + " opens nothing");
     }
   } finally { delete env.ADMIN_EMAILS; }
+});
+
+/* ------------------------------------------------- AI Video Editor */
+
+function videoStart(token, seconds = 300) {
+  return call("POST", "/video/start", { token, body: { seconds } });
+}
+function videoChunk(token, job, index = 0, over = {}) {
+  return call("POST", "/video/transcribe", { token, body: Object.assign({ job, index, audio: AUDIO, language: "english" }, over) });
+}
+function videoJobRow(id) { return db.db.prepare("SELECT * FROM video_jobs WHERE id = ?").get(id); }
+
+await test("video: one edit is one use; its pieces are heard with the filler-keeping prompt, and nothing is stored", async () => {
+  const s = await signUp("v-basic@example.com");
+  const start = await videoStart(s.token, 300);
+  eq(start.status, 200); eq(start.data.paidWith, "trial"); eq(start.data.chunkSeconds, 120);
+  eq(userRow("v-basic@example.com").trials_remaining, 2, "one free try for the whole edit");
+  whisperCalls.length = 0;
+  for (let i = 0; i < 3; i++) {
+    const r = await videoChunk(s.token, start.data.job, i);
+    eq(r.status, 200, "piece " + i);
+    eq(r.data.words.length, 150); eq(r.data.words[10].text, "um", "the um is kept for the editor to cut");
+    eq(r.data.lines.length, 0, "word timings, so no stand-in lines");
+  }
+  eq(userRow("v-basic@example.com").trials_remaining, 2, "pieces never spend more");
+  eq(whisperCalls.length, 3); ok(/Umm/.test(whisperCalls[0].input.initial_prompt)); eq(whisperCalls[0].input.language, "en");
+  const job = videoJobRow(start.data.job);
+  eq(job.chunks_heard, 3); ok(!JSON.stringify(job).includes(AUDIO.slice(0, 40)), "no sound in D1");
+});
+
+await test("video: without word timings the lines come back instead", async () => {
+  const s = await signUp("v-lines@example.com");
+  const start = await videoStart(s.token);
+  net.whisper = "nowords";
+  const r = await videoChunk(s.token, start.data.job);
+  net.whisper = "ok";
+  eq(r.status, 200); eq(r.data.words.length, 0); eq(r.data.lines.length, 1);
+  ok(r.data.lines[0].text.startsWith("word word"), "the whole text"); eq(r.data.lines[0].start, 0.5);
+});
+
+await test("video: a member's edit counts against the plan's video edits, and shows as a share of the month", async () => {
+  const s = await signUp("v-plan@example.com");
+  noTrials("v-plan@example.com");
+  givePlan("v-plan@example.com", "starter");
+  const r = await videoStart(s.token);
+  eq(r.status, 200); eq(r.data.paidWith, "plan");
+  eq(periodOf("v-plan@example.com").video_used, 1);
+  const me = await call("GET", "/account", { token: s.token });
+  eq(me.data.account.membership.usage.video, 10, "1 of 10");
+});
+
+await test("video: when the month's edits are used, it offers the plans and spends nothing", async () => {
+  const s = await signUp("v-full@example.com");
+  noTrials("v-full@example.com");
+  givePlan("v-full@example.com", "starter");
+  db.db.prepare("UPDATE subscriptions SET video_used = video_limit WHERE user_id = ?").run(userId("v-full@example.com"));
+  const r = await videoStart(s.token);
+  eq(r.status, 402); eq(r.data.error, "plan_required"); ok(/AI Video Editor/.test(r.data.message), r.data.message);
+  eq(r.data.plans.find((p) => p.key === "pro").video, 40);
+});
+
+await test("video: a job is its owner's only, and cannot run past its length", async () => {
+  const a = await signUp("v-owner@example.com");
+  const b = await signUp("v-other@example.com");
+  const start = await videoStart(a.token, 100); // 1 piece -> 2 * 1 + 2 = 4 tries allowed
+  const theft = await videoChunk(b.token, start.data.job);
+  eq(theft.status, 404, "another account's job is not found");
+  for (let i = 0; i < 4; i++) eq((await videoChunk(a.token, start.data.job, i)).status, 200);
+  const over = await videoChunk(a.token, start.data.job, 4);
+  eq(over.status, 429); eq(over.data.error, "job_used_up");
+  eq((await videoChunk(a.token, "not-a-job")).status, 404);
+});
+
+await test("video: oversized or malformed sound is refused before Whisper", async () => {
+  const s = await signUp("v-bad@example.com");
+  const start = await videoStart(s.token);
+  whisperCalls.length = 0;
+  eq((await videoChunk(s.token, start.data.job, 0, { audio: "!!!!" + AUDIO.slice(4) })).status, 400);
+  eq((await videoChunk(s.token, start.data.job, 0, { audio: "QUJD" })).status, 400);
+  eq(whisperCalls.length, 0);
+  eq((await videoStart(s.token, 3 * 3600)).data.error, "too_long");
+});
+
+await test("video: an edit where nothing could be heard gives its use back, once; a heard edit keeps it", async () => {
+  const s = await signUp("v-refund@example.com");
+  const start = await videoStart(s.token);
+  net.whisper = "fail";
+  const r = await videoChunk(s.token, start.data.job);
+  net.whisper = "ok";
+  eq(r.status, 422); eq(r.data.error, "audio_unreadable");
+  eq(userRow("v-refund@example.com").trials_remaining, 2);
+  eq((await call("POST", "/video/refund", { token: s.token, body: { job: start.data.job } })).data.refunded, true);
+  eq(userRow("v-refund@example.com").trials_remaining, 3, "the free try is back");
+  eq((await call("POST", "/video/refund", { token: s.token, body: { job: start.data.job } })).data.refunded, false, "only once");
+  eq((await videoChunk(s.token, start.data.job)).status, 410, "a refunded job is closed");
+
+  const heard = await videoStart(s.token);
+  await videoChunk(s.token, heard.data.job);
+  eq((await call("POST", "/video/refund", { token: s.token, body: { job: heard.data.job } })).data.refunded, false);
+  eq(userRow("v-refund@example.com").trials_remaining, 2);
+});
+
+await test("video: signed out, or before the profile, nothing is spent", async () => {
+  eq((await videoStart(null)).status, 401);
+  const s = await signUp("v-noprofile@example.com");
+  bare("v-noprofile@example.com");
+  const r = await videoStart(s.token);
+  eq(r.status, 409); eq(r.data.error, "profile_required");
+  eq(userRow("v-noprofile@example.com").trials_remaining, 3);
 });
 
 console.log("\n" + passed + " passed, " + failures.length + " failed\n");

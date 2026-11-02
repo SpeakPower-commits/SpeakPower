@@ -128,15 +128,42 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   ends_at         INTEGER NOT NULL,
   griot_limit     INTEGER NOT NULL,
   rehearsal_limit INTEGER NOT NULL,
+  -- AI Video Editor edits. On an existing database (members bought before
+  -- the editor keep 10 edits a month on their current period):
+  --   ALTER TABLE subscriptions ADD COLUMN video_limit INTEGER NOT NULL DEFAULT 10;
+  --   ALTER TABLE subscriptions ADD COLUMN video_used INTEGER NOT NULL DEFAULT 0 CHECK (video_used >= 0);
+  video_limit     INTEGER NOT NULL DEFAULT 10,
   pack_limit      INTEGER NOT NULL DEFAULT 0,
   pack_discount   INTEGER NOT NULL DEFAULT 0,
   griot_used      INTEGER NOT NULL DEFAULT 0 CHECK (griot_used >= 0),
   rehearsal_used  INTEGER NOT NULL DEFAULT 0 CHECK (rehearsal_used >= 0),
+  video_used      INTEGER NOT NULL DEFAULT 0 CHECK (video_used >= 0),
   packs_used      INTEGER NOT NULL DEFAULT 0 CHECK (packs_used >= 0),
   tx_ref          TEXT NOT NULL UNIQUE,
   created_at      INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions (user_id, ends_at);
+
+-- The AI Video Editor: one row per edit, so its two-minute pieces of sound
+-- are counted against the one use it reserved. The sound and the words are
+-- never stored. Rows are removed a day after they expire. On an existing
+-- database, run this block once in the D1 console.
+CREATE TABLE IF NOT EXISTS video_jobs (
+  id              TEXT PRIMARY KEY,
+  user_id         TEXT NOT NULL,
+  run_id          INTEGER NOT NULL,
+  paid_with       TEXT NOT NULL,
+  amount          INTEGER NOT NULL DEFAULT 0,
+  subscription_id INTEGER,
+  seconds         INTEGER NOT NULL,
+  chunks_allowed  INTEGER NOT NULL,
+  chunks_tried    INTEGER NOT NULL DEFAULT 0,
+  chunks_heard    INTEGER NOT NULL DEFAULT 0,
+  refunded        INTEGER NOT NULL DEFAULT 0,
+  expires_at      INTEGER NOT NULL,
+  created_at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_video_jobs_user ON video_jobs (user_id, created_at);
 
 -- The Rehearsal Room: one row per scored recording. The audio itself is never
 -- stored, nor is the transcript; only what the customer needs to see their

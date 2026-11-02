@@ -89,7 +89,7 @@
       A.renderPlanWall(host, {
         heading: m && m.next ? "Your " + m.next.name + " plan starts " + A.dayMonth(m.next.startsAt) : "Choose a plan",
         message: Number(acct.trialsRemaining) > 0
-          ? "You still have " + A.triesText(acct.trialsRemaining) + ". When they are used, a plan keeps GRIOT and the Rehearsal Room going."
+          ? "You still have " + A.triesText(acct.trialsRemaining) + ". When they are used, a plan keeps GRIOT, the Rehearsal Room and the AI Video Editor going."
           : "Your free tries are used.",
         account: acct,
         returnTo: "account.html",
@@ -109,7 +109,7 @@
     head.appendChild(title);
     head.appendChild(when);
     host.appendChild(head);
-    [["griot", "GRIOT"], ["rehearsal", "Rehearsal Room"]].forEach(function (pair) {
+    [["griot", "GRIOT"], ["rehearsal", "Rehearsal Room"], ["video", "AI Video Editor"]].forEach(function (pair) {
       var box = document.createElement("div");
       box.className = "usage";
       var name = document.createElement("p");
@@ -201,7 +201,7 @@
     });
     var m = data.account && data.account.membership;
     if (m && m.packDiscount) {
-      $("acPriceNote").textContent = "GRIOT and the Rehearsal Room come with your plan. As a " + m.name +
+      $("acPriceNote").textContent = "GRIOT, the Rehearsal Room and the AI Video Editor come with your plan. As a " + m.name +
         " member you pay " + (100 - m.packDiscount) + "% of these prices.";
     }
 

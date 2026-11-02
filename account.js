@@ -30,7 +30,8 @@
     "data-story": "Data Story Builder",
     "speaker-ready": "Speaker Ready Pack",
     "griot": "GRIOT",
-    "rehearsal": "Rehearsal Room"
+    "rehearsal": "Rehearsal Room",
+    "video": "AI Video Editor"
   };
 
   function el(tag, className, text) {
@@ -398,7 +399,7 @@
     });
   }
 
-  // The wall GRIOT and the Rehearsal Room show: the plans, never a price per
+  // The wall GRIOT, the Rehearsal Room and the AI Video Editor show: the plans, never a price per
   // use. Choosing one opens checkout and comes straight back to this page.
   function renderPlanWall(host, info) {
     info = info || {};
@@ -410,7 +411,7 @@
     host.appendChild(el("h2", null, info.heading || (m && m.plan ? "Your month's allowance is used" : "Keep going with a plan")));
     var lead = info.message || (m && m.plan ? "It renews on " + dayMonth(m.endsAt) + "." : "Your free tries are used.");
     host.appendChild(el("p", null, lead +
-      " Every plan runs 30 days and includes GRIOT and the Rehearsal Room. Pay by mobile money or card; renewing is one tap."));
+      " Every plan runs 30 days and includes GRIOT, the Rehearsal Room and the AI Video Editor. Pay by mobile money or card; renewing is one tap."));
 
     var error = el("p", "builder-error");
     error.setAttribute("role", "alert");
