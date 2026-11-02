@@ -357,6 +357,7 @@
   var SERVICE_PAGES = {
     "griot-app.html": "griot",
     "rehearse.html": "rehearsal",
+    "video.html": "video",
     "audit.html": "clarity_audit",
     "plans.html": "plans"
   };

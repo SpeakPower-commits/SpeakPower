@@ -5074,8 +5074,8 @@ async function deleteRehearsals(request, env) {
    two-minute pieces, each its own small request (16 kHz mu-law WAV, about
    2.6 MB of base64), so no request needs more than a few milliseconds of
    CPU. A job allows twice the pieces its length needs, for retries, and
-   ends after six hours. If no piece could be heard, /video/refund gives the
-   use back. The sound is never stored.
+   ends after six hours. If no piece could be heard, and none is still being
+   heard, /video/refund gives the use back. The sound is never stored.
    ------------------------------------------------------------------------ */
 
 const VIDEO_MAX_SECONDS = 2 * 3600;
@@ -5146,7 +5146,8 @@ async function videoTranscribe(request, env) {
   }
   // Count the try before Whisper runs, so a job can never be stretched past its length.
   const counted = await env.DB.prepare(
-    "UPDATE video_jobs SET chunks_tried = chunks_tried + 1 WHERE id = ? AND chunks_tried < chunks_allowed RETURNING id"
+    "UPDATE video_jobs SET chunks_tried = chunks_tried + 1 WHERE id = ? AND refunded = 0 AND chunks_tried < chunks_allowed " +
+    "RETURNING id"
   ).bind(job.id).first();
   if (!counted) throw new HttpError(429, "job_used_up", "This edit has used all its pieces. Start it again.");
 
@@ -5158,6 +5159,8 @@ async function videoTranscribe(request, env) {
     heard = await env.AI.run(WHISPER_MODEL, input);
   } catch (err) {
     console.error("Whisper failed (video)", err && err.message);
+    // Settled as failed, so a refund can tell it from a piece still being heard.
+    await env.DB.prepare("UPDATE video_jobs SET chunks_failed = chunks_failed + 1 WHERE id = ?").bind(job.id).run();
     throw new HttpError(422, "audio_unreadable", "This piece of sound could not be heard.");
   }
   await env.DB.prepare("UPDATE video_jobs SET chunks_heard = chunks_heard + 1 WHERE id = ?").bind(job.id).run();
@@ -5191,8 +5194,11 @@ async function videoRefund(request, env) {
   const body = await readJson(request, 4096);
   const job = await videoJob(env, user, body.job);
   if (job.chunks_heard > 0 || job.refunded) return json(request, env, { refunded: false });
+  // Only when every piece tried has failed: a piece still with Whisper could
+  // yet be heard, and a refund then would give a transcript for free.
   const marked = await env.DB.prepare(
-    "UPDATE video_jobs SET refunded = 1 WHERE id = ? AND refunded = 0 AND chunks_heard = 0 RETURNING id"
+    "UPDATE video_jobs SET refunded = 1 WHERE id = ? AND refunded = 0 AND chunks_heard = 0 " +
+    "AND chunks_tried = chunks_failed RETURNING id"
   ).bind(job.id).first();
   if (!marked) return json(request, env, { refunded: false });
   await refundRun(env, user, {
@@ -5361,7 +5367,7 @@ function siteUrl(env) {
 // named from a fixed shape, so the return URL can never be pointed elsewhere.
 function safeReturnPath(value) {
   const v = str(value, 80);
-  return /^(account|griot-app|plans|rehearse|studio-product)\.html(\?product=[a-z-]{2,40})?$/.test(v) ? v : "account.html";
+  return /^(account|griot-app|plans|rehearse|video|studio-product)\.html(\?product=[a-z-]{2,40})?$/.test(v) ? v : "account.html";
 }
 
 async function walletCheckout(request, env) {

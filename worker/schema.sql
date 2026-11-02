@@ -159,6 +159,7 @@ CREATE TABLE IF NOT EXISTS video_jobs (
   chunks_allowed  INTEGER NOT NULL,
   chunks_tried    INTEGER NOT NULL DEFAULT 0,
   chunks_heard    INTEGER NOT NULL DEFAULT 0,
+  chunks_failed   INTEGER NOT NULL DEFAULT 0,
   refunded        INTEGER NOT NULL DEFAULT 0,
   expires_at      INTEGER NOT NULL,
   created_at      INTEGER NOT NULL
