@@ -25,7 +25,7 @@ It pairs a human practice (communication strategy, public speaking, brand narrat
 | Product | What it does | Price | Status |
 |---|---|---|---|
 | **Rehearsal Room** | Speak for up to three minutes; get pace, fillers, pauses, a Speak Score and a stronger opening line | In every plan | Live |
-| **AI Video Editor** | Upload a raw podcast or interview and say what you want: pauses and "um"s cut, the best moments as captioned 9:16 clips with titles, pop-up key words and your brand kit, plus the post text. Edited in the browser; only the sound goes to the Worker's Whisper | In every plan | New |
+| **AI Video Editor** | Upload a raw podcast or interview and say what you want: pauses and "um"s cut, the best moments as captioned 9:16 clips with titles, pop-up key words and your brand kit, plus the post text. Edited in the browser; only the sound goes to the Worker's Whisper. Every step and finished video is saved in the browser (`video/edits.js`), so leaving, reloading or closing the tab pauses an edit and "Your edits" resumes it without a second transcription | In every plan | New |
 | **GRIOT** | A strategy advisor that remembers your goals and labels fact from inference; choose its lenses, ask it to **Challenge**, **Diagnose** or **Plan**, add documents with **+**, download any answer or conversation as Word or PDF, and browse your conversations, memory and decisions | In every plan | Live |
 | **Studio packs** | Brand Story, Website SEO Audit, Market Plan, SEO Content Starter, Data Story, Speaker Ready Pack | UGX 75,000 to 150,000 each | Live |
 | **Coaching with Otieno** | Human-led preparation for the rooms that cannot go wrong | On enquiry | Live |
@@ -106,6 +106,7 @@ sequenceDiagram
 ├── styles.css · home.css · commercial.css · *.css                       design system and page styles
 ├── script.js · site-config.js                                           shared behaviour; public settings
 ├── analytics.js                                                         Google Analytics, only after the visitor accepts cookies
+├── activity.js                                                          keeps work: header activity chip, drafts kept while typing, links open in a new tab while work runs
 ├── sitemap.xml · robots.txt · llms.txt                                   for search engines and AI assistants
 ├── assets/                                                              photos, logos, README illustrations
 │   └── brand/griot/                                                     GRIOT marks (SVG for the site; PNG and PDF for Canva)

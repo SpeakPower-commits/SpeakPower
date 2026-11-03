@@ -7,6 +7,12 @@
  *   -> choose the best moments -> write titles and post text
  *   -> build each edit with its graphics -> render each to MP4
  *
+ * Every step is saved in this browser as it finishes (edits.js), and every
+ * finished video the moment it is done. Leaving the page, reloading or
+ * closing the tab pauses the edit; it never loses it. "Your edits" lists them:
+ * Resume skips the finished steps -- no second transcription, no second use
+ * of the plan -- and Open shows the videos again.
+ *
  * Each result can be downloaded, or opened in the editor ("Fine-tune") to
  * change anything by hand.
  */
@@ -15,6 +21,10 @@ import { loadProject } from './app.js';
 import { extractSpeechAudio, transcribeSamples } from './speech.js';
 import { memberSession, refundJob, startJob, transcribeRemote } from './remote.js';
 import { exportVideo } from './exporter.js';
+import {
+  cleanupEdits, deleteEdit, editSize, holdEdit, isRunningElsewhere, keepSource, listEdits, loadEdit,
+  loadResultFile, matchesSource, newEditId, persist, reopenSource, saveEdit, saveResultFile, space,
+} from './edits.js';
 import { loadAssets } from './renderer.js';
 import { formatTime, sourceToOutput } from './project.js';
 import { probeMedia } from './media.js';
@@ -38,6 +48,10 @@ const ui = {
   callouts: $('#opt-callouts'),
   logo: $('#opt-logo'),
   language: $('#opt-language'),
+  quality: $('#opt-quality'),
+  saved: $('#auto-saved'),
+  savedList: $('#auto-saved-list'),
+  savedSpace: $('#auto-saved-space'),
   go: $('#auto-go'),
   progress: $('#auto-progress'),
   stages: $('#auto-stages'),
@@ -67,12 +81,17 @@ const PAGE = 'video.html';
 
 const state = {
   file: null,
+  handle: null,      // a pointer to the video on the PC, where the browser gives one
   meta: null,
   kit: [],
   running: null,     // AbortController while an edit runs
+  record: null,      // the saved edit being run or shown (edits.js)
   urls: [],          // result object URLs, released before the next edit
   results: [],
 };
+
+const Work = () => window.SPWork; // activity.js: the header chip and leave-safety
+const workId = (record) => `video:${record.id}`;
 
 const PAGE_TITLE = document.title;
 
@@ -94,13 +113,14 @@ function showStatus(message, kind = 'info') {
 
 // --- Choosing the video --------------------------------------------------------------
 
-async function chooseFile(file) {
+async function chooseFile(file, handle = null) {
   if (!file || state.running) return;
   showStatus('');
   try {
     const media = await probeMedia(file);
     if (media.kind !== 'video') throw new Error(`"${file.name}" has no picture. Choose a video file.`);
     state.file = file;
+    state.handle = handle;
     state.meta = { duration: media.duration, width: media.width, height: media.height };
     URL.revokeObjectURL(media.url);
     ui.fileName.textContent = file.name;
@@ -113,10 +133,31 @@ async function chooseFile(file) {
 }
 
 ui.file.addEventListener('change', () => chooseFile(ui.file.files[0]));
+
+// Chrome and Edge: choose through the file picker, which also gives a pointer
+// to the file, so a paused edit can reopen it without asking for it again.
+ui.drop.addEventListener('click', async (event) => {
+  if (typeof window.showOpenFilePicker !== 'function' || state.running) return;
+  event.preventDefault();
+  try {
+    const [handle] = await window.showOpenFilePicker({
+      id: 'speakpower-video',
+      types: [{ description: 'Video', accept: { 'video/*': ['.mp4', '.mov', '.m4v', '.webm', '.mkv'] } }],
+    });
+    chooseFile(await handle.getFile(), handle);
+  } catch (error) {
+    if (error.name !== 'AbortError') ui.file.click(); // the picker isn't allowed here: use the plain one
+  }
+});
+
 document.addEventListener('drop', (event) => {
   if (document.body.dataset.view !== 'auto') return;
-  const file = [...(event.dataTransfer?.files || [])].find((item) => item.type.startsWith('video/')) || event.dataTransfer?.files?.[0];
-  chooseFile(file);
+  const items = [...(event.dataTransfer?.items || [])].filter((item) => item.kind === 'file');
+  const files = [...(event.dataTransfer?.files || [])];
+  const index = Math.max(0, files.findIndex((item) => item.type.startsWith('video/')));
+  // The handle must be asked for now, while the drop is still being handled.
+  const handlePromise = items[index]?.getAsFileSystemHandle?.() || Promise.resolve(null);
+  handlePromise.catch(() => null).then((handle) => chooseFile(files[index], handle?.kind === 'file' ? handle : null));
 });
 
 document.querySelectorAll('.chip').forEach((chip) => {
@@ -202,6 +243,14 @@ function setProgress(fraction, detail = '') {
   ui.fill.style.width = `${percent}%`;
   ui.progressText.textContent = detail ? `${detail} — ${percent}% overall` : `${percent}% overall`;
   document.title = `${percent}% · Editing — SpeakPower Studio`;
+  if (state.record) {
+    state.record.percent = percent;
+    state.record.stage = STAGES[currentStage].id;
+    Work()?.set(workId(state.record), {
+      label: 'Video edit', href: `${PAGE}#edit=${state.record.id}`, status: 'running', percent,
+      detail: STAGES[currentStage].label.split(' — ')[0],
+    });
+  }
 }
 
 function notifyDone(message) {
@@ -223,11 +272,14 @@ function clearResults() {
   ui.results.hidden = true;
 }
 
+const sourceName = () => state.record?.name || state.file?.name || 'video';
 const safeName = (name) => name.replace(/\.[^.]+$/, '').replace(/[^\w-]+/g, '-').slice(0, 50) || 'video';
 
 function addOutputCard(result) {
   const url = URL.createObjectURL(result.blob);
   state.urls.push(url);
+  state.results.push(result);
+  const format = result.format || result.project.format;
   const card = document.createElement('article');
   card.className = 'output';
   const video = document.createElement('video');
@@ -235,12 +287,12 @@ function addOutputCard(result) {
   video.controls = true;
   video.playsInline = true;
   video.preload = 'metadata';
-  video.className = `output-video format-${result.project.format.replace(':', 'x')}`;
+  video.className = `output-video format-${format.replace(':', 'x')}`;
   const title = document.createElement('h3');
   title.textContent = result.label;
   const info = document.createElement('p');
   info.className = 'hint';
-  info.textContent = `${formatTime(result.duration, false)} · ${result.project.format} · ${(result.blob.size / 1e6).toFixed(1)} MB` +
+  info.textContent = `${formatTime(result.duration, false)} · ${format} · ${(result.blob.size / 1e6).toFixed(1)} MB` +
     (result.note ? ` · ${result.note}` : '');
   const actions = document.createElement('div');
   actions.className = 'output-actions';
@@ -253,10 +305,7 @@ function addOutputCard(result) {
   tune.type = 'button';
   tune.className = 'button button-small';
   tune.textContent = 'Fine-tune';
-  tune.addEventListener('click', () => {
-    showView('finetune');
-    loadProject(result.project);
-  });
+  tune.addEventListener('click', () => fineTune(result, tune));
   actions.append(download, tune);
   card.append(video, title, info, actions);
   ui.outputs.append(card);
@@ -294,7 +343,7 @@ function showPost(post) {
   const download = document.createElement('a');
   download.className = 'button button-small';
   download.href = url;
-  download.download = `${safeName(state.file.name)}-post.txt`;
+  download.download = `${safeName(sourceName())}-post.txt`;
   download.textContent = 'Download as .txt';
   const griot = document.createElement('button');
   griot.type = 'button';
@@ -332,47 +381,96 @@ function readSettings() {
  * the website's Whisper; if the website can't be reached it is heard here, in
  * the browser, instead. Returns null when the member must act first (sign in,
  * finish the profile, or choose a plan): nothing has been spent then.
+ *
+ * The website's job and every piece it has heard are saved on the record, so
+ * a resumed edit sends only the pieces still missing, on the same use.
  */
-async function listen(samples, signal, notes) {
+async function listen(samples, signal, notes, record, retried = false) {
   const progress = (stage) => (fraction) => setProgress(0.1 + 0.9 * fraction, stage);
-  let job = null;
-  try {
-    job = await startJob(state.meta.duration);
-  } catch (error) {
-    if (error.status === 401) { showGate(); return null; }
-    if (A().handleProfileRequired(error, PAGE)) return null;
-    if (error.status === 402) { showPlanWall(error.data); return null; }
-    if (error.status === 400) throw error; // e.g. longer than two hours
-    notes.push("The website's speech service couldn't be reached, so this browser listened instead (less accurate on names).");
+  let job = record.listenJob;
+  // The website keeps a job for six hours; an older one must start again.
+  if (job && Date.now() - (job.startedAt || 0) > 5.5 * 3600e3) job = null;
+  if (!job) {
+    try {
+      const started = await startJob(record.meta.duration);
+      job = { job: started.job, chunkSeconds: started.chunkSeconds, startedAt: Date.now(), pieces: {} };
+      record.listenJob = job;
+      await saveEdit(record);
+    } catch (error) {
+      if (error.status === 401) { showGate(); return null; }
+      if (A().handleProfileRequired(error, PAGE)) return null;
+      if (error.status === 402) { showPlanWall(error.data); return null; }
+      if (error.status === 400) throw error; // e.g. longer than two hours
+      notes.push("The website's speech service couldn't be reached, so this browser listened instead (less accurate on names).");
+    }
   }
   if (job) {
     A().refresh().then(renderAccount, () => {});
-    let heard = 0;
+    let heard = Object.values(job.pieces || {}).filter((piece) => !piece.silent).length;
+    let closed = false;
     try {
       const result = await transcribeRemote(samples, {
         job: job.job,
         chunkSeconds: job.chunkSeconds,
-        language: ui.language.value,
+        language: record.language,
         signal,
+        done: job.pieces,
+        onPiece: (index, piece) => { job.pieces[index] = piece; saveEdit(record); },
         onProgress: progress('Listening'),
       });
       heard = result.heard;
       if (result.segments.length) return result;
     } catch (error) {
       if (signal.aborted) throw error;
+      if (typeof error.heard === 'number') heard = error.heard;
+      // A resumed job the website has closed: start a fresh one, once.
+      closed = [404, 410].includes(error.status) || error.data?.error === 'job_used_up';
+      if (closed && !retried && Object.keys(job.pieces || {}).length) {
+        record.listenJob = null;
+        return listen(samples, signal, notes, record, true);
+      }
       notes.push("The website's speech service stopped part-way, so this browser finished listening.");
     } finally {
-      if (!heard) refundJob(job.job).then(() => A().refresh().then(renderAccount, () => {}));
+      if (!heard && !closed) refundJob(job.job).then(() => A().refresh().then(renderAccount, () => {}));
     }
   }
   return transcribeSamples(samples, {
     model: 'accurate',
-    language: ui.language.value,
+    language: record.language,
     signal,
     onProgress: (stage, fraction) => setProgress(0.1 + 0.9 * fraction, stage),
   });
 }
 
+/** The videos to render, clips first (they are quickest), then the full episode. */
+function buildJobs(record, file, kit) {
+  const { segments } = record.heard;
+  const words = segments.flatMap((segment) => segment.words);
+  const { settings, plan } = record;
+  const shared = { file, meta: record.meta, segments, words, cuts: record.cleaned.cuts, settings, kit };
+  const base = safeName(record.name);
+  const jobs = plan.clipPlans.map((clip, index) => ({
+    id: `clip-${index + 1}`,
+    project: edit.buildClip({ ...shared, window: clip.window, hook: clip.hook, phrases: clip.phrases }).project,
+    label: `Clip ${index + 1}: ${clip.hook}`,
+    fileName: `${base}-clip-${index + 1}.mp4`,
+  }));
+  let episodeProject = null;
+  if (settings.episode) {
+    episodeProject = edit.buildEpisode({ ...shared, title: plan.post.title, chapters: plan.chapters }).project;
+    const removed = record.cleaned.removed;
+    jobs.push({
+      id: 'episode',
+      project: episodeProject,
+      label: 'Full episode — cleaned',
+      fileName: `${base}-episode.mp4`,
+      note: removed > 1 ? `${formatTime(removed, false)} of pauses and "um"s removed` : '',
+    });
+  }
+  return { jobs, episodeProject };
+}
+
+/** Start a new edit of the chosen video. */
 async function run() {
   const { file, meta } = state;
   if (!file || state.running) return;
@@ -384,10 +482,53 @@ async function run() {
     return;
   }
   if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {});
+  // Busy from this moment: a second click must not start a second edit while this one is being saved.
+  state.running = new AbortController();
+  ui.go.disabled = true;
 
+  const record = {
+    id: newEditId(),
+    createdAt: Date.now(),
+    status: 'running',
+    stage: 'listen',
+    percent: 0,
+    instruction,
+    settings,
+    language: ui.language.value,
+    fast: ui.quality?.value === 'fast',
+    meta,
+    results: [],
+    notes: [],
+  };
+  // Remembering the video (a pointer, or a copy) runs alongside the edit.
+  const keeping = keepSource(record, file, state.handle);
+  await saveEdit(record);
+  persist();
+  await execute(record, file, keeping);
+}
+
+/** Run (or carry on with) an edit in this tab, unless another tab already is. */
+async function execute(record, file, keeping = null) {
+  const outcome = await holdEdit(record.id, () => work(record, file, keeping));
+  if (outcome?.busy) {
+    state.running = null;
+    ui.go.disabled = !state.file;
+    showStatus('This edit is already running in another tab. Its progress shows in "Your edits" and in the header.', 'info');
+  }
+  renderSaved();
+}
+
+async function work(record, file, keeping) {
   const controller = new AbortController();
   const { signal } = controller;
+  const release = Work()?.guard() || (() => {});
   state.running = controller;
+  state.record = record;
+  state.file = file;
+  state.meta = record.meta;
+  record.status = 'running';
+  record.error = '';
+  record.notes = record.notes || [];
   clearResults();
   showStatus('');
   renderStages();
@@ -395,148 +536,380 @@ async function run() {
   ui.go.disabled = true;
   ui.go.textContent = 'Editing…';
   const brain = new Brain();
-  const notes = [];
+  const notes = record.notes;
+  const settings = record.settings;
+  const instruction = record.instruction;
+  renderSaved();
+
+  // Videos already finished (a resumed edit) are shown straight away.
+  for (const result of record.results) {
+    const blob = await loadResultFile(record.id, result.id);
+    if (blob) addOutputCard({ ...result, blob });
+  }
 
   try {
-    // 1. Listen: the website's Whisper for members; the browser's if it can't be reached.
-    setStage('listen', 'Reading the sound');
-    let samples = await extractSpeechAudio(file, { signal, onProgress: (fraction) => setProgress(0.1 * fraction, 'Reading the sound') });
-    const heard = await listen(samples, signal, notes);
-    if (!heard) return; // the plan wall, sign-in or profile step is showing
-    const { segments, wordLevel } = heard;
-    if (!segments.length) throw new Error('No speech was found in this video, so there is nothing to edit by.');
-    const words = segments.flatMap((segment) => segment.words);
-    // For GRIOT: the words as the clean edit says them, one line per sentence.
-    state.transcript = segments.map((segment) => edit.cleanText(segment.text)).filter(Boolean).join('\n');
+    // 1. Listen, then 2. clean: saved together, as the sound itself is not kept.
+    if (!record.heard) {
+      setStage('listen', 'Reading the sound');
+      let samples = await extractSpeechAudio(file, { signal, onProgress: (fraction) => setProgress(0.1 * fraction, 'Reading the sound') });
+      const heard = await listen(samples, signal, notes, record);
+      if (!heard) {
+        // The plan wall, sign-in or profile step is showing. Nothing was spent on a new edit.
+        if (record.listenJob) { record.status = 'paused'; await saveEdit(record); }
+        else { await deleteEdit(record.id); Work()?.remove(workId(record)); }
+        return;
+      }
+      const { segments, wordLevel } = heard;
+      if (!segments.length) throw new Error('No speech was found in this video, so there is nothing to edit by.');
+      setStage('clean');
+      const words = segments.flatMap((segment) => segment.words);
+      const levels = edit.frameLevels(samples);
+      samples = null; // let the sound go: it can be hundreds of MB
+      const cuts = edit.cleanupCuts({ levels, words, wordLevel }, settings);
+      record.heard = { segments, wordLevel };
+      record.cleaned = { cuts, removed: cuts.reduce((total, cut) => total + (cut.end - cut.start), 0) };
+      // For GRIOT: the words as the clean edit says them, one line per sentence.
+      record.transcript = segments.map((segment) => edit.cleanText(segment.text)).filter(Boolean).join('\n');
+      record.listenJob = null;
+      await saveEdit(record);
+    }
+    state.transcript = record.transcript;
+    const units = record.heard.segments;
+    const words = units.flatMap((segment) => segment.words);
 
-    // 2. Clean.
-    setStage('clean');
-    const levels = edit.frameLevels(samples);
-    samples = null; // let the sound go: it can be hundreds of MB
-    const cuts = edit.cleanupCuts({ levels, words, wordLevel }, settings);
-    const removed = cuts.reduce((total, cut) => total + (cut.end - cut.start), 0);
+    // 3-5. The free AI chooses the moments and writes the words.
+    if (!record.plan) {
+      setStage('brain', 'Downloading the AI (first time only)');
+      const smart = await brain.load((fraction) => setProgress(fraction, 'Downloading the AI (first time only)'), signal);
+      signal.throwIfAborted();
+      if (!smart) notes.push(`The free AI couldn't load (${brain.error}), so the simpler built-in method chose the moments and wrote the titles.`);
 
-    // 3. The free AI.
-    setStage('brain', 'Downloading the AI (first time only)');
-    const smart = await brain.load((fraction) => setProgress(fraction, 'Downloading the AI (first time only)'), signal);
-    signal.throwIfAborted();
-    if (!smart) notes.push(`The free AI couldn't load (${brain.error}), so the simpler built-in method chose the moments and wrote the titles.`);
+      const blocks = edit.blocksFrom(units, 45);
+      const topicWords = edit.keywords(settings.topic);
 
-    const units = segments;
-    const blocks = edit.blocksFrom(units, 45);
-    const topicWords = edit.keywords(settings.topic);
+      setStage('choose');
+      let picks = [];
+      if (settings.clips) {
+        const windows = edit.candidateWindows(units, { min: settings.clipMin, max: settings.clipMax });
+        const blockScores = [];
+        if (smart) {
+          for (let index = 0; index < blocks.length; index += 1) {
+            signal.throwIfAborted();
+            setProgress(index / blocks.length, `Watching part ${index + 1} of ${blocks.length}`);
+            blockScores.push(await brain.score(blocks[index].text, instruction));
+          }
+        }
+        picks = edit.pickClips(edit.scoreWindows(units, windows, { blocks, blockScores, topicWords }), settings.clipCount);
+      }
 
-    // 4. Choose clips.
-    setStage('choose');
-    let picks = [];
-    if (settings.clips) {
-      const windows = edit.candidateWindows(units, { min: settings.clipMin, max: settings.clipMax });
-      const blockScores = [];
-      if (smart) {
-        for (let index = 0; index < blocks.length; index += 1) {
+      setStage('write');
+      const clipPlans = [];
+      for (let index = 0; index < picks.length; index += 1) {
+        signal.throwIfAborted();
+        setProgress(index / (picks.length + 2), `Titles for clip ${index + 1}`);
+        const window = picks[index];
+        const text = units.slice(window.first, window.last + 1).map((unit) => unit.text).join(' ');
+        const idea = smart ? await brain.hook(text, instruction) : null;
+        let phrases = (idea?.phrases || [])
+          .map((phrase) => ({ text: phrase, time: edit.locatePhrase(words, phrase, window.start, window.end) }))
+          .filter((phrase) => phrase.time !== null);
+        if (phrases.length < 2) phrases = [...phrases, ...edit.fallbackPhrases(words, window.start, window.end, topicWords, 4 - phrases.length)];
+        clipPlans.push({ window, hook: idea?.title || edit.fallbackTitle(text), phrases });
+      }
+
+      let chapters = [];
+      if ((settings.episode || settings.postText) && record.meta.duration > 360) {
+        chapters = edit.chaptersFrom(blocks, 180);
+        for (const chapter of chapters) {
           signal.throwIfAborted();
-          setProgress(index / blocks.length, `Watching part ${index + 1} of ${blocks.length}`);
-          blockScores.push(await brain.score(blocks[index].text, instruction));
+          chapter.title = (smart ? await brain.chapter(chapter.text) : null) || edit.fallbackChapterTitle(chapter.text);
         }
       }
-      picks = edit.pickClips(edit.scoreWindows(units, windows, { blocks, blockScores, topicWords }), settings.clipCount);
+      setProgress(0.8, 'Post text');
+      const gist = blocks.map((block) => block.text.split(/(?<=[.!?])\s+/).slice(0, 2).join(' ')).join(' ');
+      const fallbackPost = edit.fallbackPost(units, chapters, topicWords);
+      const aiPost = smart && (settings.postText || settings.episode) ? await brain.post(gist, instruction) : null;
+      const post = {
+        title: aiPost?.title || fallbackPost.title,
+        description: aiPost?.description || fallbackPost.description,
+        hashtags: aiPost?.hashtags?.length ? aiPost.hashtags : fallbackPost.hashtags,
+      };
+      brain.dispose(); // free the AI's memory before rendering
+      record.plan = { clipPlans, chapters, post, smart: Boolean(smart), device: smart ? brain.device : '' };
+      await saveEdit(record);
     }
 
-    // 5. Write.
-    setStage('write');
-    const clipPlans = [];
-    for (let index = 0; index < picks.length; index += 1) {
-      signal.throwIfAborted();
-      setProgress(index / (picks.length + 2), `Titles for clip ${index + 1}`);
-      const window = picks[index];
-      const text = units.slice(window.first, window.last + 1).map((unit) => unit.text).join(' ');
-      const idea = smart ? await brain.hook(text, instruction) : null;
-      let phrases = (idea?.phrases || [])
-        .map((phrase) => ({ text: phrase, time: edit.locatePhrase(words, phrase, window.start, window.end) }))
-        .filter((phrase) => phrase.time !== null);
-      if (phrases.length < 2) phrases = [...phrases, ...edit.fallbackPhrases(words, window.start, window.end, topicWords, 4 - phrases.length)];
-      clipPlans.push({ window, hook: idea?.title || edit.fallbackTitle(text), phrases });
-    }
-
-    let chapters = [];
-    if ((settings.episode || settings.postText) && meta.duration > 360) {
-      chapters = edit.chaptersFrom(blocks, 180);
-      for (const chapter of chapters) {
-        signal.throwIfAborted();
-        chapter.title = (smart ? await brain.chapter(chapter.text) : null) || edit.fallbackChapterTitle(chapter.text);
-      }
-    }
-    setProgress(0.8, 'Post text');
-    const gist = blocks.map((block) => block.text.split(/(?<=[.!?])\s+/).slice(0, 2).join(' ')).join(' ');
-    const fallbackPost = edit.fallbackPost(units, chapters, topicWords);
-    const aiPost = smart && (settings.postText || settings.episode) ? await brain.post(gist, instruction) : null;
-    const post = {
-      title: aiPost?.title || fallbackPost.title,
-      description: aiPost?.description || fallbackPost.description,
-      hashtags: aiPost?.hashtags?.length ? aiPost.hashtags : fallbackPost.hashtags,
-    };
-    brain.dispose(); // free the AI's memory before rendering
-
-    // 6. Build and render.
+    // 6. Build and render; each video is saved the moment it is finished.
     setStage('render');
     const [assets, kit] = await Promise.all([loadAssets(), kitMedia(state.kit)]);
-    notes.push(...kit.problems);
-    const shared = { file, meta, segments, words, cuts, settings, kit };
-    const jobs = [];
-    let episodeProject = null;
-    if (settings.episode) {
-      const built = edit.buildEpisode({ ...shared, title: post.title, chapters });
-      episodeProject = built.project;
-      jobs.push({
-        project: built.project,
-        label: 'Full episode — cleaned',
-        fileName: `${safeName(file.name)}-episode.mp4`,
-        note: removed > 1 ? `${formatTime(removed, false)} of pauses and "um"s removed` : '',
-      });
-    }
-    clipPlans.forEach((plan, index) => {
-      const built = edit.buildClip({ ...shared, window: plan.window, hook: plan.hook, phrases: plan.phrases });
-      jobs.push({ project: built.project, label: `Clip ${index + 1}: ${plan.hook}`, fileName: `${safeName(file.name)}-clip-${index + 1}.mp4` });
-    });
-
+    for (const problem of kit.problems) if (!notes.includes(problem)) notes.push(problem);
+    const { jobs, episodeProject } = buildJobs(record, file, kit);
     for (let index = 0; index < jobs.length; index += 1) {
       const job = jobs[index];
+      if (record.results.some((result) => result.id === job.id)) continue;
       const result = await exportVideo(job.project, assets, {
         signal,
+        fast: record.fast,
         onProgress: (fraction) => setProgress((index + fraction) / jobs.length, `Rendering ${index + 1} of ${jobs.length}`),
       });
-      const done = { ...job, ...result };
-      state.results.push(done);
-      addOutputCard(done);
+      const saved = {
+        id: job.id,
+        label: job.label,
+        fileName: job.fileName,
+        note: job.note || '',
+        duration: result.duration,
+        format: job.project.format,
+        size: result.blob.size,
+        warnings: result.warnings || [],
+      };
+      await saveResultFile(record.id, job.id, result.blob).catch((error) => {
+        notes.push(`This browser couldn't keep "${job.label}" for later (${error.message}): download it now.`);
+      });
+      record.results.push(saved);
+      await saveEdit(record);
+      addOutputCard({ ...saved, blob: result.blob, project: job.project });
     }
 
     if (settings.postText) {
-      const chapterLines = chapters.length && episodeProject
-        ? chapters.map((chapter) => `${edit.formatChapterTime(sourceToOutput(episodeProject, chapter.start))} ${chapter.title}`).join('\n')
+      const chapterLines = record.plan.chapters.length && episodeProject
+        ? record.plan.chapters.map((chapter) => `${edit.formatChapterTime(sourceToOutput(episodeProject, chapter.start))} ${chapter.title}`).join('\n')
         : '';
-      showPost({ ...post, chapters: chapterLines });
+      record.postText = { ...record.plan.post, chapters: chapterLines };
+      showPost(record.postText);
     }
 
     [...ui.stages.children].forEach((item) => { item.className = 'is-done'; });
     ui.fill.style.width = '100%';
     ui.progressText.textContent = 'Done';
     // Export notes (e.g. this browser's sound format) are the same for every video: say them once.
-    notes.push(...new Set(state.results.flatMap((result) => result.warnings || [])));
-    const summary = `${jobs.length} video${jobs.length === 1 ? '' : 's'} ready` +
-      (smart ? ` — chosen and titled by the free AI (${brain.device}).` : '.');
-    showStatus([summary, ...notes].join(' '), notes.length ? 'warn' : 'info');
+    const summary = summaryOf(record);
+    record.status = 'done';
+    record.percent = 100;
+    if (keeping) await keeping.catch(() => {});
+    await saveEdit(record);
+    showStatus([summary, ...allNotes(record)].join(' '), allNotes(record).length ? 'warn' : 'info');
+    Work()?.set(workId(record), { label: 'Video edit', href: `${PAGE}#edit=${record.id}`, status: 'done', detail: summary.replace(/ —.*$/, '') });
     notifyDone(summary);
   } catch (error) {
     document.title = PAGE_TITLE;
-    if (signal.aborted) showStatus('Editing cancelled.', 'info');
-    else showStatus(`The edit stopped: ${error.message}`, 'error');
+    if (signal.aborted) {
+      record.status = 'paused';
+      showStatus('Editing paused. Everything finished so far is kept: resume it from "Your edits" any time.', 'info');
+    } else {
+      record.status = 'failed';
+      record.error = error.message;
+      showStatus(`The edit stopped: ${error.message} Resume it from "Your edits" to try again from where it stopped.`, 'error');
+    }
+    if (keeping) await keeping.catch(() => {});
+    await saveEdit(record);
+    Work()?.set(workId(record), {
+      label: 'Video edit', href: `${PAGE}#edit=${record.id}`, status: record.status,
+      detail: record.status === 'paused' ? `Paused at ${record.percent || 0}%` : 'Stopped: open it to try again',
+    });
   } finally {
     brain.dispose();
+    release();
     state.running = null;
     ui.progress.hidden = true;
     ui.go.disabled = !state.file;
     ui.go.textContent = 'Edit my video';
+    renderSaved();
   }
+}
+
+const allNotes = (record) => [...new Set([...(record.notes || []), ...record.results.flatMap((result) => result.warnings || [])])];
+
+function summaryOf(record) {
+  const count = record.results.length;
+  return `${count} video${count === 1 ? '' : 's'} ready` +
+    (record.plan?.smart ? ` — chosen and titled by the free AI (${record.plan.device}).` : '.');
+}
+
+// --- Saved edits -----------------------------------------------------------------------
+
+/** The video an edit was made from: without asking where possible, else one click or one choice. */
+async function sourceFor(record) {
+  if (state.file && matchesSource(state.file, record)) return state.file;
+  let found = await reopenSource(record);
+  if (found.needs === 'permission') found = await found.ask().catch(() => ({ needs: 'file' }));
+  if (found.file) return found.file;
+  showStatus(`Choose "${record.name}" again to carry on${found.changed ? ' (it has changed since)' : ''}. It stays on this computer.`, 'info');
+  const file = await pickFile();
+  if (!file) return null;
+  if (!matchesSource(file, record)) {
+    showStatus(`That isn't "${record.name}" (${(record.size / 1e6).toFixed(0)} MB). Choose the same video the edit was made from.`, 'warn');
+    return null;
+  }
+  showStatus('');
+  return file;
+}
+
+function pickFile() {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'video/*';
+    input.addEventListener('change', () => resolve(input.files[0] || null), { once: true });
+    input.addEventListener('cancel', () => resolve(null), { once: true });
+    input.click();
+  });
+}
+
+async function resume(record) {
+  if (state.running) { showStatus('Another edit is running in this tab. Wait for it, or pause it first.', 'info'); return; }
+  if (!memberSession() && !record.heard) { showGate(); return; }
+  const file = await sourceFor(record);
+  if (!file || state.running) return;
+  state.running = new AbortController();
+  window.scrollTo({ top: ui.progress.offsetTop - 80 });
+  await execute(record, file);
+}
+
+/** Show a saved edit's videos and post text. */
+async function openEdit(record) {
+  if (state.running) return;
+  clearResults();
+  state.record = record;
+  state.transcript = record.transcript || '';
+  for (const result of record.results) {
+    const blob = await loadResultFile(record.id, result.id);
+    if (blob) addOutputCard({ ...result, blob });
+  }
+  if (record.postText) showPost(record.postText);
+  if (record.status === 'done') showStatus([summaryOf(record), ...allNotes(record)].join(' '), 'info');
+  ui.results.hidden = !record.results.length && !record.postText;
+  ui.results.scrollIntoView({ block: 'start' });
+}
+
+/** Fine-tune: a result just made has its project; a saved one is rebuilt from the edit's plan. */
+async function fineTune(result, button) {
+  let project = result.project;
+  if (!project) {
+    const record = state.record;
+    if (!record?.plan) return;
+    button.disabled = true;
+    try {
+      const file = await sourceFor(record);
+      if (!file) return;
+      const kit = await kitMedia(state.kit);
+      project = buildJobs(record, file, kit).jobs.find((job) => job.id === result.id)?.project;
+    } finally {
+      button.disabled = false;
+    }
+  }
+  if (!project) return;
+  showView('finetune');
+  loadProject(project);
+}
+
+const STATUS_TEXT = {
+  done: (record) => `${record.results.length} video${record.results.length === 1 ? '' : 's'} ready`,
+  paused: (record) => `Paused at ${record.percent || 0}%${record.results.length ? ` · ${record.results.length} ready` : ''}`,
+  failed: (record) => `Stopped${record.error ? `: ${record.error}` : ''}`,
+};
+
+async function renderSaved() {
+  if (!ui.saved) return;
+  const records = await listEdits();
+  const work = Object.fromEntries((Work()?.list() || []).map((item) => [item.id, item]));
+  ui.saved.hidden = !records.length;
+  const rows = [];
+  for (const record of records) {
+    const here = state.record?.id === record.id && state.running;
+    const elsewhere = !here && record.status === 'running' && await isRunningElsewhere(record.id);
+    // "running" with no tab holding it: the tab was closed or reloaded mid-edit.
+    const status = here || elsewhere ? 'running' : record.status === 'running' ? 'paused' : record.status;
+    const row = document.createElement('li');
+    row.className = `saved-edit is-${status}`;
+    row.dataset.edit = record.id;
+    const info = document.createElement('div');
+    info.className = 'saved-info';
+    const name = document.createElement('strong');
+    name.textContent = record.name || 'Video';
+    name.title = record.instruction || '';
+    const detail = document.createElement('span');
+    detail.className = 'hint';
+    const live = work[workId(record)];
+    const when = new Date(record.createdAt || record.updatedAt).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    detail.textContent = `${when} · ${status === 'running'
+      ? `${here ? 'Editing now' : 'Editing in another tab'} · ${live?.percent ?? record.percent ?? 0}%`
+      : (STATUS_TEXT[status] || STATUS_TEXT.paused)(record)}`;
+    info.append(name, detail);
+    const actions = document.createElement('div');
+    actions.className = 'output-actions';
+    const button = (label, primary, handler) => {
+      const element = document.createElement('button');
+      element.type = 'button';
+      element.className = `button button-small${primary ? ' button-primary' : ''}`;
+      element.textContent = label;
+      element.addEventListener('click', handler);
+      actions.append(element);
+      return element;
+    };
+    if (status !== 'running') {
+      if (record.results.length || record.postText) button('Open', status === 'done', () => openEdit(record));
+      if (status !== 'done') button('Resume', true, () => resume(record));
+      const remove = button('Delete', false, async () => {
+        if (!window.confirm(`Delete the edit of "${record.name}" and its videos from this browser?`)) return;
+        await deleteEdit(record.id);
+        Work()?.remove(workId(record));
+        if (state.record?.id === record.id) { clearResults(); state.record = null; }
+        renderSaved();
+      });
+      remove.classList.add('button-quiet');
+    }
+    row.append(info, actions);
+    rows.push(row);
+  }
+  ui.savedList.replaceChildren(...rows);
+  if (ui.savedSpace && records.length) {
+    const sizes = await Promise.all(records.map((record) => editSize(record.id)));
+    const used = sizes.reduce((total, size) => total + size, 0);
+    const { usage, quota } = await space();
+    ui.savedSpace.textContent = `Kept in this browser for 30 days · ${(used / 1e6).toFixed(0)} MB used` +
+      (quota && usage !== null ? ` · ${((quota - usage) / 1e9).toFixed(1)} GB free` : '');
+  }
+}
+
+// Another tab's edit moving on, or finishing: keep the list live.
+let savedTimer = null;
+Work()?.onChange(() => {
+  clearTimeout(savedTimer);
+  savedTimer = setTimeout(renderSaved, 250);
+});
+
+/**
+ * On opening the page: tidy old edits, list the rest, and carry on with an
+ * edit that was interrupted (a reload, a closed tab) when its video can be
+ * reopened without asking. "#edit=<id>" (the header chip's link) opens that edit.
+ */
+async function startSaved() {
+  await cleanupEdits().catch(() => {});
+  await renderSaved();
+  const wanted = (location.hash.match(/edit=([\w-]+)/) || [])[1];
+  const records = await listEdits();
+  const record = wanted ? records.find((item) => item.id === wanted) : null;
+  const interrupted = records.find((item) => item.status === 'running' && Date.now() - (item.updatedAt || 0) < 2 * 3600e3);
+  const target = record || interrupted;
+  if (!target || state.running) return;
+  if (await isRunningElsewhere(target.id)) return; // the other tab has it; the list shows its progress
+  // Asked for by link, and not interrupted: show what it has, and the list.
+  if (target.status !== 'running') {
+    if (target.results.length || target.postText) openEdit(target);
+    else ui.saved.scrollIntoView({ block: 'start' });
+    return;
+  }
+  // Interrupted mid-edit: carry on by itself only if the video reopens without asking.
+  const found = await reopenSource(target);
+  if (!found.file || (!memberSession() && !target.heard)) {
+    showStatus(`Your edit of "${target.name}" was paused when the page closed. Press Resume in "Your edits" to carry on from ${target.percent || 0}%.`, 'info');
+    ui.saved.scrollIntoView({ block: 'start' });
+    return;
+  }
+  if (state.running) return;
+  state.running = new AbortController();
+  showStatus(`Carrying on with your edit of "${target.name}" from where it stopped.`, 'info');
+  await execute(target, found.file);
 }
 
 // --- Members ---------------------------------------------------------------------
@@ -573,7 +946,7 @@ async function saveToGriot(button) {
   button.disabled = true;
   button.textContent = 'Saving…';
   try {
-    const name = `${safeName(state.file.name)}-transcript.txt`;
+    const name = `${safeName(sourceName())}-transcript.txt`;
     await A().upload(`/griot/documents?name=${encodeURIComponent(name)}`, new File([text], name, { type: 'text/plain' }));
     button.textContent = 'Saved to GRIOT ✓';
   } catch (error) {
@@ -603,9 +976,10 @@ function startPage() {
 }
 
 startPage();
+startSaved();
 
 ui.go.addEventListener('click', run);
 ui.cancel.addEventListener('click', () => state.running?.abort());
 
 // Exposed for automated tests.
-window.__auto = { state, chooseFile, run, showView, saveToGriot };
+window.__auto = { state, chooseFile, run, showView, saveToGriot, resume, openEdit, renderSaved };

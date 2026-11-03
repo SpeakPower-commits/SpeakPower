@@ -444,8 +444,14 @@
 
   var running = false;
 
+  // While work runs in this tab, site links open in a new tab and closing asks first (activity.js).
+  var leaveGuard = null;
+  function holdPage() { if (!leaveGuard && window.SPWork) leaveGuard = window.SPWork.guard(); }
+  function freePage() { if (leaveGuard) { leaveGuard(); leaveGuard = null; } }
+
   function setBusy(on) {
     running = on;
+    if (on) holdPage(); else freePage();
     generateBtn.disabled = on;
     generateBtn.textContent = on ? (product.busy || "Generating…") : ACTION;
   }
@@ -589,6 +595,8 @@
 
   renderForm();
   restoreDraft();
+  // Answers are also kept while typing, for 30 days: leaving the page never loses them.
+  if (window.SPWork) window.SPWork.watchDraft(form, "studio:" + key);
   drawStatus();
   if (A) {
     A.onChange(drawStatus);

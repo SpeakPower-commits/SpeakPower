@@ -90,17 +90,37 @@ function frameStream(mb, track, times, firstTimestamp) {
   };
 }
 
+/** The finished video's size. Graphics are laid out relative to it, so 720p looks the same, smaller. */
+export function outputSize(format, fast = false) {
+  const full = FORMATS[format] || FORMATS['16:9'];
+  if (!fast) return { width: full.width, height: full.height };
+  const scale = 720 / Math.min(full.width, full.height);
+  const even = (value) => Math.round((value * scale) / 2) * 2;
+  return { width: even(full.width), height: even(full.height) };
+}
+
+/** Use the graphics card's encoder when this computer has one for this codec and size. */
+async function hardwareHint(mb, codec, width, height) {
+  try {
+    const ok = await mb.canEncodeVideo(codec, { width, height, bitrate: mb.QUALITY_HIGH, hardwareAcceleration: 'prefer-hardware' });
+    return ok ? { hardwareAcceleration: 'prefer-hardware' } : {};
+  } catch {
+    return {};
+  }
+}
+
 /**
  * Export the edit.
  *
  * @param project   the edit (project.js, tracks.js)
  * @param assets    fonts and logos (renderer.loadAssets)
- * @param options   { onProgress(fraction, message), signal }
+ * @param options   { onProgress(fraction, message), signal, fast }
+ *                  fast: 720p instead of 1080p -- about twice as quick, for drafts and demos
  * @returns         { blob, videoCodec, audioCodec, duration, warnings }
  */
-export async function exportVideo(project, assets, { onProgress = () => {}, signal } = {}) {
+export async function exportVideo(project, assets, { onProgress = () => {}, signal, fast = false } = {}) {
   const mb = await loadMediabunny();
-  const { width, height } = FORMATS[project.format];
+  const { width, height } = outputSize(project.format, fast);
   const total = timelineDuration(project);
   const warnings = [];
 
@@ -196,7 +216,8 @@ export async function exportVideo(project, assets, { onProgress = () => {}, sign
 
     const frameCanvas = new OffscreenCanvas(width, height);
     const ctx = frameCanvas.getContext('2d', { alpha: false });
-    const videoSource = new mb.CanvasSource(frameCanvas, { codec: videoCodec, bitrate: mb.QUALITY_HIGH });
+    const hardware = await hardwareHint(mb, videoCodec, width, height);
+    const videoSource = new mb.CanvasSource(frameCanvas, { codec: videoCodec, bitrate: mb.QUALITY_HIGH, ...hardware });
     output.addVideoTrack(videoSource, { frameRate });
 
     // Sound: the main video's, plus every audible clip.
@@ -269,7 +290,7 @@ export async function exportVideo(project, assets, { onProgress = () => {}, sign
 
     const blob = new Blob([output.target.buffer], { type: format.mimeType });
     onProgress(1, 'Done');
-    return { blob, videoCodec, audioCodec, duration: total, warnings, frameRate };
+    return { blob, videoCodec, audioCodec, duration: total, warnings, frameRate, width, height, hardware: Boolean(hardware.hardwareAcceleration) };
   } catch (error) {
     if (output && output.state !== 'finalized' && output.state !== 'canceled') {
       await output.cancel().catch(() => {});
