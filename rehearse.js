@@ -129,6 +129,11 @@
     return "";
   }
 
+  // While work runs in this tab, site links open in a new tab and closing asks first (activity.js).
+  var leaveGuard = null;
+  function holdPage() { if (!leaveGuard && window.SPWork) leaveGuard = window.SPWork.guard(); }
+  function freePage() { if (leaveGuard) { leaveGuard(); leaveGuard = null; } }
+
   function startRecording() {
     showError("");
     if (!moment) return;
@@ -150,6 +155,7 @@
       recorder.ondataavailable = function (ev) { if (ev.data && ev.data.size) rec.chunks.push(ev.data); };
       recorder.onstop = finishRecording;
       recorder.start(1000);
+      holdPage();
       $("rrMomentName").textContent = momentTitle;
       $("rrTimer").textContent = "0:00";
       showStep("recording");
@@ -233,9 +239,10 @@
     var r = rec;
     cleanup();
     rec = null;
-    if (r.cancelled) { showStep("pick"); $("rrRecordBtn").disabled = cannotPay(); return; }
+    if (r.cancelled) { freePage(); showStep("pick"); $("rrRecordBtn").disabled = cannotPay(); return; }
     var seconds = r.seconds || 0;
     if (seconds < 3) {
+      freePage();
       showStep("pick");
       $("rrRecordBtn").disabled = false;
       showError("That was very short. Speak for at least a few seconds, then press Stop and score.");
@@ -267,6 +274,7 @@
       });
     }).then(function (result) {
       clearTimeout(slow);
+      freePage();
       track("rehearsal_complete", { moment: moment, coaching: result.kind === "speak" && !!result.coaching, paid_with: result.paidWith });
       A.setAccount(result.account);
       renderAccount(result.account);
@@ -286,6 +294,7 @@
   }
 
   function failed(e) {
+    freePage();
     showStep("pick");
     $("rrRecordBtn").disabled = false;
     if (e.status === 401) { signedOut(); return; }

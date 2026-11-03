@@ -722,3 +722,16 @@ body[data-view="auto"] [data-show-in="finetune"], body[data-view="finetune"] [da
 .sve .sv-account { margin: 0 0 16px; }
 .sve .sv-account .builder-note { margin: 0 0 6px; }
 .sve .studio-builder-panel { margin-bottom: 16px; }
+
+/* Your edits: saved in this browser, resumable. */
+.sve .auto-saved { margin-bottom: 20px; }
+.sve .saved-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.sve .saved-edit {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: #fff;
+}
+.sve .saved-edit.is-running { border-color: var(--gold-400); background: #fffcf6; }
+.sve .saved-edit.is-failed { border-color: #f1b8b0; }
+.sve .saved-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 220px; }
+.sve .saved-info strong { color: var(--navy-800); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sve .saved-edit .button-quiet { color: var(--ink-faint); }

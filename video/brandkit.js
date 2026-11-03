@@ -7,6 +7,7 @@
  */
 
 import { probeMedia } from './media.js';
+import { STORES, withStore as withDb } from './store.js';
 
 export const ROLES = {
   logo: 'Logo',
@@ -16,33 +17,9 @@ export const ROLES = {
   picture: 'Picture',
 };
 
-const DB_NAME = 'speakpower-studio';
-const STORE = 'brandkit';
-
 let memory = []; // used when IndexedDB isn't available
 
-function openDb() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1);
-    request.onupgradeneeded = () => request.result.createObjectStore(STORE, { keyPath: 'id' });
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-async function withStore(mode, work) {
-  const db = await openDb();
-  try {
-    return await new Promise((resolve, reject) => {
-      const transaction = db.transaction(STORE, mode);
-      const result = work(transaction.objectStore(STORE));
-      transaction.oncomplete = () => resolve(result.result ?? result);
-      transaction.onerror = () => reject(transaction.error);
-    });
-  } finally {
-    db.close();
-  }
-}
+const withStore = (mode, work) => withDb(STORES.brandkit, mode, work);
 
 /** A first guess at a design's role from its file name; the user can change it. */
 export function guessRole(name, existing = []) {

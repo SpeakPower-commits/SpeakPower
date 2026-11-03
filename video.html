@@ -74,6 +74,13 @@
 
   <div id="auto" class="auto" data-show-in="auto">
 
+    <section id="auto-saved" class="auto-card auto-saved" hidden>
+      <h2>Your edits</h2>
+      <p class="hint">Every edit is saved in this browser as it goes. Leave, reload or close the tab and it pauses; come back and it carries on.</p>
+      <ul id="auto-saved-list" class="saved-list"></ul>
+      <p id="auto-saved-space" class="hint"></p>
+    </section>
+
     <div class="auto-grid">
       <div class="auto-main">
         <section class="auto-card">
@@ -87,7 +94,7 @@
 
         <section class="auto-card">
           <h2><span class="step">2</span> Tell the AI what to do</h2>
-          <textarea id="auto-prompt" class="field auto-prompt" rows="4"
+          <textarea id="auto-prompt" class="field auto-prompt" rows="4" data-draft="video-instruction" data-draft-note="off"
             placeholder='e.g. "Make 3 TikTok clips about leadership, 30–60 seconds. Remove the ums. Guest is Jane Wanjiku, CEO of Acme. End with: Book a free call"'></textarea>
           <div class="chips" aria-label="Examples">
             <button class="chip" type="button" data-prompt="Clean full episode for YouTube: remove long pauses and ums, add captions, chapters and my logo.">Clean episode for YouTube</button>
@@ -114,6 +121,10 @@
                 <select id="opt-language" class="field field-inline">
                   <option value="english">English</option><option value="swahili">Swahili</option><option value="">Detect</option>
                 </select></label>
+              <label class="check">Quality
+                <select id="opt-quality" class="field field-inline">
+                  <option value="full">Full HD (1080p)</option><option value="fast">Fast (720p), about twice as quick</option>
+                </select></label>
             </fieldset>
           </div>
         </section>
@@ -126,15 +137,15 @@
           <div class="progress-bar"><div id="auto-fill" class="progress-fill"></div></div>
           <div class="progress-row">
             <span id="auto-progress-text" class="hint">Starting…</span>
-            <button id="auto-cancel" class="button-link" type="button">Cancel</button>
+            <button id="auto-cancel" class="button-link" type="button">Pause</button>
           </div>
-          <p class="hint">You can use other tabs meanwhile — keep this one open. You'll get a notification when it's done.</p>
+          <p class="hint">Look around while it works: links open in a new tab, and the header shows the progress on every page. If this tab closes, the edit pauses and carries on when you come back. You'll get a notification when it's done.</p>
         </section>
 
         <div id="auto-status" class="notice" hidden></div>
 
         <section id="auto-results" class="auto-results" hidden>
-          <h2>Your edits</h2>
+          <h2>Ready to download</h2>
           <div id="auto-outputs" class="outputs"></div>
           <div id="auto-post" class="auto-card post" hidden></div>
         </section>
@@ -364,6 +375,7 @@
 <script src="site-config.js"></script>
 <script src="analytics.js"></script>
 <script src="script.js"></script>
+<script src="activity.js"></script>
 <script src="account.js"></script>
 <script type="module" src="video/app.js"></script>
 <script type="module" src="video/auto.js"></script>

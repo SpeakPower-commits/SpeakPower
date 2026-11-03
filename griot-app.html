@@ -175,7 +175,7 @@
 <form id="gaComposer" class="gx-composer griot-composer" novalidate>
 <p class="ga-attach-status" id="gaAttachStatus" role="status" hidden></p>
 <label class="gx-sr" for="ga-message">Your question for GRIOT</label>
-<textarea id="ga-message" rows="3" maxlength="20000" placeholder="e.g. We sell solar kits to rural schools. Donors are cooling. Where should the next quarter go?"></textarea>
+<textarea id="ga-message" data-draft="griot-message" rows="3" maxlength="20000" placeholder="e.g. We sell solar kits to rural schools. Donors are cooling. Where should the next quarter go?"></textarea>
 <p class="builder-error" id="gaChatError" role="alert" hidden></p>
 <div class="gx-composer-row">
 <div class="gx-quick">
@@ -258,6 +258,7 @@
 <script src="site-config.js"></script>
 <script src="analytics.js"></script>
 <script src="script.js"></script>
+<script src="activity.js"></script>
 <script src="account.js"></script>
 <script src="griot-proverbs.js"></script>
 <script src="export.js"></script>

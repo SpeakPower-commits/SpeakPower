@@ -4,7 +4,7 @@
  * model a browser can run.
  *
  *   startJob(seconds)        -> reserves one use: { job, chunkSeconds } (POST /video/start)
- *   transcribeRemote(...)    -> the sound in two-minute pieces, cut at quiet
+ *   transcribeRemote(...)    -> the sound in two-minute pieces (three at a time), cut at quiet
  *                               moments, as 16 kHz mu-law WAV (the format the
  *                               Rehearsal Room already sends) -> timed words
  *   refundJob(job)           -> gives the use back if nothing could be heard
@@ -68,22 +68,29 @@ function base64(bytes) {
 }
 
 /**
- * Transcribe through the Worker. Each piece is retried once; if a piece still
- * fails, this throws and the caller finishes in the browser instead.
+ * Transcribe through the Worker, three pieces at a time. Each piece is retried
+ * once; if a piece still fails, this throws and the caller finishes in the
+ * browser instead.
+ *
+ * Resumable: pieces already heard (`done`, by index) are not sent again, and
+ * each newly heard piece is handed to `onPiece(index, piece)` to be saved.
  *
  * @returns { segments, wordLevel, heard }  heard: how many pieces the Worker heard
  */
-export async function transcribeRemote(samples, { job, chunkSeconds = 120, language = 'english', onProgress = () => {}, signal } = {}) {
+export async function transcribeRemote(samples, {
+  job, chunkSeconds = 120, language = 'english', onProgress = () => {}, signal,
+  done = {}, onPiece = () => {}, parallel = 3,
+} = {}) {
   // Pieces end at the quietest moment in the last 20 seconds before the limit.
   const windows = planWindows(samples, SPEECH_RATE, { min: Math.max(10, chunkSeconds - 20), max: chunkSeconds - 2 });
-  const words = [];
-  const lines = [];
-  let heard = 0;
-  for (let index = 0; index < windows.length; index += 1) {
-    signal?.throwIfAborted();
-    onProgress(index / windows.length);
+  const pieces = { ...done };
+  let heard = Object.values(pieces).filter((piece) => !piece.silent).length;
+  let finished = Object.keys(pieces).length;
+  onProgress(finished / windows.length);
+
+  const hear = async (index) => {
     const { start, end } = windows[index];
-    if (isSilent(samples, start, end)) continue;
+    if (isSilent(samples, start, end)) return { words: [], lines: [], silent: true };
     const audio = await base64(muLawWav(samples.subarray(start, end)));
     const offset = start / SPEECH_RATE;
     let reply = null;
@@ -97,10 +104,43 @@ export async function transcribeRemote(samples, { job, chunkSeconds = 120, langu
       }
     }
     heard += 1;
-    for (const word of reply.words || []) words.push({ text: word.text, start: word.start + offset, end: word.end + offset });
-    for (const line of reply.lines || []) lines.push({ text: line.text, start: line.start + offset, end: line.end + offset });
-  }
+    const shift = (item) => ({ text: item.text, start: item.start + offset, end: item.end + offset });
+    return { words: (reply.words || []).map(shift), lines: (reply.lines || []).map(shift) };
+  };
+
+  // A small pool: the next piece starts as soon as one finishes. The first
+  // failure stops the others from starting more.
+  let next = 0;
+  let failure = null;
+  const worker = async () => {
+    while (!failure) {
+      signal?.throwIfAborted();
+      const index = next;
+      next += 1;
+      if (index >= windows.length) return;
+      if (pieces[index]) continue;
+      try {
+        pieces[index] = await hear(index);
+        onPiece(index, pieces[index]);
+      } catch (error) {
+        failure = failure || error;
+        return;
+      }
+      finished += 1;
+      onProgress(finished / windows.length);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(parallel, windows.length)) }, worker));
+  if (failure) { failure.heard = heard; throw failure; }
+  signal?.throwIfAborted();
   onProgress(1);
+
+  const words = [];
+  const lines = [];
+  for (let index = 0; index < windows.length; index += 1) {
+    words.push(...(pieces[index]?.words || []));
+    lines.push(...(pieces[index]?.lines || []));
+  }
   const wordLevel = !lines.length;
   const segments = wordLevel
     ? segmentsFromWords(words)
