@@ -106,7 +106,7 @@ sequenceDiagram
 ├── styles.css · home.css · commercial.css · *.css                       design system and page styles
 ├── script.js · site-config.js                                           shared behaviour; public settings
 ├── analytics.js                                                         Google Analytics, only after the visitor accepts cookies
-├── activity.js                                                          keeps work: header activity chip, drafts kept while typing, links open in a new tab while work runs
+├── activity.js                                                          keeps work: header activity chip, drafts kept while typing, pages open in the same tab over running work (gold bar back to it)
 ├── sitemap.xml · robots.txt · llms.txt                                   for search engines and AI assistants
 ├── assets/                                                              photos, logos, README illustrations
 │   └── brand/griot/                                                     GRIOT marks (SVG for the site; PNG and PDF for Canva)

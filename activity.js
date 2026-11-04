@@ -10,14 +10,17 @@
  *      or a form) is kept as you type and put back when you return. It is
  *      cleared once the field is empty, e.g. after sending.
  *
- *   3. Leaving is safe. While this tab is doing work that only runs here
- *      (SPWork.guard()), site links open in a new tab and closing or reloading
- *      asks first.
+ *   3. Moving around never stops the work. While this tab is doing work that
+ *      only runs here (SPWork.guard(label)), a SpeakPower link opens its page
+ *      inside this same tab, over the working page, with a bar on top showing
+ *      the work and a way back to it. Back walks through the pages visited,
+ *      then returns. Other sites open in a new tab; closing or reloading asks
+ *      first.
  *
  * API (window.SPWork):
  *   set(id, { label, href, status, percent, detail })  status: running | paused | done | failed
  *   remove(id) · list() · onChange(fn)
- *   guard() -> release()
+ *   guard(label) -> release()
  *   watchDraft(element, key) · keepDraft(key, text) · clearDraft(key)
  *
  * Everything stays in this browser (localStorage); nothing is sent anywhere.
@@ -142,6 +145,16 @@
     ".spw-bar{height:4px;border-radius:2px;background:#eee;margin-top:.35rem;overflow:hidden}",
     ".spw-bar i{display:block;height:100%;background:#c9a227}",
     ".spw-x{border:0;background:none;color:#6b7280;cursor:pointer;font-size:1.1rem;line-height:1;padding:.1rem .3rem}",
+    ".spw-view{position:fixed;inset:0;z-index:2000;display:flex;flex-direction:column;background:#0a1020}",
+    ".spw-bar-top{display:flex;align-items:center;gap:.6rem;min-height:44px;padding:.35rem .6rem .35rem 1rem;background:#16233f;color:#f1d47a;",
+    "border-bottom:2px solid #c9a227;font:600 .9rem/1.3 Inter,system-ui,sans-serif}",
+    ".spw-bar-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+    ".spw-view[data-state=running] .spw-dot{animation:spw-pulse 1.2s ease-in-out infinite}",
+    ".spw-view[data-state=done] .spw-dot{background:#5fcf8f}",
+    ".spw-bar-back{flex:none;border:0;border-radius:999px;padding:.45rem .95rem;background:#c9a227;color:#0a1020;font:700 .85rem/1 Inter,system-ui,sans-serif;cursor:pointer}",
+    ".spw-bar-back:hover,.spw-bar-back:focus-visible{background:#f1d47a;outline:none}",
+    ".spw-frame{flex:1;width:100%;border:0;background:#fff}",
+    "html.spw-viewing,html.spw-viewing body{overflow:hidden}",
     ".spw-toast{position:fixed;z-index:1001;left:50%;bottom:1.2rem;transform:translateX(-50%);max-width:calc(100vw - 2rem);",
     "background:#16233f;color:#fff;padding:.7rem 1rem;border-radius:10px;font:500 .9rem/1.35 Inter,system-ui,sans-serif;box-shadow:0 12px 30px -12px rgba(0,0,0,.6)}"
   ].join("");
@@ -169,11 +182,18 @@
     return all.length + " things ready";
   }
 
-  function ensureChip() {
-    if (chip) return chip;
+  var styled = false;
+  function ensureStyle() {
+    if (styled) return;
+    styled = true;
     var style = document.createElement("style");
     style.textContent = STYLE;
     document.head.appendChild(style);
+  }
+
+  function ensureChip() {
+    if (chip) return chip;
+    ensureStyle();
     chip = document.createElement("button");
     chip.type = "button";
     chip.className = "spw-chip";
@@ -194,7 +214,7 @@
   }
 
   function render() {
-    if (!document.body) return;
+    if (!document.body || framed) return;
     var all = list();
     if (!all.length && !chip) return;
     ensureChip();
@@ -270,48 +290,196 @@
   }
   document.addEventListener("keydown", function (event) { if (event.key === "Escape") closePanel(); });
 
-  // --- Leaving safely -----------------------------------------------------------------
+  // --- Leaving safely, and moving around in the same tab ----------------------------
 
-  var guards = 0;
+  var guards = [];          // what is running in this tab: { label }
+  var framed = null;        // inside the in-app view: the parent's SPWorkView
+  try { if (window.top !== window && window.parent.SPWorkView) framed = window.parent.SPWorkView; } catch (e) { framed = null; }
 
   function toast(message) {
     var note = document.createElement("div");
     note.className = "spw-toast";
     note.setAttribute("role", "status");
     note.textContent = message;
-    ensureChip();
+    ensureStyle();
     document.body.appendChild(note);
     setTimeout(function () { note.remove(); }, 4500);
   }
 
-  function guard() {
-    guards += 1;
+  /** Mark work running in this tab. label: what the in-app view's bar says ("GRIOT is answering…"). */
+  function guard(label) {
+    var entry = { label: label || "" };
+    guards.push(entry);
+    updateBar();
     var released = false;
     return function release() {
       if (released) return;
       released = true;
-      guards = Math.max(0, guards - 1);
+      guards = guards.filter(function (item) { return item !== entry; });
+      updateBar();
     };
   }
 
   window.addEventListener("beforeunload", function (event) {
-    if (!guards) return;
+    if (!guards.length) return;
     event.preventDefault();
     event.returnValue = "";
   });
 
-  // Links to other pages open in a new tab while work runs here, so it keeps going.
-  document.addEventListener("click", function (event) {
-    if (!guards || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  function linkFrom(event) {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return null;
     var link = event.target.closest && event.target.closest("a[href]");
-    if (!link || link.target || link.hasAttribute("download")) return;
+    if (!link || link.hasAttribute("download")) return null;
+    if (link.target && link.target !== "_self") return null;
     var url;
-    try { url = new URL(link.href, location.href); } catch (e) { return; }
-    if (url.protocol !== "http:" && url.protocol !== "https:") return;
-    if (url.origin === location.origin && url.pathname === location.pathname && url.search === location.search) return; // same page
+    try { url = new URL(link.href, location.href); } catch (e) { return null; }
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    return url;
+  }
+  var samePage = function (url, base) { return url.pathname === base.pathname && url.search === base.search; };
+
+  /*
+   * The in-app view. While work runs in this tab, a SpeakPower link opens its
+   * page inside this same tab, over the working page, which stays loaded and
+   * keeps going underneath. A bar on top shows the work and leads back to it.
+   * Each page visited is a step in this tab's history, so Back walks back
+   * through them and then closes the view.
+   */
+  var view = null;          // { root, frame, bar, text, back, opener }
+
+  function workLine() {
+    var mine = list().filter(function (item) { return item.tab === tabId; });
+    var running = mine.filter(function (item) { return item.status === "running"; })[0];
+    if (running) return { text: running.label + (typeof running.percent === "number" ? " · " + running.percent + "%" : "…"), state: "running" };
+    var labelled = guards.filter(function (entry) { return entry.label; }).pop();
+    if (labelled) return { text: labelled.label, state: "running" };
+    if (guards.length) return { text: "Your work is still going", state: "running" };
+    var done = mine.filter(function (item) { return item.status === "done"; })[0];
+    if (done) return { text: done.label + " is ready ✓", state: "done" };
+    return { text: "Your work is finished", state: "done" };
+  }
+
+  function updateBar() {
+    if (!view) return;
+    var line = workLine();
+    view.text.textContent = line.text;
+    view.root.dataset.state = line.state;
+    view.back.textContent = line.state === "done" ? "See it" : "Back to your work";
+  }
+
+  function openView(url, restoring) {
+    ensureStyle();
+    if (!view) {
+      var root = document.createElement("div");
+      root.className = "spw-view";
+      root.setAttribute("role", "dialog");
+      root.setAttribute("aria-label", "SpeakPower page, opened in this tab");
+      var bar = document.createElement("div");
+      bar.className = "spw-bar-top";
+      var dot = document.createElement("i");
+      dot.className = "spw-dot";
+      dot.setAttribute("aria-hidden", "true");
+      var text = document.createElement("span");
+      text.className = "spw-bar-text";
+      text.setAttribute("aria-live", "polite");
+      var back = document.createElement("button");
+      back.type = "button";
+      back.className = "spw-bar-back";
+      back.addEventListener("click", closeView);
+      bar.appendChild(dot);
+      bar.appendChild(text);
+      bar.appendChild(back);
+      var frame = document.createElement("iframe");
+      frame.className = "spw-frame";
+      frame.title = "SpeakPower";
+      root.appendChild(bar);
+      root.appendChild(frame);
+      document.body.appendChild(root);
+      document.documentElement.classList.add("spw-viewing");
+      view = { root: root, frame: frame, bar: bar, text: text, back: back, opener: document.activeElement, depth: 0 };
+      updateBar();
+    }
+    if (restoring) view.depth = restoring;
+    else {
+      view.depth += 1;
+      history.pushState({ spwView: view.depth, url: url }, "", location.href);
+    }
+    show(url);
+  }
+
+  function show(url) {
+    var frame = view.frame;
+    var current = null;
+    try { current = frame.contentWindow && frame.contentWindow.location.href; } catch (e) { current = null; }
+    if (current === url) return;
+    // Replace inside the frame: the steps live in this tab's history (pushState) instead.
+    if (current && current !== "about:blank") frame.contentWindow.location.replace(url);
+    else frame.src = url;
+    frame.focus();
+  }
+
+  function closeView() {
+    if (!view) return;
+    var depth = history.state && history.state.spwView;
+    if (depth) history.go(-depth); // popstate below removes the view
+    else removeView();
+  }
+
+  function removeView() {
+    if (!view) return;
+    var opener = view.opener;
+    view.root.remove();
+    view = null;
+    document.documentElement.classList.remove("spw-viewing");
+    if (opener && opener.focus) opener.focus();
+  }
+
+  window.addEventListener("popstate", function (event) {
+    var state = event.state;
+    if (state && state.spwView && state.url) {
+      if (!view) { openView(state.url, state.spwView); return; } // Forward after closing: open it again
+      view.depth = state.spwView;
+      show(state.url);
+    } else if (view) {
+      removeView();
+    }
+  });
+
+  onChange(updateBar);
+
+  // Exposed to the pages shown inside the view.
+  window.SPWorkView = {
+    navigate: function (url) { openView(url); },
+    close: closeView,
+    page: function () { return { pathname: location.pathname, search: location.search }; },
+  };
+
+  document.addEventListener("click", function (event) {
+    var url = linkFrom(event);
+    if (!url) return;
+    var external = url.origin !== location.origin;
+
+    // Inside the view: every SpeakPower link stays in the view; the working page closes it.
+    if (framed) {
+      if (external || samePage(url, location)) return; // other sites, and links within this page, behave as usual
+      event.preventDefault();
+      var home = framed.page();
+      if (url.pathname === home.pathname && url.search === home.search) framed.close();
+      else framed.navigate(url.href);
+      return;
+    }
+
+    if (!guards.length) return;
+    if (external) {
+      // Other sites (the blog, checkout, sign-in) can't be shown inside a page: a new tab keeps the work going.
+      event.preventDefault();
+      window.open(url.href, "_blank", "noopener");
+      toast("Opened in a new tab so your work here keeps going.");
+      return;
+    }
+    if (samePage(url, location)) return; // a link within this page
     event.preventDefault();
-    window.open(url.href, "_blank", "noopener");
-    toast("Opened in a new tab so your work here keeps going.");
+    openView(url.href);
   });
 
   // --- Drafts -------------------------------------------------------------------------

@@ -446,7 +446,7 @@
 
   // While work runs in this tab, site links open in a new tab and closing asks first (activity.js).
   var leaveGuard = null;
-  function holdPage() { if (!leaveGuard && window.SPWork) leaveGuard = window.SPWork.guard(); }
+  function holdPage() { if (!leaveGuard && window.SPWork) leaveGuard = window.SPWork.guard("Your " + product.title + " is being written…"); }
   function freePage() { if (leaveGuard) { leaveGuard(); leaveGuard = null; } }
 
   function setBusy(on) {
