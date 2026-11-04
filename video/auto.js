@@ -521,7 +521,7 @@ async function execute(record, file, keeping = null) {
 async function work(record, file, keeping) {
   const controller = new AbortController();
   const { signal } = controller;
-  const release = Work()?.guard() || (() => {});
+  const release = Work()?.guard('Your video is being edited…') || (() => {});
   state.running = controller;
   state.record = record;
   state.file = file;
