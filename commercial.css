@@ -949,3 +949,10 @@
 .yt-method dt{font-weight:600;margin-top:.75rem}
 .yt-method dd{margin:.2rem 0 0;color:var(--text-muted);font-size:.9rem;line-height:1.55}
 @media(max-width:760px){.yt-form{grid-template-columns:1fr}.yt-actions .btn{width:auto}}
+
+/* Plans and prices: jump links, and the Studio pack price list. */
+.plans-jump{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1.2rem}
+.plans-jump .chip{text-decoration:none}
+.packs-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr))}
+.pack-card h3{margin:0;font-size:clamp(1.15rem,1.05rem + .4vw,1.35rem)}
+.pack-card .plan-price{font-size:clamp(1.5rem,1.35rem + .6vw,1.85rem)}

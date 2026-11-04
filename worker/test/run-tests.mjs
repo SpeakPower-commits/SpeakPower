@@ -1596,18 +1596,19 @@ await test("google: certificates are cached, refetched only for an unseen key", 
 /* --------------------------------------------- one price list, everywhere */
 
 const STUDIO_HTML = readFileSync(join(here, "..", "..", "studio.html"), "utf8");
-// The price printed on a product's card in studio.html.
-function cardPrice(key) {
-  const card = STUDIO_HTML.match(new RegExp('<article[^>]*id="product-' + key + '"[^>]*>([\\s\\S]*?)</article>'));
-  ok(card, "studio.html has a card for " + key);
-  const price = card[1].match(/<div class="studio-price">([\s\S]*?)<\/div>/);
-  ok(price, "the " + key + " card shows a price");
+const PLANS_HTML = readFileSync(join(here, "..", "..", "plans.html"), "utf8");
+// Prices live on plans.html only: the price printed on a Studio pack's card there.
+function packPrice(key) {
+  const card = PLANS_HTML.match(new RegExp('<article[^>]*id="pack-' + key + '"[^>]*>([\\s\\S]*?)</article>'));
+  ok(card, "plans.html has a price card for " + key);
+  const price = card[1].match(/<div class="plan-price">([\s\S]*?)<\/div>/);
+  ok(price, "the " + key + " card on plans.html shows a price");
   return price[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 }
 const ugx = (n) => "UGX " + n.toLocaleString("en-US");
 
 let PRICES;
-await test("prices: Studio packs cost exactly what studio.html shows; GRIOT and rehearsals come with a plan", async () => {
+await test("prices: Studio packs cost exactly what plans.html shows; studio.html shows products, not prices", async () => {
   const s = await signUp("p-list@example.com");
   const r = await call("GET", "/account", { token: s.token });
   eq(r.status, 200);
@@ -1616,32 +1617,34 @@ await test("prices: Studio packs cost exactly what studio.html shows; GRIOT and 
   eq(keys, "brand-story,content-seo,data-story,market-plan,seo-audit,speaker-ready", "every pack priced, nothing else");
   for (const [key, amount] of Object.entries(PRICES)) {
     ok(Number.isInteger(amount) && amount > 0, key + " has a whole-shilling price");
-    ok(cardPrice(key).startsWith(ugx(amount)),
-      key + ": studio.html shows " + JSON.stringify(cardPrice(key)) + " but the Worker charges " + ugx(amount));
+    ok(packPrice(key).startsWith(ugx(amount)),
+      key + ": plans.html shows " + JSON.stringify(packPrice(key)) + " but the Worker charges " + ugx(amount));
+    ok(STUDIO_HTML.includes('href="studio-product.html?product=' + key + '"'), "studio.html offers " + key);
   }
-  for (const key of ["griot", "rehearsal"]) {
-    ok(/^Included in every plan/.test(cardPrice(key)), key + " card: " + JSON.stringify(cardPrice(key)));
-  }
-  ok(/^Free\b/.test(cardPrice("clarity-audit")), "the Clarity Audit card says it is free");
-  // Every catalog card is either a priced pack, a plan service, or the free
-  // audit — no card can sell something the Worker would refuse.
+  ok(/^Free\b/.test(packPrice("clarity-audit")), "plans.html says the Clarity Audit is free");
+  const prices = [...PLANS_HTML.matchAll(/id="pack-([a-z-]+)"/g)].map((m) => m[1]).sort().join(",");
+  eq(prices, Object.keys(PRICES).concat(["clarity-audit"]).sort().join(","), "plans.html price list");
+  // The Studio catalog: products only. Every card is a pack the Worker sells,
+  // a plan service, or the free audit, and none quotes a price.
+  const catalog = STUDIO_HTML.slice(STUDIO_HTML.indexOf('<div class="product-catalog"'), STUDIO_HTML.indexOf('<p class="studio-price-note'));
+  ok(!/UGX\s*[\d,]+/.test(catalog), "studio.html product cards quote no prices");
+  ok(!/class="studio-price"/.test(catalog), "studio.html has no price blocks");
+  ok(STUDIO_HTML.includes('href="plans.html"'), "studio.html points to the price list");
   const cards = [...STUDIO_HTML.matchAll(/id="product-([a-z-]+)"/g)].map((m) => m[1]).sort().join(",");
   eq(cards, Object.keys(PRICES).concat(["clarity-audit", "griot", "rehearsal", "video"]).sort().join(","), "catalog cards");
 });
 
-await test("plans: plans.html, studio.html and the Worker agree on every plan price", async () => {
+await test("plans: plans.html and the Worker agree on every plan price", async () => {
   const r = await call("GET", "/plans");
   eq(r.status, 200, "public, no sign-in");
   eq(r.data.plans.map((x) => x.key + ":" + x.price + ":" + x.days).join(","), "starter:60000:30,pro:150000:30");
-  const html = readFileSync(join(here, "..", "..", "plans.html"), "utf8");
   for (const plan of r.data.plans) {
-    const card = html.match(new RegExp('<article[^>]*id="plan-' + plan.key + '"[^>]*>([\\s\\S]*?)</article>'));
+    const card = PLANS_HTML.match(new RegExp('<article[^>]*id="plan-' + plan.key + '"[^>]*>([\\s\\S]*?)</article>'));
     ok(card, "plans.html has a card for " + plan.key);
     const price = card[1].match(/<div class="plan-price">([\s\S]*?)<\/div>/);
     ok(price && price[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().startsWith(ugx(plan.price)),
       plan.key + " price on plans.html");
   }
-  ok(cardPrice("griot").includes(ugx(r.data.plans[0].price)), "Studio names the lowest plan price");
 });
 
 await test("prices: no page quotes a per-message or per-rehearsal price", async () => {
