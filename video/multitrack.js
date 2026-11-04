@@ -288,7 +288,7 @@ export class TrackTimeline {
     element.style.setProperty('--fade-in', `${fade(clip.transitionIn)}px`);
     element.style.setProperty('--fade-out', `${fade(clip.transitionOut)}px`);
 
-    const drawnNames = { text: 'Title', card: 'Card', callout: 'Pop-up', progress: 'Progress bar' };
+    const drawnNames = { text: 'Title', card: 'Card', callout: 'Pop-up', progress: 'Progress bar', sticker: 'Sticker', keypoint: 'Key point', stat: 'Number', list: 'List', zoom: 'Punch-in zoom' };
     const name = clip.kind in drawnNames
       ? (clip.title || clip.subtitle || drawnNames[clip.kind])
       : (media?.name || 'Missing file');

@@ -215,14 +215,58 @@ export function burstAt(bursts, time) {
   return null;
 }
 
+// --- Styles -----------------------------------------------------------------------
+
+/**
+ * How captions look. Every style shares the timing (bursts of three or four
+ * words) and the line breaking; they differ in case, size and how the spoken
+ * word is shown.
+ *   bold     -- heavy uppercase, black outline, spoken word pops in gold (the classic)
+ *   pill     -- sentence case on a rounded navy pill, spoken word in a gold box
+ *   box      -- uppercase with outline, spoken word on a gold block
+ *   karaoke  -- uppercase, words turn gold as they are said
+ *   minimal  -- clean sentence-case subtitles with a soft shadow
+ */
+export const CAPTION_STYLES = {
+  bold: 'Bold pop',
+  pill: 'Modern pill',
+  box: 'Highlight box',
+  karaoke: 'Karaoke',
+  minimal: 'Clean subtitles',
+};
+
+const STYLE_SPECS = {
+  bold: { upper: true, size: 88, outline: OUTLINE, pop: POP },
+  pill: { upper: false, size: 72, outline: 0, pop: 1 },
+  box: { upper: true, size: 80, outline: 10, pop: 1 },
+  karaoke: { upper: true, size: 84, outline: 12, pop: 1 },
+  minimal: { upper: false, size: 60, outline: 5, pop: 1 },
+};
+const NAVY = '#16233f';
+const KEY_GOLD = '#F3D77A';
+
+function roundRect(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, height / 2, width / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
+}
+
 /**
  * Draw the caption for this moment. Called by renderer.drawFrame for both the
- * preview and the export.
+ * preview and the export. Words marked by the automatic editor carry an emoji
+ * (word.emoji, drawn just after the word) and a key flag (word.key, coloured).
  */
-export function drawCaptions(ctx, { width, height, unit, layout, times }, captions) {
+export function drawCaptions(ctx, { width, height, unit, layout, times, assets }, captions) {
   if (!captions?.enabled || !captions.segments?.length) return;
   const burst = burstAt(burstsFor(captions.segments), times.source);
   if (!burst) return;
+  const styleName = STYLE_SPECS[captions.style] ? captions.style : 'bold';
+  const spec = STYLE_SPECS[styleName];
 
   // Each word owns the highlight from when it is spoken until the next one
   // starts, so the gold never blinks off between words.
@@ -231,20 +275,21 @@ export function drawCaptions(ctx, { width, height, unit, layout, times }, captio
     if (times.source < burst.words[index + 1].start) { active = index; break; }
   }
 
-  let fontSize = 88 * unit;
+  let fontSize = spec.size * unit;
   const maxWidth = width - 2 * 80 * unit;
-  const tokens = burst.words.map((word) => word.text.toUpperCase());
+  const tokens = burst.words.map((word) => (spec.upper ? word.text.toUpperCase() : word.text));
+  const emojis = burst.words.map((word) => (word.emoji && assets?.emoji?.[word.emoji] ? word.emoji : null));
+  const padX = styleName === 'pill' || styleName === 'box' ? 0.22 : 0; // room for the highlight block, in em
   ctx.save();
 
-  // Every word gets a slot sized for its ENLARGED width, and the gap allows
-  // for the outline on both sides. The spoken word then grows into space that
-  // is already reserved, so it never touches its neighbour ("OTIENOAND") and
-  // the line never shifts as the highlight moves along it.
+  // Every word gets a slot sized for its largest drawn form (popped, boxed,
+  // with its emoji), so the line never shifts as the highlight moves along it.
   const measure = () => {
     ctx.font = `${fontSize}px ${CAPTION_FONT}`;
     return {
-      slots: tokens.map((token) => ctx.measureText(token).width * POP),
-      gap: ctx.measureText(' ').width + OUTLINE * unit,
+      slots: tokens.map((token, index) => ctx.measureText(token).width * spec.pop + fontSize * padX * 2
+        + (emojis[index] ? fontSize * 1.05 : 0)),
+      gap: ctx.measureText(' ').width + spec.outline * unit,
     };
   };
   const rowWidth = (slots, gap, from, to) =>
@@ -277,10 +322,10 @@ export function drawCaptions(ctx, { width, height, unit, layout, times }, captio
 
   const lines = breaks.slice(0, -1).map((from, index) => {
     const to = breaks[index + 1];
-    return { tokens: tokens.slice(from, to), width: rowWidth(slots, gap, from, to) };
+    return { from, to, width: rowWidth(slots, gap, from, to) };
   });
 
-  const lineHeight = fontSize * 1.12;
+  const lineHeight = fontSize * (styleName === 'pill' ? 1.3 : 1.12);
   const bottom = height - layout.captionBottom * height;
   const top = bottom - lines.length * lineHeight;
 
@@ -289,36 +334,89 @@ export function drawCaptions(ctx, { width, height, unit, layout, times }, captio
   ctx.lineJoin = 'round';
   ctx.miterLimit = 2;
 
-  let wordIndex = 0;
+  // The pill: one rounded navy band behind each line.
+  if (styleName === 'pill') {
+    lines.forEach((line, lineIndex) => {
+      const y = top + lineHeight * (lineIndex + 0.5);
+      const bandHeight = lineHeight * 0.96;
+      ctx.save();
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
+      ctx.shadowBlur = 18 * unit;
+      ctx.shadowOffsetY = 6 * unit;
+      ctx.fillStyle = 'rgba(22, 35, 63, 0.88)';
+      roundRect(ctx, (width - line.width) / 2 - fontSize * 0.45, y - bandHeight / 2, line.width + fontSize * 0.9, bandHeight, bandHeight / 2);
+      ctx.fill();
+      ctx.restore();
+    });
+  }
+
   lines.forEach((line, lineIndex) => {
     let x = (width - line.width) / 2;
     const y = top + lineHeight * (lineIndex + 0.5);
-
-    for (const token of line.tokens) {
+    for (let wordIndex = line.from; wordIndex < line.to; wordIndex += 1) {
+      const token = tokens[wordIndex];
       const isActive = wordIndex === active;
+      const said = wordIndex <= active;
+      const isKey = Boolean(burst.words[wordIndex].key);
       const textWidth = ctx.measureText(token).width;
-      const slot = textWidth * POP;
-      const centre = x + slot / 2;
+      const slot = slots[wordIndex];
+      const emojiSize = emojis[wordIndex] ? fontSize * 0.95 : 0;
+      const textLeft = x + fontSize * padX + (textWidth * spec.pop - textWidth) / 2;
+      const centre = textLeft + textWidth / 2;
+
       ctx.save();
-      if (isActive) {
-        // Pop the spoken word, scaling around the centre of its slot.
+      if (styleName === 'bold' && isActive) {
+        // Pop the spoken word, scaling around its centre.
         ctx.translate(centre, y);
         ctx.scale(POP, POP);
         ctx.translate(-centre, -y);
       }
-      const left = centre - textWidth / 2;
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
-      ctx.shadowBlur = 8 * unit;
-      ctx.shadowOffsetY = 4 * unit;
-      ctx.lineWidth = OUTLINE * unit;
-      ctx.strokeStyle = '#000';
-      ctx.strokeText(token, left, y);
-      ctx.shadowColor = 'transparent';
-      ctx.fillStyle = isActive ? GOLD : WHITE;
-      ctx.fillText(token, left, y);
+      if ((styleName === 'pill' || styleName === 'box') && isActive) {
+        // The spoken word sits on a gold block.
+        const blockHeight = fontSize * 1.18;
+        ctx.save();
+        ctx.fillStyle = GOLD;
+        if (styleName === 'box') { ctx.shadowColor = 'rgba(0, 0, 0, 0.4)'; ctx.shadowBlur = 10 * unit; ctx.shadowOffsetY = 4 * unit; }
+        roundRect(ctx, textLeft - fontSize * padX, y - blockHeight / 2, textWidth + fontSize * padX * 2, blockHeight, fontSize * 0.22);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      let fill = WHITE;
+      if (styleName === 'bold') fill = isActive ? GOLD : isKey ? KEY_GOLD : WHITE;
+      else if (styleName === 'pill' || styleName === 'box') fill = isActive ? NAVY : isKey ? KEY_GOLD : WHITE;
+      else if (styleName === 'karaoke') fill = said ? GOLD : WHITE;
+      else if (styleName === 'minimal') fill = isKey ? KEY_GOLD : WHITE;
+
+      if (spec.outline && !((styleName === 'box') && isActive)) {
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+        ctx.shadowBlur = 8 * unit;
+        ctx.shadowOffsetY = 4 * unit;
+        ctx.lineWidth = spec.outline * unit;
+        ctx.strokeStyle = '#000';
+        ctx.strokeText(token, textLeft, y);
+        ctx.shadowColor = 'transparent';
+      } else if (styleName === 'minimal') {
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+        ctx.shadowBlur = 10 * unit;
+      }
+      ctx.fillStyle = fill;
+      ctx.fillText(token, textLeft, y);
       ctx.restore();
+
+      if (emojiSize) {
+        // The emoji bounces in as its word is said, then rests beside it.
+        const word = burst.words[wordIndex];
+        const since = times.source - word.start;
+        const bounce = since < 0 ? 0.85 : since < 0.25 ? 0.85 + 0.35 * Math.sin((since / 0.25) * Math.PI) : 1;
+        const size = emojiSize * (said ? bounce : 0.85);
+        const image = assets.emoji[emojis[wordIndex]];
+        ctx.save();
+        if (!said) ctx.globalAlpha = 0.55;
+        ctx.drawImage(image, textLeft + textWidth * spec.pop + fontSize * (padX + 0.12) + (emojiSize - size) / 2, y - size / 2, size, size);
+        ctx.restore();
+      }
       x += slot + gap;
-      wordIndex += 1;
     }
   });
   ctx.restore();

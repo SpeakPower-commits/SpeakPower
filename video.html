@@ -3,16 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI Video Editor · Podcasts and Interviews to Clips | SpeakPower</title>
-<meta name="description" content="Upload a raw podcast or interview and tell the AI what you want: it removes the ums and pauses, picks the best moments, adds captions, titles and your brand, and writes the post. First 3 tries free.">
+<title>Ngoma · AI Video Editor for Podcasts and Interviews | SpeakPower</title>
+<meta name="description" content="Meet Ngoma, SpeakPower's AI video editor. Upload a raw podcast or interview and say what you want: it removes the ums and pauses, picks the best moments, and designs the edit with modern captions, emojis, icons, counting numbers and your Canva stickers, then writes the post. First 3 tries free.">
 <link rel="canonical" href="https://speakpower-commits.github.io/SpeakPower/video.html">
 <meta name="robots" content="index, follow, max-image-preview:large">
 <meta name="theme-color" content="#0a1020">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="SpeakPower">
 <meta property="og:locale" content="en_UG">
-<meta property="og:title" content="SpeakPower AI Video Editor">
-<meta property="og:description" content="A raw video in; a clean episode, short clips with captions and graphics, and the post text out.">
+<meta property="og:title" content="Ngoma · SpeakPower's AI video editor">
+<meta property="og:description" content="Ngoma, the talking drum, carries your message: a raw video in; a clean episode, designed short clips and the post text out.">
 <meta property="og:url" content="https://speakpower-commits.github.io/SpeakPower/video.html">
 <meta property="og:image" content="https://speakpower-commits.github.io/SpeakPower/assets/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -41,16 +41,16 @@
 <main id="main">
 <div class="page-hero"><div class="wrap">
 <p class="greeting" data-greeting hidden></p>
-<span class="eyebrow">SpeakPower AI Video Editor &middot; first 3 tries free</span>
-<h1>Raw video in. <em>Clips, captions and the post out.</em></h1>
-<p>Upload a podcast, interview or talk and tell the AI what you want. It cuts the long pauses and the "um"s, picks the best moments, adds captions, titles and your brand, and writes the post. The editing happens on your computer: the video is never uploaded.</p>
+<span class="eyebrow">Ngoma &middot; SpeakPower's AI video editor &middot; first 3 tries free</span>
+<h1>Meet Ngoma. <em>Your message, edited and designed.</em></h1>
+<p>Like the talking drum that carried messages between villages, Ngoma carries yours. Upload a podcast, interview or talk and tell Ngoma what you want: it cuts the long pauses and the "um"s, picks the best moments, designs the edit with modern captions, emojis, icons, counting numbers and your own Canva stickers, and writes the post. The editing happens on your computer: the video is never uploaded.</p>
 </div></div>
 
 <section style="padding-top:0"><div class="wrap">
 <div class="sve">
   <!-- Shown only when the site has no Worker configured. -->
   <div class="studio-builder-panel" id="sv-offline" hidden>
-    <h2>The AI Video Editor opens here shortly.</h2>
+    <h2>Ngoma, the AI video editor, opens here shortly.</h2>
     <p>It is being connected. Until then, the free Clarity Audit checks a written pitch in your browser.</p>
     <div class="builder-actions"><a class="btn btn-ghost" href="audit.html">Run the free Audit</a></div>
   </div>
@@ -93,12 +93,13 @@
         </section>
 
         <section class="auto-card">
-          <h2><span class="step">2</span> Tell the AI what to do</h2>
+          <h2><span class="step">2</span> Tell Ngoma what you want</h2>
           <textarea id="auto-prompt" class="field auto-prompt" rows="4" data-draft="video-instruction" data-draft-note="off"
             placeholder='e.g. "Make 3 TikTok clips about leadership, 30–60 seconds. Remove the ums. Guest is Jane Wanjiku, CEO of Acme. End with: Book a free call"'></textarea>
           <div class="chips" aria-label="Examples">
             <button class="chip" type="button" data-prompt="Clean full episode for YouTube: remove long pauses and ums, add captions, chapters and my logo.">Clean episode for YouTube</button>
             <button class="chip" type="button" data-prompt="Make 3 TikTok clips of the best moments, 30-60 seconds, with captions and pop-up key words.">3 TikTok clips</button>
+            <button class="chip" type="button" data-prompt="Make 3 modern clips with designed captions, emojis, icons and key points, 30-60 seconds.">Modern, with emojis &amp; icons</button>
             <button class="chip" type="button" data-prompt="Remove ums and pauses only.">Remove ums &amp; pauses only</button>
             <button class="chip" type="button" data-prompt="Make 1 short teaser clip, 20-30 seconds, with a strong hook title.">One teaser</button>
           </div>
@@ -114,8 +115,16 @@
             </fieldset>
             <fieldset>
               <legend>Style</legend>
+              <label class="check">Look
+                <select id="opt-look" class="field field-inline">
+                  <option value="classic">Classic: bold captions</option><option value="modern">Modern: designed, emojis &amp; icons</option>
+                  <option value="karaoke">Karaoke captions</option><option value="clean">Clean subtitles</option>
+                </select></label>
               <label class="check"><input type="checkbox" id="opt-captions" checked /> Captions</label>
               <label class="check"><input type="checkbox" id="opt-callouts" checked /> Pop-up key words</label>
+              <label class="check"><input type="checkbox" id="opt-emojis" /> Emojis</label>
+              <label class="check"><input type="checkbox" id="opt-graphics" /> Icons, numbers &amp; key points</label>
+              <label class="check"><input type="checkbox" id="opt-stickers" checked /> My stickers (brand kit)</label>
               <label class="check"><input type="checkbox" id="opt-logo" checked /> Logo &amp; end card</label>
               <label class="check">Spoken language
                 <select id="opt-language" class="field field-inline">
@@ -154,8 +163,9 @@
       <aside class="auto-side">
         <section class="auto-card">
           <h2><span class="step">3</span> Brand kit <small>(optional)</small></h2>
-          <p class="hint">Your logo, intro and end cards, frames and pictures — from Canva or anywhere (PNG, JPG or a short video).
+          <p class="hint">Your logo, intro and end cards, frames, pictures and stickers — from Canva or anywhere (PNG, JPG or a short video).
             Saved in this browser for every edit. A picture is shown when a word from its file name is said, e.g. <em>team.jpg</em>.</p>
+          <p class="hint"><strong>Canva stickers:</strong> design an icon or illustration in Canva → Share → Download → PNG with a transparent background → Add designs, and set it to <em>Sticker</em>. Ngoma pops it in beside the captions when you say its word.</p>
           <label class="button button-small">Add designs<input id="kit-add" type="file" accept="image/*,video/*" multiple hidden /></label>
           <ul id="kit-list" class="kit-list"></ul>
         </section>
@@ -164,7 +174,8 @@
           <ul class="hint know">
             <li>The first edit downloads the free AI (about 1 GB) and the speech model once; later edits start right away.</li>
             <li>A 20-minute podcast takes roughly 5–15 minutes, depending on the computer.</li>
-            <li>Every result can be fine-tuned by hand: move a title, change a cut, swap a graphic.</li>
+            <li>Ask for a look in your own words: "modern, with emojis and icons", "karaoke captions", "simple subtitles", "no zooms".</li>
+            <li>Every result can be fine-tuned by hand: move a title, change a cut, swap an emoji, edit a number.</li>
           </ul>
           <button id="to-manual" class="button-link" type="button">Or edit a video by hand →</button>
         </section>
@@ -299,6 +310,11 @@
       <div class="panel-group panel-captions">
         <h2>Captions</h2>
         <label class="check"><input type="checkbox" id="captions-on" checked /> Show captions on the video</label>
+        <label>Caption style
+          <select id="caption-style" class="field">
+            <option value="bold">Bold pop</option><option value="pill">Modern pill</option><option value="box">Highlight box</option>
+            <option value="karaoke">Karaoke</option><option value="minimal">Clean subtitles</option>
+          </select></label>
         <div class="field-row">
           <select id="caption-model" class="field" aria-label="Speech model">
             <option value="accurate">Accurate</option>
@@ -380,7 +396,7 @@
 <script type="module" src="video/app.js"></script>
 <script type="module" src="video/auto.js"></script>
 <script type="application/ld+json">
-{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "SpeakPower AI Video Editor", "applicationCategory": "MultimediaApplication", "operatingSystem": "Web", "url": "https://speakpower-commits.github.io/SpeakPower/video.html", "description": "Upload a raw podcast or interview and tell the AI what you want: it removes pauses and filler words, picks the best moments for short clips, adds captions, titles and brand graphics, and writes the post text. The video is edited in the browser and never uploaded.", "offers": [{"@type": "Offer", "price": "0", "priceCurrency": "UGX", "description": "First 3 tries free"}, {"@type": "Offer", "price": "60000", "priceCurrency": "UGX", "description": "Starter plan: 30 days of GRIOT, the Rehearsal Room and the AI Video Editor", "url": "https://speakpower-commits.github.io/SpeakPower/plans.html"}], "provider": {"@type": "ProfessionalService", "name": "SpeakPower", "url": "https://speakpower-commits.github.io/SpeakPower/"}}
+{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Ngoma, the SpeakPower AI Video Editor", "applicationCategory": "MultimediaApplication", "operatingSystem": "Web", "url": "https://speakpower-commits.github.io/SpeakPower/video.html", "description": "Upload a raw podcast or interview and tell the AI what you want: it removes pauses and filler words, picks the best moments for short clips, adds captions, titles and brand graphics, and writes the post text. The video is edited in the browser and never uploaded.", "offers": [{"@type": "Offer", "price": "0", "priceCurrency": "UGX", "description": "First 3 tries free"}, {"@type": "Offer", "price": "60000", "priceCurrency": "UGX", "description": "Starter plan: 30 days of GRIOT, the Rehearsal Room and Ngoma, the AI video editor", "url": "https://speakpower-commits.github.io/SpeakPower/plans.html"}], "provider": {"@type": "ProfessionalService", "name": "SpeakPower", "url": "https://speakpower-commits.github.io/SpeakPower/"}}
 </script>
 </body>
 </html>

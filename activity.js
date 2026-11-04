@@ -355,7 +355,7 @@
     if (labelled) return { text: labelled.label, state: "running" };
     if (guards.length) return { text: "Your work is still going", state: "running" };
     var done = mine.filter(function (item) { return item.status === "done"; })[0];
-    if (done) return { text: done.label + " is ready ✓", state: "done" };
+    if (done) return { text: (done.detail || done.label + " is ready") + " ✓", state: "done" };
     return { text: "Your work is finished", state: "done" };
   }
 
