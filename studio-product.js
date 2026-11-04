@@ -325,6 +325,7 @@
         : data.paidWith === "plan"
           ? "Included in your plan — this month's Studio pack."
           : ugx(data.amount) + " from your balance — " + ugx(acct.balance) + " left.";
+    if (data.pack) text += " Kept in your history: open it again any time from Your history.";
     $("outputPaid").textContent = text;
     $("outputPaid").hidden = false;
   }
@@ -343,6 +344,20 @@
       footer: "SpeakPower Studio",
       sections: lastSections.map(function (item) { return { heading: item[0], lines: item.slice(1) }; })
     };
+  }
+
+  // A pack from the member's history: shown as it was made, ready to download again.
+  function openSavedPack(id) {
+    A.call("/pack?id=" + encodeURIComponent(id)).then(function (data) {
+      render(data.sections || []);
+      var saved = new Date((data.at || 0) * 1000).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
+      $("outputTitle").textContent = (data.title || product.title) + " — made " + saved;
+      $("outputPaid").textContent = "From your history. Download it again below, or make a new one with the form.";
+      $("outputPaid").hidden = false;
+      outputHost.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, function (e) {
+      showOutputMessage(e.status === 404 ? "That pack is no longer in your history." : e.message);
+    });
   }
 
   /* ----------------------------------------------------------- validation */
@@ -613,6 +628,9 @@
         var auditId = params.get("audit");
         if (auditId) resumeAudit(auditId);
       }
+      // A pack kept in the member's history, opened again from there.
+      var packId = params.get("pack");
+      if (packId && A.session()) openSavedPack(packId);
     }, drawStatus);
   }
 })();

@@ -19,7 +19,7 @@
 
 import { loadProject } from './app.js';
 import { extractSpeechAudio, transcribeSamples } from './speech.js';
-import { memberSession, refundJob, startJob, transcribeRemote } from './remote.js';
+import { finishJob, memberSession, refundJob, startJob, transcribeRemote } from './remote.js';
 import { exportVideo } from './exporter.js';
 import {
   cleanupEdits, deleteEdit, editSize, holdEdit, isRunningElsewhere, keepSource, listEdits, loadEdit,
@@ -428,9 +428,10 @@ async function listen(samples, signal, notes, record, retried = false) {
   if (job && Date.now() - (job.startedAt || 0) > 5.5 * 3600e3) job = null;
   if (!job) {
     try {
-      const started = await startJob(record.meta.duration);
+      const started = await startJob(record.meta.duration, { name: record.name, instruction: record.instruction, look: record.settings?.look });
       job = { job: started.job, chunkSeconds: started.chunkSeconds, startedAt: Date.now(), pieces: {} };
       record.listenJob = job;
+      record.serverJob = started.job; // kept after listening, to tell the history what the edit made
       await saveEdit(record);
     } catch (error) {
       if (error.status === 401) { showGate(); return null; }
@@ -722,6 +723,10 @@ async function work(record, file, keeping) {
     record.status = 'done';
     record.percent = 100;
     if (keeping) await keeping.catch(() => {});
+    if (record.serverJob && !record.serverFinished) {
+      const reply = await finishJob(record.serverJob, record.results);
+      record.serverFinished = reply.saved !== false || reply.status === 'done';
+    }
     await saveEdit(record);
     showStatus([summary, ...allNotes(record)].join(' '), allNotes(record).length ? 'warn' : 'info');
     Work()?.set(workId(record), { label: 'Ngoma', href: `${PAGE}#edit=${record.id}`, status: 'done', detail: summary.replace(/ —.*$/, '') });

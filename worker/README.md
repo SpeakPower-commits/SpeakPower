@@ -189,6 +189,16 @@ Then switch `FLW_SECRET_KEY` to the live key, and merge the preview into `main`.
 - **The webhook's secret hash is compared in constant time.**
 - **A bank later** slots in without a schema change: `payments.provider` is `flutterwave` today.
 
+## Your history
+
+`history.html` shows a member everything they have done, by product: **All** (every use, from `runs`), GRIOT conversations, rehearsals, Ngoma edits, Studio packs, SEO audits and payments. Newest first, filtered by date, paged with "Load more", downloadable as CSV. Everything opens where it was made.
+
+- `GET /history?type=all|griot|rehearsal|video|packs|audits|payments&from=&to=&before=&limit=` — one page and a `next` cursor (`"<created_at>:<id>"`). The member's own rows only. GRIOT's conversations come from GRIOT; if it can't be reached, that tab says so and the rest works.
+- **Studio packs are kept until deleted:** `generate()` saves the finished sections in `packs` (never the answers that made them). `GET /pack?id=` reopens one in `studio-product.html?product=…&pack=…`, ready to download as Word or PDF again; `POST /packs/delete {id}` removes it.
+- **Ngoma edits:** `/video/start` also takes `name`, `instruction` and `look`, kept in `video_edits` (which outlives the six-hour job); the page calls `POST /video/finish {job, outputs}` once with what the edit made. The videos themselves never reach the Worker: they open only on the computer that made them.
+- **Rehearsals** reopen as their report via `GET /rehearsal?id=` (`rehearse.html?report=…`); the transcript was never kept.
+- **Switching on**, once, in the D1 console: the "Your history" block at the end of `schema.sql` (`CREATE TABLE IF NOT EXISTS packs …`, `video_edits …` and their indexes). Until it is run, every route still answers: the history lists uses, GRIOT, rehearsals, audits and payments, and packs and Ngoma details are simply not kept yet.
+
 ## The website audit
 
 The audit reads **the whole site**, up to 25 pages, the way a search engine or an AI assistant would, and checks that private areas stay private. It then adds Google Lighthouse with real-visitor speed, and a strategic read written by Claude. Price: UGX 150,000.
@@ -208,7 +218,7 @@ Every stage is safe to call twice:
 - Lighthouse and the strategic read are claimed before they run;
 - only the audit's owner can read it or move it on.
 
-Reports are kept 90 days, then the daily run deletes them.
+Finished reports are kept until their owner deletes them (Your history, `POST /studio/audits/delete`); an audit that never finished is deleted by the daily run after 90 days.
 
 **Private areas.** Only addresses the site itself links to, or the client lists, whose path looks private (`login`, `account`, `admin`, `dashboard`, `cart`, `checkout`…). Each is visited once, without signing in, and classed:
 - **protected:** 401 or 403, a redirect to a sign-in page, `noindex`, or disallowed by robots;

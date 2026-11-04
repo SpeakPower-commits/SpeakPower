@@ -100,6 +100,7 @@ sequenceDiagram
 ├── studio-griot.html · griot-app.html/.js/.css                          GRIOT page; the GRIOT OS app: chat, projects, Memory, Decisions, Documents
 ├── griot-proverbs.js                                                    the nine proverbs GRIOT shows while it thinks (edit to add your engero)
 ├── account.html · account.js · account-page.js                          sign-up, membership, balance, profile
+├── history.html · history.js                                            Your history: every use, by product; packs and reports to open again
 ├── welcome.html · welcome.js                                            the two sign-up steps that brief GRIOT
 ├── plans.html · plans.js                                                Starter and Pro, 30 days each
 ├── audit.html · audit.js                                                free Clarity Audit, a Studio tool (runs in the browser)

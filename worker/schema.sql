@@ -350,3 +350,41 @@ CREATE TABLE IF NOT EXISTS yt_quota (
   units   INTEGER NOT NULL DEFAULT 0 CHECK (units >= 0),
   PRIMARY KEY (day, user_id)
 );
+
+-- Your history (added 4 Nov 2026). On an existing database, run this block
+-- once in the D1 console; every statement is idempotent. Until it is run,
+-- history still lists every use, GRIOT, rehearsals, audits and payments.
+
+-- A finished Studio pack, kept until its owner deletes it, so it can be
+-- reopened and downloaded again. Only the pack itself: never the answers.
+CREATE TABLE IF NOT EXISTS packs (
+  id            TEXT PRIMARY KEY,
+  user_id       TEXT NOT NULL,
+  run_id        INTEGER,
+  product       TEXT NOT NULL,
+  title         TEXT NOT NULL,
+  sections_json TEXT NOT NULL,
+  created_at    INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_packs_user ON packs (user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_packs_run ON packs (run_id);
+
+-- One Ngoma edit, as its owner sees it in their history on any device. The
+-- video never reaches the server; this is its name, length, instruction,
+-- look and what came out of it.
+CREATE TABLE IF NOT EXISTS video_edits (
+  id            TEXT PRIMARY KEY,
+  user_id       TEXT NOT NULL,
+  run_id        INTEGER,
+  name          TEXT NOT NULL DEFAULT '',
+  seconds       INTEGER NOT NULL DEFAULT 0,
+  instruction   TEXT NOT NULL DEFAULT '',
+  look          TEXT NOT NULL DEFAULT '',
+  outputs_json  TEXT NOT NULL DEFAULT '[]',
+  status        TEXT NOT NULL DEFAULT 'editing',
+  created_at    INTEGER NOT NULL,
+  finished_at   INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_video_edits_user ON video_edits (user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_video_edits_run ON video_edits (run_id);
+CREATE INDEX IF NOT EXISTS idx_runs_user_id ON runs (user_id, id);

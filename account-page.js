@@ -73,7 +73,7 @@
       var links = document.createElement("div");
       links.className = "builder-actions";
       [["griot-app.html", "Open GRIOT"], ["rehearse.html", "Rehearsal Room"], ["video.html", "Ngoma video editor"], ["plans.html#packs", "Studio packs"],
-        ["youtube.html", "YouTube research"]].forEach(function (pair, i) {
+        ["history.html", "Your history"], ["youtube.html", "YouTube research"]].forEach(function (pair, i) {
         var a = document.createElement("a");
         a.className = i ? "btn btn-ghost" : "btn btn-primary";
         a.href = pair[0];

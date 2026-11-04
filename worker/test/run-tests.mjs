@@ -3876,5 +3876,138 @@ await test("video: signed out, or before the profile, nothing is spent", async (
   eq(userRow("v-noprofile@example.com").trials_remaining, 3);
 });
 
+/* ------------------------------------------------------- Your history */
+
+const history = (token, query = "") => call("GET", "/history" + (query ? "?" + query : ""), { token });
+
+await test("history: a finished pack is kept for its owner, reopens in full, and only for them", async () => {
+  const s = await signUp("h-pack@example.com");
+  const r = await call("POST", "/studio/generate", { token: s.token, body: { product: "brand-story", inputs: BRIEF } });
+  eq(r.status, 200); ok(/^[0-9a-f-]{36}$/.test(r.data.pack), "the generate reply names the kept pack");
+  const row = db.one("SELECT * FROM packs WHERE id = '" + r.data.pack + "'");
+  ok(row && row.product === "brand-story" && row.run_id, "kept with its run");
+  eq(Object.keys(row).sort().join(","), "created_at,id,product,run_id,sections_json,title,user_id", "the pack only: no answers kept");
+  const got = await call("GET", "/pack?id=" + r.data.pack, { token: s.token });
+  eq(got.status, 200); eq(got.data.title, "Brand Story Builder"); eq(got.data.sections.length, r.data.sections.length);
+  const other = await signUp("h-pack-other@example.com");
+  eq((await call("GET", "/pack?id=" + r.data.pack, { token: other.token })).status, 404, "another member: not found");
+  eq((await call("POST", "/packs/delete", { token: other.token, body: { id: r.data.pack } })).status, 404, "nor deletable by them");
+  const list = await history(s.token, "type=packs");
+  eq(list.status, 200); eq(list.data.items.length, 1);
+  ok(list.data.items[0].link.endsWith("product=brand-story&pack=" + r.data.pack), list.data.items[0].link);
+  eq((await call("POST", "/packs/delete", { token: s.token, body: { id: r.data.pack } })).data.deleted, true);
+  eq((await call("GET", "/pack?id=" + r.data.pack, { token: s.token })).status, 404, "gone once deleted");
+  eq((await history(s.token, "type=packs")).data.items.length, 0);
+});
+
+await test("history: the all list has every use, newest first, paged, with titles and links", async () => {
+  const s = await signUp("h-all@example.com");
+  givePlan("h-all@example.com", "pro");
+  const pack = await call("POST", "/studio/generate", { token: s.token, body: { product: "brand-story", inputs: BRIEF } });
+  const edit = await call("POST", "/video/start", { token: s.token, body: { seconds: 120, name: "podcast.mp4", instruction: "Make 2 clips", look: "modern" } });
+  eq(edit.status, 200);
+  // Spread them in time, so the order and the dates are clear.
+  db.db.prepare("UPDATE runs SET created_at = created_at - 100 WHERE id = (SELECT run_id FROM packs WHERE id = ?)").run(pack.data.pack);
+  const all = await history(s.token, "type=all&limit=1");
+  eq(all.status, 200); eq(all.data.items.length, 1); ok(all.data.next, "a next page");
+  eq(all.data.items[0].product, "video"); eq(all.data.items[0].title, "Ngoma video edit");
+  ok(all.data.items[0].summary.startsWith("podcast.mp4"), all.data.items[0].summary);
+  eq(all.data.items[0].link, "video.html#edit=" + edit.data.job);
+  const more = await history(s.token, "type=all&limit=1&before=" + encodeURIComponent(all.data.next));
+  eq(more.data.items.length, 1); eq(more.data.items[0].title, "Brand Story Builder");
+  ok(more.data.items[0].link.includes("&pack=" + pack.data.pack), "the pack's link");
+  eq(more.data.next, null, "the end");
+  const recent = await history(s.token, "type=all&from=" + (Math.floor(Date.now() / 1000) - 50));
+  eq(recent.data.items.length, 1, "a date filter");
+  const other = await signUp("h-all-other@example.com");
+  eq((await history(other.token, "type=all")).data.items.length, 0, "never another member's");
+  eq((await history(null, "type=all")).status, 401);
+});
+
+await test("history: Ngoma edits keep their name, look and outputs; finish is the owner's, once", async () => {
+  const s = await signUp("h-video@example.com");
+  const start = await call("POST", "/video/start", { token: s.token, body: { seconds: 600, name: "interview.mov", instruction: "Modern clips", look: "modern" } });
+  const job = start.data.job;
+  const outputs = [{ label: "Clip 1: Hook", seconds: 31, format: "9:16" }, { label: "Full episode", seconds: 560, format: "16:9" }];
+  const other = await signUp("h-video-other@example.com");
+  eq((await call("POST", "/video/finish", { token: other.token, body: { job, outputs } })).status, 404, "not another member's");
+  const done = await call("POST", "/video/finish", { token: s.token, body: { job, outputs } });
+  eq(done.data.saved, true);
+  eq((await call("POST", "/video/finish", { token: s.token, body: { job, outputs: [] } })).data.saved, false, "once");
+  const list = await history(s.token, "type=video");
+  eq(list.data.items.length, 1);
+  const item = list.data.items[0];
+  eq(item.title, "interview.mov"); eq(item.instruction, "Modern clips"); eq(item.outputs.length, 2);
+  ok(/10 min · Modern look · 2 videos/.test(item.summary), item.summary);
+  // It outlives the job, which the cron removes.
+  db.db.prepare("UPDATE video_jobs SET expires_at = 0 WHERE id = ?").run(job);
+  const pending = [];
+  await worker.scheduled({}, env, { waitUntil: (p) => pending.push(p) });
+  await Promise.all(pending.map((p) => p.catch(() => {})));
+  eq((await history(s.token, "type=video")).data.items.length, 1, "kept after the job is gone");
+});
+
+await test("history: a refunded Ngoma edit shows as not charged", async () => {
+  const s = await signUp("h-video-refund@example.com");
+  const start = await call("POST", "/video/start", { token: s.token, body: { seconds: 60, name: "silent.mp4" } });
+  db.db.prepare("UPDATE video_jobs SET chunks_tried = 1, chunks_failed = 1 WHERE id = ?").run(start.data.job);
+  eq((await call("POST", "/video/refund", { token: s.token, body: { job: start.data.job } })).data.refunded, true);
+  ok(/not charged/.test((await history(s.token, "type=video")).data.items[0].summary));
+});
+
+await test("history: rehearsals reopen as their report; finished audits are kept until deleted", async () => {
+  const s = await signUp("h-reh@example.com");
+  const uid = userRow("h-reh@example.com").id;
+  const now = Math.floor(Date.now() / 1000);
+  db.db.prepare("INSERT INTO rehearsals (user_id, run_id, moment, seconds, words, wpm, fillers_pm, pauses_pm, score, kind, feedback_json, created_at) " +
+    "VALUES (?, NULL, 'pitch', 60, 150, 150, 1.5, 0.5, 78, 'speak', ?, ?)").run(uid, JSON.stringify({ lenses: [{ score: 4 }, { score: 4 }, { score: 3 }, { score: 4 }, { score: 4 }] }), now);
+  const list = await history(s.token, "type=rehearsal");
+  eq(list.data.items.length, 1); ok(/Speak Score 78/.test(list.data.items[0].summary));
+  const id = list.data.items[0].link.split("=")[1];
+  const report = await call("GET", "/rehearsal?id=" + id, { token: s.token });
+  eq(report.status, 200); eq(report.data.score, 78); eq(report.data.metrics.wpm, 150); ok(report.data.parts.message > 0, "the message part");
+  const other = await signUp("h-reh-other@example.com");
+  eq((await call("GET", "/rehearsal?id=" + id, { token: other.token })).status, 404);
+
+  const old = now - 200 * 86400;
+  db.db.prepare("INSERT INTO audits (id, user_id, target, state, site, created_at, updated_at) VALUES (?, ?, 'https://done.test/', 'done', '{}', ?, ?)").run("aud-done", uid, old, old);
+  db.db.prepare("INSERT INTO audits (id, user_id, target, state, site, created_at, updated_at) VALUES (?, ?, 'https://stuck.test/', 'crawl', '{}', ?, ?)").run("aud-stuck", uid, old, old);
+  const pending = [];
+  await worker.scheduled({}, env, { waitUntil: (p) => pending.push(p) });
+  await Promise.all(pending.map((p) => p.catch(() => {})));
+  ok(db.one("SELECT id FROM audits WHERE id = 'aud-done'"), "a finished report stays");
+  ok(!db.one("SELECT id FROM audits WHERE id = 'aud-stuck'"), "an unfinished old run goes");
+  const audits = await history(s.token, "type=audits");
+  eq(audits.data.items.length, 1); eq(audits.data.items[0].summary, "done.test");
+  eq((await call("POST", "/studio/audits/delete", { token: other.token, body: { id: "aud-done" } })).status, 404);
+  eq((await call("POST", "/studio/audits/delete", { token: s.token, body: { id: "aud-done" } })).data.deleted, true);
+  eq((await history(s.token, "type=audits")).data.items.length, 0);
+});
+
+await test("history: payments list the member's own, never failed ones", async () => {
+  const s = await signUp("h-pay@example.com");
+  const uid = userRow("h-pay@example.com").id;
+  const now = Math.floor(Date.now() / 1000);
+  db.db.prepare("INSERT INTO payments (tx_ref, user_id, amount, currency, status, purpose, created_at, paid_at) VALUES ('tx-h1', ?, 60000, 'UGX', 'paid', 'plan:starter', ?, ?)").run(uid, now, now);
+  db.db.prepare("INSERT INTO payments (tx_ref, user_id, amount, currency, status, purpose, created_at) VALUES ('tx-h2', ?, 5000, 'UGX', 'failed', 'topup', ?)").run(uid, now);
+  const list = await history(s.token, "type=payments");
+  eq(list.data.items.length, 1); eq(list.data.items[0].title, "Starter plan, 30 days"); eq(list.data.items[0].amount, 60000);
+});
+
+await test("history: before its tables exist, it still answers, and a pack purchase still works", async () => {
+  db.db.exec("ALTER TABLE packs RENAME TO packs_hidden; ALTER TABLE video_edits RENAME TO video_edits_hidden;");
+  try {
+    const s = await signUp("h-old-db@example.com");
+    const r = await call("POST", "/studio/generate", { token: s.token, body: { product: "brand-story", inputs: BRIEF } });
+    eq(r.status, 200, "the purchase stands"); eq(r.data.pack, null, "no copy yet");
+    eq((await call("POST", "/video/start", { token: s.token, body: { seconds: 60, name: "a.mp4" } })).status, 200, "Ngoma still starts");
+    const all = await history(s.token, "type=all");
+    eq(all.status, 200); eq(all.data.items.length, 2, "every use still listed");
+    eq((await history(s.token, "type=packs")).data.items.length, 0);
+  } finally {
+    db.db.exec("ALTER TABLE packs_hidden RENAME TO packs; ALTER TABLE video_edits_hidden RENAME TO video_edits;");
+  }
+});
+
 console.log("\n" + passed + " passed, " + failures.length + " failed\n");
 if (failures.length) process.exit(1);
