@@ -23,7 +23,7 @@
   var errorHost = $("builderError");
   var gate = $("builderGate");
 
-  // Prices are in UGX and must match the Worker's price list and studio.html
+  // Prices are in UGX and must match the Worker's price list and plans.html
   // (the Worker's test suite fails if any of the three disagree).
   var PRODUCTS = {
     "brand-story": {

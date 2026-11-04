@@ -1608,7 +1608,7 @@ function packPrice(key) {
 const ugx = (n) => "UGX " + n.toLocaleString("en-US");
 
 let PRICES;
-await test("prices: Studio packs cost exactly what plans.html shows; studio.html shows products, not prices", async () => {
+await test("prices: Studio packs live on plans.html at the Worker's prices; studio.html shows only the products", async () => {
   const s = await signUp("p-list@example.com");
   const r = await call("GET", "/account", { token: s.token });
   eq(r.status, 200);
@@ -1619,19 +1619,20 @@ await test("prices: Studio packs cost exactly what plans.html shows; studio.html
     ok(Number.isInteger(amount) && amount > 0, key + " has a whole-shilling price");
     ok(packPrice(key).startsWith(ugx(amount)),
       key + ": plans.html shows " + JSON.stringify(packPrice(key)) + " but the Worker charges " + ugx(amount));
-    ok(STUDIO_HTML.includes('href="studio-product.html?product=' + key + '"'), "studio.html offers " + key);
+    ok(PLANS_HTML.includes('href="studio-product.html?product=' + key + '"'), "plans.html offers " + key);
+    ok(!STUDIO_HTML.includes('studio-product.html?product=' + key), "studio.html no longer carries the " + key + " pack");
   }
   ok(/^Free\b/.test(packPrice("clarity-audit")), "plans.html says the Clarity Audit is free");
   const prices = [...PLANS_HTML.matchAll(/id="pack-([a-z-]+)"/g)].map((m) => m[1]).sort().join(",");
   eq(prices, Object.keys(PRICES).concat(["clarity-audit"]).sort().join(","), "plans.html price list");
-  // The Studio catalog: products only. Every card is a pack the Worker sells,
-  // a plan service, or the free audit, and none quotes a price.
+  // The Studio: the products only (GRIOT, the Rehearsal Room, Ngoma and the free
+  // audit), with no prices; the packs and every price are on plans.html.
   const catalog = STUDIO_HTML.slice(STUDIO_HTML.indexOf('<div class="product-catalog"'), STUDIO_HTML.indexOf('<p class="studio-price-note'));
   ok(!/UGX\s*[\d,]+/.test(catalog), "studio.html product cards quote no prices");
   ok(!/class="studio-price"/.test(catalog), "studio.html has no price blocks");
   ok(STUDIO_HTML.includes('href="plans.html"'), "studio.html points to the price list");
   const cards = [...STUDIO_HTML.matchAll(/id="product-([a-z-]+)"/g)].map((m) => m[1]).sort().join(",");
-  eq(cards, Object.keys(PRICES).concat(["clarity-audit", "griot", "rehearsal", "video"]).sort().join(","), "catalog cards");
+  eq(cards, "clarity-audit,griot,rehearsal,video", "Studio shows the four products");
 });
 
 await test("plans: plans.html and the Worker agree on every plan price", async () => {

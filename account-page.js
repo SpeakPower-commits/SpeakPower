@@ -72,7 +72,7 @@
       p.textContent = "Every service, with no free tries, plan, balance or document limit. Each use is still listed below, at no charge.";
       var links = document.createElement("div");
       links.className = "builder-actions";
-      [["griot-app.html", "Open GRIOT"], ["rehearse.html", "Rehearsal Room"], ["video.html", "Ngoma video editor"], ["studio.html", "Studio packs"],
+      [["griot-app.html", "Open GRIOT"], ["rehearse.html", "Rehearsal Room"], ["video.html", "Ngoma video editor"], ["plans.html#packs", "Studio packs"],
         ["youtube.html", "YouTube research"]].forEach(function (pair, i) {
         var a = document.createElement("a");
         a.className = i ? "btn btn-ghost" : "btn btn-primary";
