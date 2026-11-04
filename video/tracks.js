@@ -50,11 +50,13 @@ export const LAYOUTS = {
   'logo-tl': 'Logo · top left',
   'logo-br': 'Logo · bottom right',
   'logo-bl': 'Logo · bottom left',
+  sticker: 'Sticker · beside the captions',
 };
 
 // Graphics drawn by Studio itself rather than imported: lower-third titles,
-// cards, pop-up key phrases and the progress bar.
-export const DRAWN_KINDS = ['text', 'card', 'callout', 'progress'];
+// cards, pop-up key phrases, the progress bar, and Ngoma's designed graphics
+// (emoji and icon stickers, key-point cards, counting stats, lists, punch-in zooms).
+export const DRAWN_KINDS = ['text', 'card', 'callout', 'progress', 'sticker', 'keypoint', 'stat', 'list', 'zoom'];
 export const CARD_STYLES = { hook: 'Opening hook', chapter: 'Chapter', end: 'End card' };
 
 export const TRANSITIONS = {
@@ -77,7 +79,7 @@ const DECLICK = 0.008;                         // tiny audio ramp so joins never
 export const MIN_CLIP = 0.2;
 const EPSILON = 1e-3;
 
-export const DEFAULT_LENGTH = { image: 5, text: 4, card: 3, callout: 1.4, progress: 5 };
+export const DEFAULT_LENGTH = { image: 5, text: 4, card: 3, callout: 1.4, progress: 5, sticker: 1.8, keypoint: 3, stat: 3, list: 6, zoom: 2 };
 
 let counter = 0;
 export const newId = (prefix) => `${prefix}${Date.now().toString(36)}${(counter += 1).toString(36)}`;
@@ -149,6 +151,7 @@ export function addClip(project, { kind, media = null, start = 0, track = null, 
   };
   if (extra.size) clip.size = extra.size;
   if (extra.transitionDuration) clip.transitionDuration = extra.transitionDuration;
+  if (extra.data) clip.data = JSON.parse(JSON.stringify(extra.data)); // a designed graphic's content
   project.clips.push(clip);
   return clip;
 }
@@ -194,6 +197,7 @@ export function splitClip(project, clip, time) {
   if (time <= clip.start + MIN_CLIP / 2 || time >= clipEnd(clip) - MIN_CLIP / 2) return null;
   const offset = time - clip.start;
   const right = { ...clip, id: newId('c'), start: time, transitionIn: 'none' };
+  if (clip.data) right.data = JSON.parse(JSON.stringify(clip.data));
   if (hasFixedLength(clip)) {
     right.in = clip.in + offset;
     clip.out = clip.in + offset;

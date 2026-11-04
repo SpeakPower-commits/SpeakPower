@@ -16,6 +16,7 @@ import { FORMATS, drawFrame } from './renderer.js';
 import { keptRanges, outputToSource } from './project.js';
 import { VIDEO_TRACKS, isActive, mediaOf, timelineDuration } from './tracks.js';
 import { audibleClips, mixAudio } from './mixer.js';
+import { loadGraphics } from './graphics.js';
 
 // Pinned to an exact release. Loaded on first export, not on page load, so
 // opening the editor stays fast.
@@ -119,7 +120,7 @@ async function hardwareHint(mb, codec, width, height) {
  * @returns         { blob, videoCodec, audioCodec, duration, warnings }
  */
 export async function exportVideo(project, assets, { onProgress = () => {}, signal, fast = false } = {}) {
-  const mb = await loadMediabunny();
+  const [mb] = await Promise.all([loadMediabunny(), loadGraphics(project, assets)]); // the emoji pictures it draws
   const { width, height } = outputSize(project.format, fast);
   const total = timelineDuration(project);
   const warnings = [];

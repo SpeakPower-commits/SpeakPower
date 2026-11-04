@@ -10,6 +10,7 @@
 import { drawCaptions } from './captions.js';
 import { CAPTION_FONT, HEADLINE_FONT, wrapLines } from './text.js';
 import { MAIN_TRACK, VIDEO_TRACKS, clipsOn, isActive, joinEffectAt, transitionAt } from './tracks.js';
+import { drawEmoji, drawIcon, formatStat } from './graphics.js';
 
 export const FORMATS = {
   '9:16': { width: 1080, height: 1920, label: 'Vertical 9:16', use: 'Reels · TikTok · Shorts' },
@@ -189,6 +190,23 @@ function layoutBox(layout, size, imageWidth, imageHeight, width, height, unit, f
         plain: true,
       };
     }
+    case 'sticker': {
+      // A design from the brand kit (e.g. a Canva illustration): whole, unframed,
+      // beside the captions, popping in and out (drawLayer).
+      const aspect = imageHeight / imageWidth || 1;
+      let boxWidth = width * Math.min(0.6, Math.max(0.12, size || 0.3));
+      let boxHeight = boxWidth * aspect;
+      if (boxHeight > height * 0.3) { boxHeight = height * 0.3; boxWidth = boxHeight / aspect; }
+      const bottomEdge = height * (1 - frameLayout.captionBottom) - 250 * unit;
+      return {
+        x: width - boxWidth - 60 * unit,
+        y: Math.max(height * 0.12, bottomEdge - boxHeight),
+        width: boxWidth,
+        height: boxHeight,
+        plain: true,
+        sticker: true,
+      };
+    }
     case 'pip-tr': case 'pip-tl': case 'pip-br': case 'pip-bl': {
       const aspect = imageHeight / imageWidth || 9 / 16;
       let boxWidth = width * Math.min(0.8, Math.max(0.15, size || 0.36));
@@ -245,6 +263,15 @@ function withTransition(ctx, transition, box, width, draw) {
 
 function drawLayer(ctx, clip, layer, time, width, height, unit, frameLayout) {
   const box = layoutBox(clip.layout, clip.size, layer.width, layer.height, width, height, unit, frameLayout);
+  if (box.sticker) {
+    popMotion(ctx, clip, time, box.x + box.width / 2, box.y + box.height / 2, () => {
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
+      ctx.shadowBlur = 24 * unit;
+      ctx.shadowOffsetY = 10 * unit;
+      ctx.drawImage(layer.image, box.x, box.y, box.width, box.height);
+    });
+    return;
+  }
   withTransition(ctx, transitionAt(clip, time), box, width, () => {
     if (box.corner) {
       // Picture-in-picture: a framed, rounded window with a soft shadow.
@@ -408,6 +435,255 @@ function drawCallout(ctx, clip, time, width, height, unit, layout) {
   });
 }
 
+
+// --- Ngoma's designed graphics -------------------------------------------------------
+//
+// Drawn, not imported, so every edit looks finished without any design tool:
+//   sticker   -- an emoji or icon that pops in beside the captions as its word is said
+//   keypoint  -- a key point card: icon on a gold disc, bold line beside it
+//   stat      -- a spoken figure that counts up, with a gold ring and a label
+//   list      -- a numbered list that builds as the speaker counts the points
+//   zoom      -- a gentle punch-in on the speaker (applied to the main video)
+// Their content lives in clip.data, so the Fine-tune editor can change it.
+
+const easeOutBack = (t) => 1 + 2.70158 * (t - 1) ** 3 + 1.70158 * (t - 1) ** 2;
+const easeOut = (t) => 1 - (1 - t) ** 3;
+const clamp01 = (value) => Math.min(1, Math.max(0, value));
+
+/** Pop in (overshoot), float gently, pop out: scale and fade around (cx, cy). */
+function popMotion(ctx, clip, time, cx, cy, draw) {
+  const t = time - clip.start;
+  const length = clip.out - clip.in;
+  const appear = easeOutBack(clamp01(t / 0.35));
+  const leave = clamp01((length - t) / 0.22);
+  const scale = Math.max(0, appear) * (0.6 + 0.4 * leave);
+  if (scale <= 0.01) return;
+  const float = Math.sin(t * 2.4) * 0.02;
+  ctx.save();
+  ctx.globalAlpha *= clamp01(t / 0.12) * leave;
+  ctx.translate(cx, cy);
+  ctx.scale(scale, scale);
+  ctx.rotate(float);
+  ctx.translate(-cx, -cy);
+  draw();
+  ctx.restore();
+}
+
+/** Where designed graphics go: clear of the headline above and the captions below. */
+function designZone(project, width, height, unit) {
+  const layout = LAYOUT[project.format] || LAYOUT['9:16'];
+  const vertical = project.format === '9:16';
+  return {
+    vertical,
+    top: height * (vertical ? 0.3 : 0.2),
+    middle: height * (vertical ? 0.4 : 0.42),
+    captionsTop: height * (1 - layout.captionBottom) - 230 * unit,
+  };
+}
+
+function drawSticker(ctx, clip, time, width, height, unit, assets, project) {
+  const data = clip.data || {};
+  const zone = designZone(project, width, height, unit);
+  const size = (zone.vertical ? 210 : 170) * unit;
+  const cx = data.side === 'left' ? width * 0.2 : width * 0.8;
+  const cy = Math.max(zone.top, zone.captionsTop - size * 0.55);
+  popMotion(ctx, clip, time, cx, cy, () => {
+    if (data.emoji && assets?.emoji?.[data.emoji]) {
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
+      ctx.shadowBlur = 20 * unit;
+      ctx.shadowOffsetY = 8 * unit;
+      drawEmoji(ctx, assets, data.emoji, cx, cy, size);
+    } else {
+      // An icon on a gold disc.
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
+      ctx.shadowBlur = 20 * unit;
+      ctx.fillStyle = GOLD;
+      ctx.beginPath();
+      ctx.arc(cx, cy, size * 0.48, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowColor = 'transparent';
+      drawIcon(ctx, data.icon || 'sparkles', cx, cy, size * 0.56, '#16233f', 2.4);
+    }
+  });
+}
+
+function drawKeypoint(ctx, clip, time, width, height, unit, project) {
+  const text = (clip.title || '').trim();
+  if (!text) return;
+  const data = clip.data || {};
+  const zone = designZone(project, width, height, unit);
+  const disc = 128 * unit;
+  const maxText = width * (zone.vertical ? 0.62 : 0.42);
+  const fitted = fitText(ctx, text, HEADLINE_FONT, 60 * unit, maxText, 2);
+  ctx.font = `${fitted.fontSize}px ${HEADLINE_FONT}`;
+  const textWidth = Math.max(...fitted.lines.map((line) => ctx.measureText(line).width));
+  const lineHeight = fitted.fontSize * 1.15;
+  const cardHeight = Math.max(disc + 36 * unit, fitted.lines.length * lineHeight + 56 * unit);
+  const cardWidth = disc + textWidth + 110 * unit;
+  const x = (width - cardWidth) / 2;
+  const y = zone.top;
+  const t = time - clip.start;
+  const length = clip.out - clip.in;
+  const slide = easeOut(clamp01(t / 0.4));
+  const leave = clamp01((length - t) / 0.3);
+  if (slide * leave <= 0.01) return;
+  ctx.save();
+  ctx.globalAlpha *= leave;
+  ctx.translate((1 - slide) * -width * 0.6, 0);
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+  ctx.shadowBlur = 30 * unit;
+  ctx.shadowOffsetY = 12 * unit;
+  ctx.fillStyle = WHITE;
+  roundedRect(ctx, x, y, cardWidth, cardHeight, cardHeight / 2);
+  ctx.fill();
+  ctx.shadowColor = 'transparent';
+  // The disc pops a moment after the card lands.
+  const cx = x + 18 * unit + disc / 2;
+  const cy = y + cardHeight / 2;
+  const pop = Math.max(0, easeOutBack(clamp01((t - 0.2) / 0.35)));
+  ctx.fillStyle = GOLD;
+  ctx.beginPath();
+  ctx.arc(cx, cy, (disc / 2) * pop, 0, Math.PI * 2);
+  ctx.fill();
+  if (pop > 0.3) drawIcon(ctx, data.icon || 'sparkles', cx, cy, disc * 0.56 * pop, '#16233f', 2.4);
+  ctx.fillStyle = '#16233f';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  const textTop = cy - (fitted.lines.length * lineHeight) / 2;
+  fitted.lines.forEach((line, index) => ctx.fillText(line, x + disc + 48 * unit, textTop + lineHeight * (index + 0.5)));
+  ctx.restore();
+}
+
+function drawStat(ctx, clip, time, width, height, unit, project) {
+  const data = clip.data || {};
+  const value = Number(data.value);
+  if (!Number.isFinite(value)) return;
+  const zone = designZone(project, width, height, unit);
+  const t = time - clip.start;
+  const length = clip.out - clip.in;
+  const count = easeOut(clamp01((t - 0.15) / 0.9));
+  const leave = clamp01((length - t) / 0.3);
+  const appear = Math.max(0, easeOutBack(clamp01(t / 0.35)));
+  if (appear * leave <= 0.01) return;
+  const radius = (zone.vertical ? 190 : 165) * unit;
+  const cx = zone.vertical ? width / 2 : width * 0.74;
+  const cy = zone.vertical ? zone.middle : height * 0.42;
+  const shown = formatStat(data, value * count);
+  const label = (clip.title || '').trim();
+  ctx.save();
+  ctx.globalAlpha *= leave;
+  ctx.translate(cx, cy);
+  ctx.scale(appear, appear);
+  ctx.translate(-cx, -cy);
+  // Navy disc with a gold ring that fills: the share for a percentage, all the way otherwise.
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+  ctx.shadowBlur = 34 * unit;
+  ctx.shadowOffsetY = 12 * unit;
+  ctx.fillStyle = 'rgba(22, 35, 63, 0.94)';
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowColor = 'transparent';
+  const share = String(data.suffix || '').includes('%') ? Math.min(1, value / 100) : 1;
+  ctx.lineCap = 'round';
+  ctx.lineWidth = 16 * unit;
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius - 22 * unit, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.strokeStyle = GOLD;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius - 22 * unit, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * share * count);
+  ctx.stroke();
+  const big = fitText(ctx, shown, CAPTION_FONT, 104 * unit, radius * 1.45, 1);
+  ctx.font = `${big.fontSize}px ${CAPTION_FONT}`;
+  ctx.fillStyle = WHITE;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(big.lines[0] || shown, cx, cy - (label ? 14 * unit : 0));
+  if (label) {
+    const small = fitText(ctx, label.toUpperCase(), HEADLINE_FONT, 30 * unit, radius * 1.15, 2);
+    ctx.font = `${small.fontSize}px ${HEADLINE_FONT}`;
+    ctx.fillStyle = GOLD;
+    small.lines.forEach((line, index) => ctx.fillText(line, cx, cy + big.fontSize * 0.55 + small.fontSize * 1.1 * (index + 0.5)));
+  }
+  ctx.restore();
+}
+
+function drawList(ctx, clip, time, width, height, unit, project) {
+  const items = clip.data?.items || [];
+  if (!items.length) return;
+  const zone = designZone(project, width, height, unit);
+  const t = time - clip.start;
+  const length = clip.out - clip.in;
+  const leave = clamp01((length - t) / 0.3);
+  const shownItems = items.filter((item) => t >= (item.at || 0));
+  if (!shownItems.length || leave <= 0.01) return;
+  const panelWidth = zone.vertical ? width * 0.78 : width * 0.36;
+  const rowHeight = 92 * unit;
+  const x = zone.vertical ? (width - panelWidth) / 2 : width * 0.05;
+  const y = zone.vertical ? zone.top - 40 * unit : height * 0.2;
+  const title = (clip.title || '').trim();
+  const head = title ? 70 * unit : 0;
+  const panelHeight = head + items.length * rowHeight + 30 * unit;
+  ctx.save();
+  ctx.globalAlpha *= leave * clamp01(t / 0.25);
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+  ctx.shadowBlur = 30 * unit;
+  ctx.shadowOffsetY = 12 * unit;
+  ctx.fillStyle = 'rgba(22, 35, 63, 0.92)';
+  roundedRect(ctx, x, y, panelWidth, panelHeight, 28 * unit);
+  ctx.fill();
+  ctx.shadowColor = 'transparent';
+  ctx.textBaseline = 'middle';
+  if (title) {
+    ctx.font = `${36 * unit}px ${HEADLINE_FONT}`;
+    ctx.fillStyle = GOLD;
+    ctx.textAlign = 'left';
+    ctx.fillText(title.toUpperCase(), x + 34 * unit, y + 46 * unit);
+  }
+  items.forEach((item, index) => {
+    const since = t - (item.at || 0);
+    if (since < 0) return;
+    const slide = easeOut(clamp01(since / 0.35));
+    const rowY = y + head + 20 * unit + rowHeight * (index + 0.5);
+    ctx.save();
+    ctx.globalAlpha *= slide;
+    ctx.translate((1 - slide) * 60 * unit, 0);
+    const badge = 30 * unit;
+    ctx.fillStyle = GOLD;
+    ctx.beginPath();
+    ctx.arc(x + 34 * unit + badge, rowY, badge, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.font = `${34 * unit}px ${CAPTION_FONT}`;
+    ctx.fillStyle = '#16233f';
+    ctx.textAlign = 'center';
+    ctx.fillText(String(index + 1), x + 34 * unit + badge, rowY + 2 * unit);
+    const textX = x + 34 * unit + badge * 2 + 24 * unit;
+    const fitted = fitText(ctx, item.text, HEADLINE_FONT, 44 * unit, x + panelWidth - textX - 28 * unit, 1);
+    ctx.font = `${fitted.fontSize}px ${HEADLINE_FONT}`;
+    ctx.fillStyle = WHITE;
+    ctx.textAlign = 'left';
+    ctx.fillText(fitted.lines[0] || item.text, textX, rowY);
+    ctx.restore();
+  });
+  ctx.restore();
+}
+
+/** The punch-in at this moment: 1 (none) up to the clip's scale, eased in and out. */
+function zoomAt(project, time) {
+  let scale = 1;
+  for (const clip of project.clips) {
+    if (clip.kind !== 'zoom' || project.trackOff?.[clip.track] || !isActive(clip, time)) continue;
+    const t = time - clip.start;
+    const length = clip.out - clip.in;
+    const amount = (clip.data?.scale || 1.08) - 1;
+    const ease = Math.min(easeOut(clamp01(t / 0.3)), easeOut(clamp01((length - t) / 0.4)));
+    scale = Math.max(scale, 1 + amount * ease);
+  }
+  return scale;
+}
+
 /** A thin gold bar across the top that fills as the clip plays. */
 function drawProgress(ctx, clip, time, width, unit) {
   const fraction = Math.min(1, Math.max(0, (time - clip.start) / (clip.out - clip.in)));
@@ -499,6 +775,12 @@ export function drawFrame(ctx, frame, project, assets) {
   ctx.fillRect(0, 0, width, height);
 
   const main = frame.main;
+  const punch = zoomAt(project, time);
+  if (punch > 1.0005) {
+    ctx.translate(width / 2, height * 0.42);
+    ctx.scale(punch, punch);
+    ctx.translate(-width / 2, -height * 0.42);
+  }
   if (main && main.width && main.height && !off[MAIN_TRACK]) {
     if (project.framing === 'crop') {
       const cover = fit(main.width, main.height, width, height, 'cover');
@@ -531,6 +813,16 @@ export function drawFrame(ctx, frame, project, assets) {
         drawCallout(ctx, clip, time, width, height, unit, layout);
       } else if (clip.kind === 'progress') {
         drawProgress(ctx, clip, time, width, unit);
+      } else if (clip.kind === 'sticker') {
+        drawSticker(ctx, clip, time, width, height, unit, assets, project);
+      } else if (clip.kind === 'keypoint') {
+        drawKeypoint(ctx, clip, time, width, height, unit, project);
+      } else if (clip.kind === 'stat') {
+        drawStat(ctx, clip, time, width, height, unit, project);
+      } else if (clip.kind === 'list') {
+        drawList(ctx, clip, time, width, height, unit, project);
+      } else if (clip.kind === 'zoom') {
+        // Applied to the main video above.
       } else {
         const layer = frame.layers?.get(clip.id);
         if (layer?.image && layer.width && layer.height) drawLayer(ctx, clip, layer, time, width, height, unit, layout);
@@ -556,7 +848,7 @@ export function drawFrame(ctx, frame, project, assets) {
   // Captions follow the main video's words, so they end when it does. They
   // wait for an opening hook card to finish, so the two never stack.
   if (frame.source !== null && frame.source !== undefined && time >= (project.captionsFrom || 0)) {
-    drawCaptions(ctx, { width, height, unit, layout, times: { source: frame.source, output: time } }, project.captions);
+    drawCaptions(ctx, { width, height, unit, layout, assets, times: { source: frame.source, output: time } }, project.captions);
   }
 
   if (logo) {

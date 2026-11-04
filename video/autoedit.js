@@ -21,6 +21,7 @@
 
 import { addCut, createProject, outputDuration, setTrim, sourceToOutput } from './project.js';
 import { addClip } from './tracks.js';
+import { findLists, findStats, iconFor, lexiconHits } from './graphics.js';
 
 // --- The instruction ---------------------------------------------------------
 
@@ -45,7 +46,38 @@ export const DEFAULT_SETTINGS = {
   cta: 'Follow SpeakPower for more',
   topic: '',
   people: [],
+  // Ngoma's look (LOOKS below): caption style and designed graphics.
+  look: 'classic',
+  captionStyle: 'bold',
+  emojis: false,
+  icons: false,
+  keyPoints: false,
+  stats: false,
+  lists: false,
+  zooms: false,
+  stickers: true,
 };
+
+/**
+ * Looks: a caption style plus the designed graphics that go with it.
+ *   classic  -- bold word-pop captions, pop-up key words, progress bar
+ *   modern   -- pill captions with emojis, icon key-point cards, counting
+ *               numbers, building lists, punch-in zooms
+ *   clean    -- simple subtitles, nothing on top
+ *   karaoke  -- words turn gold as they're said, pop-up key words
+ * The user's brand-kit stickers (their Canva designs) appear in every look.
+ */
+export const LOOKS = {
+  classic: { captionStyle: 'bold', callouts: true, emojis: false, icons: false, keyPoints: false, stats: false, lists: false, zooms: false },
+  modern: { captionStyle: 'pill', callouts: false, emojis: true, icons: true, keyPoints: true, stats: true, lists: true, zooms: true },
+  clean: { captionStyle: 'minimal', callouts: false, emojis: false, icons: false, keyPoints: false, stats: false, lists: false, zooms: false },
+  karaoke: { captionStyle: 'karaoke', callouts: true, emojis: false, icons: false, keyPoints: false, stats: false, lists: false, zooms: false },
+};
+
+export function applyLook(settings, look) {
+  if (!LOOKS[look]) return settings;
+  return Object.assign(settings, LOOKS[look], { look });
+}
 
 const NUMBERS = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
 const toNumber = (value) => NUMBERS[value] ?? Number(value);
@@ -101,7 +133,35 @@ export function parseInstruction(text, base = DEFAULT_SETTINGS) {
   if (/\b(keep|don'?t remove|do not remove|leave)\b[^.]*\b(ums?|uhs?|fillers?)\b/.test(t)) settings.removeFillers = false;
   if (/\b(keep|don'?t remove|do not remove|leave)\b[^.]*\b(pauses?|silences?|gaps?)\b/.test(t)) settings.removePauses = false;
 
+  // The look first, so the specific asks below can adjust it.
+  const negated = (match) => match && /\bnot\s+(?:just\s+|only\s+|plain\s+)?$/.test(t.slice(Math.max(0, match.index - 14), match.index));
+  const plainCaptions = t.match(/\b(?:simple|plain|basic|minimal|clean)\s+(?:subtitles?|captions?)\b/);
+  if (/\b(modern|creative|canva|fun|playful|stylish|eye[- ]catching|dynamic|animated|trendy|viral|infographics?|illustrat\w*|designs?|graphical)\b/.test(t)
+    || negated(plainCaptions)) {
+    applyLook(settings, 'modern');
+  } else if (plainCaptions) {
+    applyLook(settings, 'clean');
+  }
+  if (/\bkaraoke\b/.test(t)) settings.captionStyle = 'karaoke';
+  else if (/\b(boxed|highlight(?:ed)? box)\b/.test(t)) settings.captionStyle = 'box';
+  else if (/\b(bubble|pill)\b/.test(t)) settings.captionStyle = 'pill';
+  else if (/\bbold\s+(?:captions?|subtitles?)\b/.test(t)) settings.captionStyle = 'bold';
+  if (/\bemojis?\b/.test(t)) settings.emojis = true;
+  if (/\bicons?\b/.test(t)) { settings.icons = true; settings.keyPoints = true; }
+  if (/\bkey ?points?\b|\bkey ideas?\b|\bmain points?\b/.test(t)) settings.keyPoints = true;
+  if (/\b(stats?|statistics|numbers|figures|data)\b/.test(t)) settings.stats = true;
+  if (/\b(lists?|steps|bullet points?)\b/.test(t)) settings.lists = true;
+  if (/\b(zooms?|punch[- ]?ins?)\b/.test(t)) settings.zooms = true;
+  if (/\bstickers?\b/.test(t)) settings.stickers = true;
+
   if (/\b(no|without)\s+(?:burned[- ]in\s+)?(captions?|subtitles?)\b/.test(t)) settings.captions = false;
+  if (/\b(no|without)\s+emojis?\b/.test(t)) settings.emojis = false;
+  if (/\b(no|without)\s+icons?\b/.test(t)) settings.icons = false;
+  if (/\b(no|without)\s+(zooms?|punch[- ]?ins?)\b/.test(t)) settings.zooms = false;
+  if (/\b(no|without)\s+stickers?\b/.test(t)) settings.stickers = false;
+  if (/\b(no|without)\s+(?:any\s+)?graphics\b/.test(t)) {
+    Object.assign(settings, { emojis: false, icons: false, keyPoints: false, stats: false, lists: false, zooms: false, stickers: false });
+  }
   if (/\b(no|without)\s+(pop-?ups?|callouts?|key ?words?|graphics)\b/.test(t)) settings.callouts = false;
   if (/\b(no|without)\s+(?:a\s+)?progress(?: bar)?\b/.test(t)) settings.progress = false;
   if (/\b(no|without)\s+(?:an?\s+)?end ?card\b/.test(t)) settings.endCard = false;
@@ -537,6 +597,141 @@ function placePictures(project, kit, words, from, to, notBefore = 0) {
   return used;
 }
 
+// --- Ngoma's designed graphics --------------------------------------------------------
+
+/**
+ * Emojis inside the captions and gold key words. Words get an emoji only when
+ * the look asks for emojis, at most one every 2.5 s and never the same emoji
+ * twice within 20 s, so they punctuate rather than clutter. Caption words are
+ * copied first: the transcript itself is never changed.
+ */
+function decorateCaptions(captions, settings, phrases = [], avoid = []) {
+  const keyWords = new Set(phrases.flatMap((phrase) => keywords(phrase.text)));
+  let lastAt = -Infinity;
+  const lastUse = new Map();
+  captions.segments = captions.segments.map((segment) => ({
+    ...segment,
+    words: segment.words.map((original) => {
+      const word = { ...original };
+      const hit = lexiconHits([word])[0];
+      if (keyWords.has(normalize(word.text))) word.key = true;
+      if (settings.emojis && hit && word.start - lastAt >= 2.5 && word.start - (lastUse.get(hit.emoji) ?? -Infinity) >= 20
+        && !avoid.some((time) => Math.abs(time - word.start) < 1.5)) {
+        word.emoji = hit.emoji;
+        word.key = true; // a word worth an emoji is worth its colour
+        lastAt = word.start;
+        lastUse.set(hit.emoji, word.start);
+      }
+      return word;
+    }),
+  }));
+  captions.style = settings.captionStyle || 'bold';
+}
+
+const titleWords = (text) => String(text || '').trim().replace(/\s+/g, ' ').replace(/^\p{L}/u, (letter) => letter.toUpperCase());
+
+/**
+ * The designed graphics for one edit: counting numbers, building lists and
+ * key-point cards (one at a time, spaced out), emoji or icon stickers on
+ * strong words, the user's own stickers on their keywords, and a punch-in zoom
+ * under each number and key point.
+ *
+ * @param options { settings, words, from, to, phrases, notBefore, kit, episode }
+ * @returns       source times that got a sticker (so captions skip their emoji)
+ */
+function placeGraphics(project, { settings, words, from, to, phrases = [], notBefore = 0, kit = {}, episode = false }) {
+  const total = outputDuration(project);
+  const out = (time) => sourceToOutput(project, time);
+  const inside = (time) => time >= from && time < to;
+  const spacing = episode ? 14 : 4;
+  const limit = episode ? Math.max(3, Math.floor(total / 25)) : Math.max(1, Math.floor(total / 7) + 1);
+  const big = [];
+  const fits = (start, length) => start >= notBefore && start + 0.6 < total
+    && big.every((item) => start >= item.start + item.length + 1 || start + length + 1 <= item.start)
+    && big.every((item) => Math.abs(item.start - start) >= spacing);
+
+  const candidates = [];
+  if (settings.lists) {
+    for (const list of findLists(words, from, to)) {
+      const start = out(list.time) - 0.2;
+      const length = Math.min(20, Math.max(4, out(list.end) - start + 1.2));
+      candidates.push({ rank: 4, time: list.time, start, length, kind: 'list',
+        data: { items: list.items.map((item) => ({ text: item.text, at: Math.max(0, out(item.time) - start) })) } });
+    }
+  }
+  if (settings.stats) {
+    const said = new Set();
+    for (const stat of findStats(words, from, to)) {
+      const { time, end, label, ...data } = stat;
+      const key = `${data.prefix}${data.value}${data.suffix}`;
+      if (said.has(key)) continue; // the same figure once is enough
+      said.add(key);
+      candidates.push({ rank: 3, time, start: out(time) - 0.15, length: 3.2, kind: 'stat', title: label, data });
+    }
+  }
+  if (settings.keyPoints) {
+    for (const phrase of phrases) {
+      if (phrase.time === null || phrase.time === undefined || !inside(phrase.time)) continue;
+      candidates.push({ rank: 2, time: phrase.time, start: out(phrase.time) - 0.1, length: 2.6, kind: 'keypoint',
+        title: titleWords(phrase.text), data: { icon: iconFor(phrase.text) } });
+    }
+  }
+  candidates.sort((a, b) => b.rank - a.rank || a.time - b.time);
+  for (const item of candidates) {
+    if (big.length >= limit) break;
+    item.length = Math.min(item.length, total - item.start - 0.3);
+    if (item.length < 1.5 || !fits(item.start, item.length)) continue;
+    if (!addClip(project, { kind: item.kind, start: item.start, length: item.length, title: item.title || '', data: item.data,
+      transitionIn: 'none', transitionOut: 'none' })) continue;
+    big.push(item);
+    if (settings.zooms && item.kind !== 'list') {
+      addClip(project, { kind: 'zoom', start: item.start, length: item.length, data: { scale: item.kind === 'stat' ? 1.08 : 1.05 },
+        transitionIn: 'none', transitionOut: 'none' });
+    }
+  }
+  const busy = (start, length) => big.some((item) => start < item.start + item.length && start + length > item.start);
+
+  // The user's own stickers (Canva designs) on their keywords: first and, in a long edit, again later.
+  const stickerTimes = [];
+  const stickerAt = [];
+  if (settings.stickers) {
+    for (const sticker of kit.stickers || []) {
+      const wanted = new Set(sticker.keywords.map(normalize));
+      let placed = 0;
+      for (const word of words) {
+        if (placed >= (episode ? 3 : 1) || !inside(word.start) || !wanted.has(normalize(word.text))) continue;
+        const start = out(word.start);
+        if (start < notBefore || start + 2.6 > total || busy(start, 2.6) || stickerAt.some((at) => Math.abs(at - start) < 4)) continue;
+        useMedia(project, sticker.media);
+        const clip = addClip(project, { kind: sticker.media.kind === 'video' ? 'video' : 'image', media: sticker.media, start, length: 2.6, layout: 'sticker',
+          size: 0.3, transitionIn: 'none', transitionOut: 'none' });
+        if (clip) {
+          if (clip.kind === 'video') clip.out = clip.in + Math.min(sticker.media.duration || 3, 3); // an animated design: its first seconds
+          placed += 1;
+          stickerAt.push(start);
+          stickerTimes.push(word.start);
+        }
+      }
+    }
+  }
+
+  // Emoji or icon stickers on strong words, now and then.
+  if (settings.emojis || settings.icons) {
+    const every = episode ? 25 : 6;
+    for (const hit of lexiconHits(words, from, to)) {
+      const start = out(hit.time);
+      if (start < notBefore + 0.5 || start + 1.8 > total || busy(start, 1.8)) continue;
+      if (stickerAt.some((at) => Math.abs(at - start) < every)) continue;
+      const data = settings.emojis ? { emoji: hit.emoji, side: stickerAt.length % 2 ? 'left' : 'right' } : { icon: hit.icon, side: 'right' };
+      if (addClip(project, { kind: 'sticker', start, length: 1.8, data, transitionIn: 'none', transitionOut: 'none' })) {
+        stickerAt.push(start);
+        stickerTimes.push(hit.time);
+      }
+    }
+  }
+  return stickerTimes;
+}
+
 function placeNames(project, people, at, gap = 5) {
   people.forEach((person, index) => {
     addClip(project, {
@@ -575,6 +770,8 @@ export function buildEpisode({ file, meta, segments, words, cuts, settings, kit 
     const at = sourceToOutput(project, chapter.start);
     addClip(project, { kind: 'card', style: 'chapter', start: at, length: 2.2, title: chapter.title, subtitle: `Chapter ${index + 2}`, transitionIn: 'fade', transitionOut: 'fade' });
   });
+  const stickerTimes = placeGraphics(project, { settings, words, from: 0, to: meta.duration, notBefore: titleLength + 0.5, kit, episode: true });
+  decorateCaptions(project.captions, { ...DEFAULT_SETTINGS, ...settings }, [], stickerTimes);
   placeNames(project, settings.people, Math.min(4, total / 3));
   placeOverlay(project, kit, total);
   placeLogo(project, kit, settings, total);
@@ -617,6 +814,10 @@ export function buildClip({ file, meta, segments, words, cuts, window, hook, phr
       addClip(project, { kind: 'callout', start: at, length: 1.4, title: phrase.text, transitionIn: 'zoom', transitionOut: 'fade', transitionDuration: 0.25 });
     }
   }
+  const stickerTimes = placeGraphics(project, {
+    settings: { ...DEFAULT_SETTINGS, ...settings }, words, from: window.start, to: window.end, phrases, notBefore: hook ? hookLength + 0.3 : 0.3, kit,
+  });
+  decorateCaptions(project.captions, { ...DEFAULT_SETTINGS, ...settings }, phrases, stickerTimes);
   placeNames(project, settings.people.slice(0, 1), hookLength + 0.4);
   placeOverlay(project, kit, total);
   placeLogo(project, kit, settings, total);

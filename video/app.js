@@ -16,6 +16,7 @@ import {
   outputDuration, outputToSource, removeCut, setTrim, sourceToOutput,
 } from './project.js';
 import { FORMATS, drawFrame, loadAssets } from './renderer.js';
+import { LEXICON, loadGraphics } from './graphics.js';
 import { Timeline } from './timeline.js';
 import { TrackTimeline } from './multitrack.js';
 import { exportVideo, loadMediabunny } from './exporter.js';
@@ -63,6 +64,7 @@ const ui = {
   status: $('#status'),
   unsupported: $('#unsupported'),
   captionsOn: $('#captions-on'),
+  captionStyle: $('#caption-style'),
   captionModel: $('#caption-model'),
   captionLanguage: $('#caption-language'),
   autoCaptions: $('#auto-captions'),
@@ -576,6 +578,12 @@ ui.srt.addEventListener('change', async () => {
   showStatus(`${segments.length} caption lines imported from ${file.name}.`, 'info');
 });
 
+ui.captionStyle?.addEventListener('change', () => {
+  if (state.project) state.project.captions.style = ui.captionStyle.value;
+  clearResult();
+  drawPreview();
+});
+
 ui.captionsOn.addEventListener('change', () => {
   if (state.project) state.project.captions.enabled = ui.captionsOn.checked;
   clearResult();
@@ -697,11 +705,14 @@ function syncControls(project) {
   ui.mainVolume.value = project.mainVolume;
   ui.mainVolumeValue.textContent = `${Math.round(project.mainVolume * 100)}%`;
   ui.captionsOn.checked = project.captions.enabled;
+  if (ui.captionStyle) ui.captionStyle.value = project.captions.style || 'bold';
 }
 
 /** Open a finished automatic edit in the editor, to change anything by hand. */
 export function loadProject(project) {
   openFile(project.file, project);
+  // Ngoma's emoji pictures, for the preview.
+  loadGraphics(project, state.assets).then(() => drawPreview(), () => {});
 }
 
 ui.file.addEventListener('change', () => openFile(ui.file.files[0]));
@@ -818,7 +829,13 @@ ui.zoom.addEventListener('input', () => tracks.setZoom(Number(ui.zoom.value)));
 
 // --- The clip inspector --------------------------------------------------------------
 
-const KIND_LABELS = { video: 'Video', image: 'Picture', audio: 'Sound', text: 'Title', card: 'Card', callout: 'Pop-up text', progress: 'Progress bar' };
+const KIND_LABELS = {
+  video: 'Video', image: 'Picture', audio: 'Sound', text: 'Title', card: 'Card', callout: 'Pop-up text', progress: 'Progress bar',
+  sticker: 'Sticker', keypoint: 'Key point', stat: 'Number', list: 'List', zoom: 'Punch-in zoom',
+};
+// Emoji and icon choices for Ngoma's graphics: one per lexicon theme.
+const EMOJI_CHOICES = [...new Map(LEXICON.map((entry) => [entry.emoji, entry.key])).entries()];
+const ICON_CHOICES = [...new Set([...LEXICON.map((entry) => entry.icon), 'sparkles'])].sort().map((name) => [name, name.replace(/-/g, ' ')]);
 const TRANSITION_LENGTHS = [0.25, 0.5, 0.75, 1, 1.5, 2];
 
 const options = (entries, current) => entries
@@ -849,6 +866,23 @@ function renderInspector() {
         <label class="wide">${clip.kind === 'text' ? 'Role or subtitle' : 'Small text'}<input class="field" data-field="subtitle" maxlength="80" /></label>` : ''}
       ${clip.kind === 'callout' ? `
         <label class="wide">Pop-up text<input class="field" data-field="title" maxlength="40" /></label>` : ''}
+      ${clip.kind === 'sticker' ? `
+        <label>Emoji<select class="field" data-field="data.emoji">${options([['', 'None (use the icon)'], ...EMOJI_CHOICES], clip.data?.emoji || '')}</select></label>
+        <label>Icon<select class="field" data-field="data.icon">${options(ICON_CHOICES, clip.data?.icon || 'sparkles')}</select></label>
+        <label>Side<select class="field" data-field="data.side">${options([['right', 'Right'], ['left', 'Left']], clip.data?.side || 'right')}</select></label>` : ''}
+      ${clip.kind === 'keypoint' ? `
+        <label class="wide">Key point<input class="field" data-field="title" maxlength="60" /></label>
+        <label>Icon<select class="field" data-field="data.icon">${options(ICON_CHOICES, clip.data?.icon || 'sparkles')}</select></label>` : ''}
+      ${clip.kind === 'stat' ? `
+        <label>Number<input class="field" type="number" step="any" data-field="data.value" /></label>
+        <label>Before it<input class="field" data-field="data.prefix" maxlength="8" placeholder="e.g. UGX" /></label>
+        <label>After it<input class="field" data-field="data.suffix" maxlength="16" placeholder="e.g. % or million" /></label>
+        <label class="wide">Label<input class="field" data-field="title" maxlength="50" /></label>` : ''}
+      ${clip.kind === 'list' ? `
+        <label class="wide">Heading<input class="field" data-field="title" maxlength="40" /></label>
+        <label class="wide">Points, one per line<textarea class="field" rows="4" data-field="data.items"></textarea></label>` : ''}
+      ${clip.kind === 'zoom' ? `
+        <label>Strength<input type="range" min="1.02" max="1.25" step="0.01" data-field="data.scale" /></label>` : ''}
       <label>Track<select class="field" data-field="track">${options(tracksFor(clip.kind).map((track) => [track, trackLabel(track)]), clip.track)}</select></label>
       <label>Starts at (s)<input class="field" type="number" min="0" step="0.1" data-field="start" /></label>
       <label>Length (s)<input class="field" type="number" min="0.2" step="0.1" data-field="length" /></label>
@@ -871,6 +905,9 @@ function renderInspector() {
   ui.inspector.querySelector('[data-slot="where"]').textContent =
     `${trackLabel(clip.track)} · ${formatTime(clip.start)} – ${formatTime(clipEnd(clip))}`;
   if (field('title')) field('title').value = clip.title;
+  for (const key of ['value', 'prefix', 'suffix']) if (field(`data.${key}`)) field(`data.${key}`).value = clip.data?.[key] ?? '';
+  if (field('data.items')) field('data.items').value = (clip.data?.items || []).map((item) => item.text).join('\n');
+  if (field('data.scale')) field('data.scale').value = clip.data?.scale || 1.08;
   if (field('subtitle')) field('subtitle').value = clip.subtitle;
   field('start').value = clip.start.toFixed(1);
   field('length').value = clipLength(clip).toFixed(1);
@@ -889,6 +926,8 @@ ui.inspector.addEventListener('input', (event) => {
   if (name === 'title' || name === 'subtitle') {
     clip[name] = value;
     tracks.render();
+  } else if (name.startsWith('data.')) {
+    setGraphicField(clip, name.slice(5), value);
   } else if (name === 'size') {
     clip.size = Number(value);
   } else if (name === 'volume') {
@@ -899,6 +938,28 @@ ui.inspector.addEventListener('input', (event) => {
   }
   clearResult();
 });
+
+/** Change one detail of a designed graphic (Ngoma's stickers, key points, numbers, lists, zooms). */
+function setGraphicField(clip, key, value) {
+  clip.data = clip.data || {};
+  if (key === 'value' || key === 'scale') {
+    if (value === '' || !Number.isFinite(Number(value))) return;
+    clip.data[key] = Number(value);
+    if (key === 'value') clip.data.decimals = String(value).includes('.') ? String(value).split('.')[1].length : 0;
+  } else if (key === 'items') {
+    // Keep each point's moment; new points arrive 1.5 s after the one before.
+    const before = clip.data.items || [];
+    clip.data.items = value.split('\n').map((text) => text.trim()).filter(Boolean).slice(0, 6).map((text, index) => ({
+      text,
+      at: before[index]?.at ?? (index ? (before[index - 1]?.at ?? (index - 1) * 1.5) + 1.5 : 0),
+    }));
+  } else {
+    clip.data[key] = value;
+    if (key === 'emoji' && value) loadGraphics(state.project, state.assets).then(() => drawPreview());
+  }
+  tracks.render();
+  clearResult();
+}
 
 ui.inspector.addEventListener('change', (event) => {
   const { project } = state;
@@ -914,6 +975,9 @@ ui.inspector.addEventListener('change', (event) => {
   } else if (name === 'length') {
     ok = Number(value) > 0
       && trimClipEnd(project, clip, clip.start + Number(value), mediaOf(project, clip)?.duration ?? Infinity);
+  } else if (name.startsWith('data.')) {
+    setGraphicField(clip, name.slice(5), value);
+    return;
   } else if (name === 'layout' || name === 'transitionIn' || name === 'transitionOut') {
     clip[name] = value;
   } else if (name === 'transitionDuration') {

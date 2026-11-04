@@ -29,7 +29,7 @@ import { loadAssets } from './renderer.js';
 import { formatTime, sourceToOutput } from './project.js';
 import { probeMedia } from './media.js';
 import { Brain } from './brain.js';
-import { ROLES, addToKit, kitMedia, loadKit, removeFromKit, setRole } from './brandkit.js';
+import { ROLES, addToKit, kitMedia, loadKit, removeFromKit, setKeywords, setRole, stickerWords } from './brandkit.js';
 import * as edit from './autoedit.js';
 
 const $ = (selector) => document.querySelector(selector);
@@ -48,6 +48,10 @@ const ui = {
   callouts: $('#opt-callouts'),
   logo: $('#opt-logo'),
   language: $('#opt-language'),
+  look: $('#opt-look'),
+  emojis: $('#opt-emojis'),
+  graphics: $('#opt-graphics'),
+  stickers: $('#opt-stickers'),
   quality: $('#opt-quality'),
   saved: $('#auto-saved'),
   savedList: $('#auto-saved-list'),
@@ -180,7 +184,7 @@ function renderKit() {
     role.className = 'field field-inline';
     role.setAttribute('aria-label', `Use ${item.name} as`);
     for (const [value, label] of Object.entries(ROLES)) role.append(new Option(label, value, false, value === item.role));
-    role.addEventListener('change', () => setRole(item, role.value));
+    role.addEventListener('change', () => { setRole(item, role.value).then(renderKit); });
     const remove = document.createElement('button');
     remove.type = 'button';
     remove.className = 'button-link';
@@ -191,6 +195,17 @@ function renderKit() {
       renderKit();
     });
     row.append(name, role, remove);
+    if (item.role === 'sticker') {
+      // A sticker appears when one of its words is said.
+      const words = document.createElement('input');
+      words.className = 'field kit-words';
+      words.maxLength = 200;
+      words.placeholder = `Show when I say… e.g. ${stickerWords(item).slice(0, 2).join(', ') || 'growth, team'}`;
+      words.value = item.keywords || '';
+      words.setAttribute('aria-label', `Words that show ${item.name}`);
+      words.addEventListener('change', () => setKeywords(item, words.value));
+      row.append(words);
+    }
     return row;
   }));
 }
@@ -208,11 +223,11 @@ loadKit().then((items) => { state.kit = items; renderKit(); });
 
 // Share of the whole job each stage takes, for one honest progress bar.
 const STAGES = [
-  { id: 'listen', label: 'Listening — turning speech into text', weight: 0.34 },
+  { id: 'listen', label: 'Ngoma is listening — turning speech into text', weight: 0.34 },
   { id: 'clean', label: 'Cleaning out long pauses and "um"s', weight: 0.02 },
-  { id: 'brain', label: 'Getting the free AI ready', weight: 0.1 },
+  { id: 'brain', label: 'Ngoma is getting ready (first time: a free AI download)', weight: 0.1 },
   { id: 'choose', label: 'Choosing the best moments', weight: 0.1 },
-  { id: 'write', label: 'Writing titles, graphics and post text', weight: 0.06 },
+  { id: 'write', label: 'Writing titles, designing graphics and the post', weight: 0.06 },
   { id: 'render', label: 'Rendering your videos', weight: 0.38 },
 ];
 
@@ -242,12 +257,12 @@ function setProgress(fraction, detail = '') {
   const percent = Math.round(overall * 100);
   ui.fill.style.width = `${percent}%`;
   ui.progressText.textContent = detail ? `${detail} — ${percent}% overall` : `${percent}% overall`;
-  document.title = `${percent}% · Editing — SpeakPower Studio`;
+  document.title = `${percent}% · Ngoma is editing — SpeakPower`;
   if (state.record) {
     state.record.percent = percent;
     state.record.stage = STAGES[currentStage].id;
     Work()?.set(workId(state.record), {
-      label: 'Video edit', href: `${PAGE}#edit=${state.record.id}`, status: 'running', percent,
+      label: 'Ngoma', href: `${PAGE}#edit=${state.record.id}`, status: 'running', percent,
       detail: STAGES[currentStage].label.split(' — ')[0],
     });
   }
@@ -256,7 +271,7 @@ function setProgress(fraction, detail = '') {
 function notifyDone(message) {
   document.title = PAGE_TITLE;
   if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
-    try { new Notification('SpeakPower AI Video Editor', { body: message, icon: new URL('./brand/speakpower-badge.png', import.meta.url).href }); } catch { /* not allowed here */ }
+    try { new Notification('Ngoma · SpeakPower', { body: message, icon: new URL('./brand/speakpower-badge.png', import.meta.url).href }); } catch { /* not allowed here */ }
   }
 }
 
@@ -361,9 +376,30 @@ function showPost(post) {
 
 // --- The edit --------------------------------------------------------------------------
 
+// Choosing a look sets its parts; the tick boxes can then change them one by one.
+function showLook(look) {
+  const parts = edit.LOOKS[look] || edit.LOOKS.classic;
+  if (ui.callouts) ui.callouts.checked = parts.callouts;
+  if (ui.emojis) ui.emojis.checked = parts.emojis;
+  if (ui.graphics) ui.graphics.checked = parts.keyPoints;
+}
+ui.look?.addEventListener('change', () => showLook(ui.look.value));
+
 function readSettings() {
+  const look = ui.look?.value || 'classic';
+  const parts = edit.LOOKS[look] || edit.LOOKS.classic;
+  const graphics = ui.graphics ? ui.graphics.checked : parts.keyPoints;
   const base = {
     ...edit.DEFAULT_SETTINGS,
+    ...parts,
+    look,
+    emojis: ui.emojis ? ui.emojis.checked : parts.emojis,
+    icons: graphics,
+    keyPoints: graphics,
+    stats: graphics,
+    lists: graphics,
+    zooms: graphics && parts.zooms !== false && look !== 'clean',
+    stickers: ui.stickers ? ui.stickers.checked : true,
     episode: ui.outEpisode.checked,
     clips: ui.outClips.checked,
     postText: ui.outText.checked,
@@ -521,7 +557,7 @@ async function execute(record, file, keeping = null) {
 async function work(record, file, keeping) {
   const controller = new AbortController();
   const { signal } = controller;
-  const release = Work()?.guard('Your video is being edited…') || (() => {});
+  const release = Work()?.guard('Ngoma is editing your video…') || (() => {});
   state.running = controller;
   state.record = record;
   state.file = file;
@@ -688,7 +724,7 @@ async function work(record, file, keeping) {
     if (keeping) await keeping.catch(() => {});
     await saveEdit(record);
     showStatus([summary, ...allNotes(record)].join(' '), allNotes(record).length ? 'warn' : 'info');
-    Work()?.set(workId(record), { label: 'Video edit', href: `${PAGE}#edit=${record.id}`, status: 'done', detail: summary.replace(/ —.*$/, '') });
+    Work()?.set(workId(record), { label: 'Ngoma', href: `${PAGE}#edit=${record.id}`, status: 'done', detail: summary.replace(/ —.*$/, '') });
     notifyDone(summary);
   } catch (error) {
     document.title = PAGE_TITLE;
@@ -703,7 +739,7 @@ async function work(record, file, keeping) {
     if (keeping) await keeping.catch(() => {});
     await saveEdit(record);
     Work()?.set(workId(record), {
-      label: 'Video edit', href: `${PAGE}#edit=${record.id}`, status: record.status,
+      label: 'Ngoma', href: `${PAGE}#edit=${record.id}`, status: record.status,
       detail: record.status === 'paused' ? `Paused at ${record.percent || 0}%` : 'Stopped: open it to try again',
     });
   } finally {
@@ -721,8 +757,8 @@ const allNotes = (record) => [...new Set([...(record.notes || []), ...record.res
 
 function summaryOf(record) {
   const count = record.results.length;
-  return `${count} video${count === 1 ? '' : 's'} ready` +
-    (record.plan?.smart ? ` — chosen and titled by the free AI (${record.plan.device}).` : '.');
+  return `Ngoma made ${count} video${count === 1 ? '' : 's'}` +
+    (record.plan?.smart ? ` — moments chosen and titled by its free AI (${record.plan.device}).` : '.');
 }
 
 // --- Saved edits -----------------------------------------------------------------------
