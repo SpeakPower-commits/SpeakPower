@@ -80,7 +80,8 @@ export default {
     const cleanup = env.DB.batch([
       env.DB.prepare("DELETE FROM rate_log WHERE created_at < ?").bind(now - 86400),
       env.DB.prepare("DELETE FROM otp_codes WHERE expires_at < ?").bind(now - 3600),
-      env.DB.prepare("DELETE FROM audits WHERE created_at < ?").bind(now - AUDIT_KEEP_DAYS * 86400)
+      // Finished audit reports stay in their owner's history until deleted; unfinished runs go.
+      env.DB.prepare("DELETE FROM audits WHERE created_at < ? AND state <> 'done'").bind(now - AUDIT_KEEP_DAYS * 86400)
     ]);
     ctx.waitUntil(cleanup);
     // YouTube's in its own batch, after the one above whatever its outcome: a
@@ -132,6 +133,9 @@ async function route(request, env, ctx) {
     if (path === "/griot/documents") return listDocuments(request, env);
     if (path === "/studio/audit") return auditGet(request, env, url);
     if (path === "/studio/audits") return auditList(request, env);
+    if (path === "/history") return history(request, env, url);
+    if (path === "/pack") return packGet(request, env, url);
+    if (path === "/rehearsal") return rehearsalGet(request, env, url);
     if (path === "/griot/document") return getDocument(request, env, url);
     if (path === "/youtube/quota") return youtubeQuota(request, env);
   }
@@ -156,6 +160,9 @@ async function route(request, env, ctx) {
     if (path === "/video/start") return videoStart(request, env);
     if (path === "/video/transcribe") return videoTranscribe(request, env);
     if (path === "/video/refund") return videoRefund(request, env);
+    if (path === "/video/finish") return videoFinish(request, env);
+    if (path === "/packs/delete") return packDelete(request, env);
+    if (path === "/studio/audits/delete") return auditDelete(request, env);
     if (path === "/profile") return saveProfile(request, env);
     if (path === "/profile/delete") return deleteProfile(request, env);
     if (path === "/wallet/checkout") return walletCheckout(request, env);
@@ -623,6 +630,8 @@ async function generate(request, env) {
 
   // Most products return their sections; the audit also returns where it is.
   const out = Array.isArray(result) ? { sections: result } : result;
+  // A finished pack is kept for its owner's history, until they delete it.
+  if (Array.isArray(result)) out.pack = await savePack(env, user, reserved, key, product.title, result);
   return json(request, env, Object.assign({
     product: key, title: product.title,
     paidWith: reserved.paidWith, amount: reserved.amount,
@@ -2443,9 +2452,9 @@ function auditProgress(row) {
 }
 
 async function loadAudit(env, user, id) {
-  const row = id ? await env.DB.prepare("SELECT * FROM audits WHERE id = ? AND user_id = ? AND created_at > ?")
+  const row = id ? await env.DB.prepare("SELECT * FROM audits WHERE id = ? AND user_id = ? AND (state = 'done' OR created_at > ?)")
     .bind(id, user.id, nowSec() - AUDIT_KEEP_DAYS * 86400).first() : null;
-  if (!row) throw new HttpError(404, "not_found", "That audit could not be found. Reports are kept for " + AUDIT_KEEP_DAYS + " days.");
+  if (!row) throw new HttpError(404, "not_found", "That audit could not be found. It may have been deleted.");
   return row;
 }
 
@@ -2470,7 +2479,7 @@ async function auditGet(request, env, url) {
 async function auditList(request, env) {
   const user = await authenticate(request, env);
   const rows = (await env.DB.prepare(
-    "SELECT id, target, state, created_at FROM audits WHERE user_id = ? AND created_at > ? ORDER BY created_at DESC LIMIT 5"
+    "SELECT id, target, state, created_at FROM audits WHERE user_id = ? AND (state = 'done' OR created_at > ?) ORDER BY created_at DESC LIMIT 5"
   ).bind(user.id, nowSec() - AUDIT_KEEP_DAYS * 86400).all()).results || [];
   return json(request, env, {
     audits: rows.map((r) => ({ id: r.id, host: (() => { try { return new URL(r.target).hostname; } catch (e) { return r.target; } })(),
@@ -5109,6 +5118,12 @@ async function videoStart(request, env) {
   ).bind(id, user.id, reserved.runId, reserved.paidWith, reserved.amount, reserved.subscriptionId, Math.round(seconds),
     2 * Math.ceil(seconds / VIDEO_CHUNK_SECONDS) + 2, now + VIDEO_JOB_SECONDS, now).run();
   await logEvent(env, "video_edit", { userId: user.id, anonId: body.anonId, product: "video", page: body.page });
+  // The edit as its owner sees it in their history (the video itself never comes here).
+  await env.DB.prepare(
+    "INSERT INTO video_edits (id, user_id, run_id, name, seconds, instruction, look, status, created_at) " +
+    "VALUES (?, ?, ?, ?, ?, ?, ?, 'editing', ?)"
+  ).bind(id, user.id, reserved.runId, str(body.name, 120), Math.round(seconds), str(body.instruction, 500), str(body.look, 20), now)
+    .run().catch((err) => console.error("Video edit not recorded", err && err.message));
 
   return json(request, env, {
     job: id,
@@ -5205,7 +5220,36 @@ async function videoRefund(request, env) {
     runId: job.run_id, paidWith: job.paid_with, amount: job.amount, subscriptionId: job.subscription_id,
     usedColumn: USAGE_COLUMNS.video[0], trialsRemaining: 0, balance: 0
   });
+  await env.DB.prepare("UPDATE video_edits SET status = 'refunded' WHERE id = ? AND user_id = ?").bind(job.id, user.id)
+    .run().catch(() => {});
   return json(request, env, { refunded: true });
+}
+
+// An edit finished in the browser: what came out of it, for its owner's
+// history. Once per edit; it outlives the job, which closes after six hours.
+async function videoFinish(request, env) {
+  const user = await authenticate(request, env);
+  const body = await readJson(request, 16384);
+  const id = typeof body.job === "string" && UUID_RE.test(body.job) ? body.job : "";
+  const outputs = (Array.isArray(body.outputs) ? body.outputs : []).slice(0, 12).map((o) => ({
+    label: str(o && o.label, 120), seconds: Math.max(0, Math.round(num(o && o.seconds) || 0)), format: str(o && o.format, 8)
+  })).filter((o) => o.label);
+  let row = null;
+  try {
+    row = await env.DB.prepare(
+      "UPDATE video_edits SET outputs_json = ?, status = 'done', finished_at = ? " +
+      "WHERE id = ? AND user_id = ? AND status = 'editing' RETURNING id"
+    ).bind(JSON.stringify(outputs), nowSec(), id, user.id).first();
+  } catch (err) {
+    console.error("Video edit not finished", err && err.message);
+    return json(request, env, { saved: false });
+  }
+  if (!row) {
+    const known = id ? await env.DB.prepare("SELECT status FROM video_edits WHERE id = ? AND user_id = ?").bind(id, user.id).first() : null;
+    if (!known) throw new HttpError(404, "not_found", "That edit was not found.");
+    return json(request, env, { saved: false, status: known.status });
+  }
+  return json(request, env, { saved: true });
 }
 
 /* --------------------------------------------------------------------------
@@ -5641,6 +5685,234 @@ async function reportPurchase(env, payment, planKey, plan) {
 /* --------------------------------------------------------------------------
    The account page: balance, free tries, and what the money went on
    ------------------------------------------------------------------------ */
+
+/* --------------------------------------------------------------------------
+   Your history: everything a member has done, by product. Each list is the
+   owner's only; anything else is a 404, never a hint it exists.
+   ------------------------------------------------------------------------ */
+
+const HISTORY_TYPES = ["all", "griot", "rehearsal", "video", "packs", "audits", "payments"];
+const SERVICE_TITLES = Object.freeze({ griot: "GRIOT question", rehearsal: "Rehearsal", video: "Ngoma video edit" });
+const serviceTitle = (key) => SERVICE_TITLES[key] || (PRODUCTS[key] && PRODUCTS[key].title) || key;
+
+async function savePack(env, user, reserved, key, title, sections) {
+  const id = crypto.randomUUID();
+  try {
+    await env.DB.prepare(
+      "INSERT INTO packs (id, user_id, run_id, product, title, sections_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    ).bind(id, user.id, reserved.runId, key, title, JSON.stringify(sections), nowSec()).run();
+    return id;
+  } catch (err) {
+    console.error("Pack not kept", err && err.message); // the purchase stands; only the copy is missing
+    return null;
+  }
+}
+
+/** "1730700000:abc" -> { at, id }: the last row a page ended on. */
+function historyCursor(value) {
+  const m = /^(\d{1,12}):([\w-]{1,64})$/.exec(String(value || ""));
+  return m ? { at: Number(m[1]), id: m[2] } : null;
+}
+
+async function history(request, env, url) {
+  const user = await authenticate(request, env);
+  const type = HISTORY_TYPES.includes(url.searchParams.get("type")) ? url.searchParams.get("type") : "all";
+  const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit")) || 30));
+  const from = Number(url.searchParams.get("from")) || 0;
+  const to = Number(url.searchParams.get("to")) || 0;
+  const cursor = historyCursor(url.searchParams.get("before"));
+
+  // Shared WHERE for a table: the owner, the dates, and the page.
+  const where = (alias, idCol) => {
+    const parts = [alias + "user_id = ?"];
+    const args = [user.id];
+    if (from) { parts.push(alias + "created_at >= ?"); args.push(from); }
+    if (to) { parts.push(alias + "created_at < ?"); args.push(to); }
+    if (cursor) {
+      parts.push("(" + alias + "created_at < ? OR (" + alias + "created_at = ? AND " + alias + idCol + " < ?))");
+      args.push(cursor.at, cursor.at, idCol === "id" && /^\d+$/.test(cursor.id) ? Number(cursor.id) : cursor.id);
+    }
+    return { sql: parts.join(" AND "), args };
+  };
+  const page = (rows, mapper) => {
+    const items = rows.slice(0, limit).map(mapper);
+    const last = rows.length > limit ? items[items.length - 1] : null;
+    return { items, next: last ? last.at + ":" + last.key : null };
+  };
+
+  let result;
+  if (type === "all") {
+    const w = where("r.", "id");
+    const full = "SELECT r.id, r.product, r.paid_with, r.amount, r.status, r.created_at, " +
+      "p.id AS pack_id, a.id AS audit_id, a.target AS audit_target, h.id AS reh_id, h.moment, h.score, " +
+      "v.id AS edit_id, v.name AS edit_name, v.outputs_json " +
+      "FROM runs r LEFT JOIN packs p ON p.run_id = r.id AND p.user_id = r.user_id " +
+      "LEFT JOIN audits a ON a.run_id = r.id AND a.user_id = r.user_id " +
+      "LEFT JOIN rehearsals h ON h.run_id = r.id AND h.user_id = r.user_id " +
+      "LEFT JOIN video_edits v ON v.run_id = r.id AND v.user_id = r.user_id " +
+      "WHERE " + w.sql + " ORDER BY r.created_at DESC, r.id DESC LIMIT ?";
+    const basic = "SELECT r.id, r.product, r.paid_with, r.amount, r.status, r.created_at, NULL AS pack_id, " +
+      "a.id AS audit_id, a.target AS audit_target, h.id AS reh_id, h.moment, h.score, NULL AS edit_id, NULL AS edit_name, NULL AS outputs_json " +
+      "FROM runs r LEFT JOIN audits a ON a.run_id = r.id AND a.user_id = r.user_id " +
+      "LEFT JOIN rehearsals h ON h.run_id = r.id AND h.user_id = r.user_id " +
+      "WHERE " + w.sql + " ORDER BY r.created_at DESC, r.id DESC LIMIT ?";
+    let rows;
+    try {
+      rows = (await env.DB.prepare(full).bind(...w.args, limit + 1).all()).results || [];
+    } catch (err) {
+      // The history tables arrive with their block of schema.sql: until then, the basic list.
+      rows = (await env.DB.prepare(basic).bind(...w.args, limit + 1).all()).results || [];
+    }
+    result = page(rows, (r) => {
+      const item = {
+        key: String(r.id), type: r.product, product: r.product, title: serviceTitle(r.product), summary: "",
+        at: r.created_at, paidWith: r.paid_with, amount: r.amount, status: r.status, link: null
+      };
+      if (r.pack_id) item.link = "studio-product.html?product=" + encodeURIComponent(r.product) + "&pack=" + r.pack_id;
+      if (r.audit_id) { item.summary = hostOf(r.audit_target); item.link = "studio-product.html?product=seo-audit&audit=" + r.audit_id; }
+      if (r.reh_id) { item.summary = (MOMENTS[r.moment] || r.moment) + " · Speak Score " + r.score; item.link = "rehearse.html?report=" + r.reh_id; }
+      if (r.edit_id) {
+        const outs = safeJsonArray(r.outputs_json);
+        item.summary = (r.edit_name || "Video") + (outs.length ? " · " + outs.length + " video" + (outs.length === 1 ? "" : "s") : "");
+        item.link = "video.html#edit=" + r.edit_id;
+      }
+      if (r.product === "griot") item.link = "griot-app.html";
+      return item;
+    });
+  } else if (type === "packs") {
+    const w = where("", "id");
+    const rows = await safeAll(env, "SELECT id, run_id, product, title, created_at FROM packs WHERE " + w.sql +
+      " ORDER BY created_at DESC, id DESC LIMIT ?", w.args.concat(limit + 1));
+    result = page(rows, (r) => ({
+      key: r.id, type: "packs", product: r.product, title: r.title, summary: "", at: r.created_at,
+      link: "studio-product.html?product=" + encodeURIComponent(r.product) + "&pack=" + r.id, id: r.id, deletable: true
+    }));
+  } else if (type === "audits") {
+    const w = where("", "id");
+    const rows = await safeAll(env, "SELECT id, target, state, created_at FROM audits WHERE " + w.sql +
+      " AND (state = 'done' OR created_at > ?) ORDER BY created_at DESC, id DESC LIMIT ?",
+      w.args.concat(nowSec() - AUDIT_KEEP_DAYS * 86400, limit + 1));
+    result = page(rows, (r) => ({
+      key: r.id, type: "audits", product: "seo-audit", title: PRODUCTS["seo-audit"].title, summary: hostOf(r.target) +
+        (r.state === "done" ? "" : " · still running"), at: r.created_at,
+      link: "studio-product.html?product=seo-audit&audit=" + r.id, id: r.id, deletable: true
+    }));
+  } else if (type === "rehearsal") {
+    const w = where("", "id");
+    const rows = await safeAll(env, "SELECT id, moment, seconds, wpm, fillers_pm, score, kind, created_at FROM rehearsals WHERE " +
+      w.sql + " ORDER BY created_at DESC, id DESC LIMIT ?", w.args.concat(limit + 1));
+    result = page(rows, (r) => ({
+      key: String(r.id), type: "rehearsal", product: "rehearsal", title: MOMENTS[r.moment] || r.moment,
+      summary: "Speak Score " + r.score + " · " + r.wpm + " words a minute · " + Math.round(r.fillers_pm * 10) / 10 + " fillers a minute · " +
+        Math.round(r.seconds) + " s", score: r.score, at: r.created_at, link: "rehearse.html?report=" + r.id
+    }));
+  } else if (type === "video") {
+    const w = where("", "id");
+    const rows = await safeAll(env, "SELECT id, name, seconds, instruction, look, outputs_json, status, created_at FROM video_edits WHERE " +
+      w.sql + " ORDER BY created_at DESC, id DESC LIMIT ?", w.args.concat(limit + 1));
+    result = page(rows, (r) => {
+      const outs = safeJsonArray(r.outputs_json);
+      return {
+        key: r.id, type: "video", product: "video", title: r.name || "Video",
+        summary: [Math.round(r.seconds / 60) + " min", r.look ? r.look[0].toUpperCase() + r.look.slice(1) + " look" : "",
+          r.status === "done" ? outs.length + " video" + (outs.length === 1 ? "" : "s") : r.status === "refunded" ? "not charged" : "unfinished"]
+          .filter(Boolean).join(" · "),
+        instruction: r.instruction, outputs: outs, status: r.status, at: r.created_at, link: "video.html#edit=" + r.id
+      };
+    });
+  } else if (type === "payments") {
+    const w = where("", "tx_ref");
+    const rows = await safeAll(env, "SELECT tx_ref, amount, currency, provider, purpose, status, created_at, paid_at FROM payments WHERE " +
+      w.sql + " AND status <> 'failed' ORDER BY created_at DESC, tx_ref DESC LIMIT ?", w.args.concat(limit + 1));
+    result = page(rows, (r) => ({
+      key: r.tx_ref, type: "payments", product: "payment",
+      title: r.purpose && r.purpose.startsWith("plan:") ? (PLANS[r.purpose.slice(5)] ? PLANS[r.purpose.slice(5)].name : "Plan") + " plan, 30 days" : "Balance top-up",
+      summary: r.status === "paid" || r.status === "successful" ? "Paid" : r.status, amount: r.amount, currency: r.currency,
+      status: r.status, at: r.created_at
+    }));
+  } else {
+    // GRIOT's conversations live with GRIOT; one page, newest first.
+    let threads = [];
+    let note = "";
+    try {
+      const { user: member } = await griotWorkspaceUser(request, env);
+      const rows = await griotJson(env, member.id, "GET", "/threads?limit=100");
+      threads = Array.isArray(rows) ? rows : [];
+    } catch (err) {
+      note = "GRIOT's conversations can't be reached right now. Try again shortly.";
+    }
+    const items = threads.map((t) => ({
+      key: str(t.thread_id, 64), type: "griot", product: "griot", title: str(t.first_question, 200) || "Conversation",
+      summary: (num(t.messages) || 0) + " messages", at: Math.floor(Date.parse(str(t.last_at, 40)) / 1000) || 0,
+      link: "griot-app.html?thread=" + encodeURIComponent(str(t.thread_id, 64))
+    })).filter((t) => (!from || t.at >= from) && (!to || t.at < to));
+    result = { items, next: null, note };
+  }
+  return json(request, env, Object.assign({ type }, result));
+}
+
+async function safeAll(env, sql, args) {
+  try {
+    return (await env.DB.prepare(sql).bind(...args).all()).results || [];
+  } catch (err) {
+    console.error("History list unavailable", err && err.message); // e.g. its table not created yet
+    return [];
+  }
+}
+function safeJsonArray(text) {
+  try { const v = JSON.parse(text || "[]"); return Array.isArray(v) ? v : []; } catch (e) { return []; }
+}
+function hostOf(target) {
+  try { return new URL(target).hostname; } catch (e) { return String(target || ""); }
+}
+
+async function packGet(request, env, url) {
+  const user = await authenticate(request, env);
+  const id = str(url.searchParams.get("id"), 64);
+  const row = UUID_RE.test(id)
+    ? await env.DB.prepare("SELECT id, product, title, sections_json, created_at FROM packs WHERE id = ? AND user_id = ?")
+      .bind(id, user.id).first().catch(() => null)
+    : null;
+  if (!row) throw new HttpError(404, "not_found", "That pack could not be found. It may have been deleted.");
+  return json(request, env, { id: row.id, product: row.product, title: row.title, sections: safeJsonArray(row.sections_json), at: row.created_at });
+}
+
+async function packDelete(request, env) {
+  const user = await authenticate(request, env);
+  const body = await readJson(request, 1024);
+  const id = typeof body.id === "string" && UUID_RE.test(body.id) ? body.id : "";
+  const res = id ? await env.DB.prepare("DELETE FROM packs WHERE id = ? AND user_id = ?").bind(id, user.id).run() : null;
+  if (!res || !(res.meta && res.meta.changes)) throw new HttpError(404, "not_found", "That pack could not be found.");
+  return json(request, env, { deleted: true });
+}
+
+async function auditDelete(request, env) {
+  const user = await authenticate(request, env);
+  const body = await readJson(request, 1024);
+  const id = typeof body.id === "string" ? str(body.id, 64) : "";
+  const res = id ? await env.DB.prepare("DELETE FROM audits WHERE id = ? AND user_id = ?").bind(id, user.id).run() : null;
+  if (!res || !(res.meta && res.meta.changes)) throw new HttpError(404, "not_found", "That audit could not be found.");
+  return json(request, env, { deleted: true });
+}
+
+async function rehearsalGet(request, env, url) {
+  const user = await authenticate(request, env);
+  const id = Number(url.searchParams.get("id"));
+  const r = Number.isInteger(id) && id > 0
+    ? await env.DB.prepare("SELECT * FROM rehearsals WHERE id = ? AND user_id = ?").bind(id, user.id).first()
+    : null;
+  if (!r) throw new HttpError(404, "not_found", "That rehearsal could not be found.");
+  let coaching = null;
+  try { coaching = r.feedback_json ? JSON.parse(r.feedback_json) : null; } catch (e) { coaching = null; }
+  const metrics = { seconds: r.seconds, words: r.words, wpm: r.wpm, fillersPerMin: r.fillers_pm, pausesPerMin: r.pauses_pm };
+  const lenses = coaching && Array.isArray(coaching.lenses) ? coaching.lenses.map((l) => l.score) : null;
+  // The same shape /rehearse returns, so the Rehearsal Room shows it as it did then.
+  // (The transcript was never kept.)
+  return json(request, env, {
+    id: r.id, score: r.score, kind: r.kind, parts: speakScore(metrics, lenses).parts, moment: r.moment,
+    momentTitle: MOMENTS[r.moment] || r.moment, metrics, coaching, transcript: "", previousScore: null, counted: true, at: r.created_at
+  });
+}
 
 async function accountSummary(request, env) {
   const user = await authenticate(request, env);

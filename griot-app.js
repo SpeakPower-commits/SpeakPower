@@ -1266,7 +1266,11 @@
   // Show the conversation at once, then settle any returning payment and
   // confirm the session — in that order, so a stale balance never wins.
   startChat(A.account());
-  loadWorkspace();
+  // A conversation opened from Your history.
+  var askedThread = (new URLSearchParams(location.search).get("thread") || "").toLowerCase();
+  loadWorkspace().then(function () {
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(askedThread)) openThread(askedThread);
+  });
   A.settleReturn().then(function (result) {
     if (result) notice(result);
     return A.refresh();

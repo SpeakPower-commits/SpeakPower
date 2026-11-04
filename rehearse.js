@@ -518,10 +518,12 @@
       host.appendChild(sixty);
     }
 
-    var t = el("details", "rr-transcript");
-    t.appendChild(el("summary", null, "What we heard (your transcript)"));
-    t.appendChild(el("p", null, r.transcript));
-    host.appendChild(t);
+    if (r.transcript) { // never kept, so a report reopened from the history has none
+      var t = el("details", "rr-transcript");
+      t.appendChild(el("summary", null, "What we heard (your transcript)"));
+      t.appendChild(el("p", null, r.transcript));
+      host.appendChild(t);
+    }
 
     var actions = el("div", "builder-actions");
     var again = el("button", "btn btn-primary", "Rehearse again");
@@ -714,6 +716,15 @@
     if (cannotPay()) openTopup();
     else panel("rrTopup", false);
     loadHistory();
+    // A rehearsal opened from Your history: its report, as it was.
+    var report = new URLSearchParams(location.search).get("report");
+    if (/^\d{1,12}$/.test(report || "")) {
+      A.call("/rehearsal?id=" + report).then(function (r) {
+        renderReport(r);
+        var host = $("rrReport");
+        if (host && host.scrollIntoView) host.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, function (e) { showError(e.status === 404 ? "That rehearsal is no longer in your history." : e.message); });
+    }
   }, function (e) {
     if (e.status === 401) signedOut();
   });

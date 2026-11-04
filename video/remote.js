@@ -24,12 +24,24 @@ export function memberSession() {
   return Boolean(window.SP && window.SP.connected && A && A.session());
 }
 
-export function startJob(seconds) {
+/** details: { name, instruction, look }, kept for the member's history (never the video). */
+export function startJob(seconds, details = {}) {
   return account().call('/video/start', {
     seconds: Math.ceil(seconds),
+    name: String(details.name || '').slice(0, 120),
+    instruction: String(details.instruction || '').slice(0, 500),
+    look: String(details.look || '').slice(0, 20),
     anonId: window.SP && window.SP.anonId,
     page: location.pathname,
   });
+}
+
+/** What the edit made, for the member's history on any device. Best effort. */
+export function finishJob(job, outputs) {
+  return account().call('/video/finish', {
+    job,
+    outputs: outputs.slice(0, 12).map((o) => ({ label: o.label, seconds: Math.round(o.duration || 0), format: o.format || '' })),
+  }).catch(() => ({ saved: false }));
 }
 
 export function refundJob(job) {

@@ -587,7 +587,7 @@
   // pages only, so ?next= can never send anyone off-site.
   function safeNext(value) {
     var v = String(value || "");
-    if (v === "griot-app.html" || v === "rehearse.html" || v === "video.html" || v === "plans.html") return v;
+    if (v === "griot-app.html" || v === "rehearse.html" || v === "video.html" || v === "plans.html" || v === "history.html") return v;
     var m = v.match(/^studio-product\.html\?product=([a-z-]{2,40})$/);
     return m && m[1] !== "griot" && SERVICE_NAMES[m[1]] ? v : null;
   }
@@ -597,6 +597,7 @@
     if (next === "rehearse.html") return "the Rehearsal Room";
     if (next === "video.html") return "the AI Video Editor";
     if (next === "plans.html") return "your plan";
+    if (next === "history.html") return "your history";
     var m = String(next || "").match(/product=([a-z-]+)$/);
     return m ? SERVICE_NAMES[m[1]] : "";
   }
