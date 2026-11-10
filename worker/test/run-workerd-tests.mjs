@@ -407,6 +407,15 @@ await test("runtime: health, CORS, and a foreign origin refused", async () => {
   eq((await call("GET", "/health", { headers: { Origin: "https://evil.example" } })).status, 403);
 });
 
+await test("runtime: the API's own address forwards a visitor to the website", async () => {
+  // As a browser opens it: no Origin header, and the redirect not followed.
+  const res = await mf.dispatchFetch("https://api.test/", { redirect: "manual" });
+  eq(res.status, 302);
+  ok(/^https?:\/\/[^/]+.*\/$/.test(res.headers.get("Location") || ""), "Location is the site's home: " + res.headers.get("Location"));
+  await res.arrayBuffer();
+  eq((await call("GET", "/nope")).status, 404, "an unknown path is still not found");
+});
+
 await test("runtime: Google sign-in verifies RS256 with WebCrypto and grants 3 free tries", async () => {
   const s = await signIn("workerd.user@example.com");
   ok(s.token, "session");

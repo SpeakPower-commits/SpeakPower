@@ -159,8 +159,8 @@ Full setup, step by step: [`worker/README.md`](worker/README.md).
 
 | Suite | What it proves |
 |---|---|
-| **Worker logic** (`worker/test/run-tests.mjs`, 197 checks) | prices match the site; free tries and plans; exact charge and refund; parallel uses never overdraw; payments settled exactly once, and reported to Google Analytics once, only with consent; sign-in; the sign-up profile and GRIOT's briefing, account by account; documents read once, chosen per question, kept apart by account; the website audit's stages, private areas, scores and strategic read |
-| **Worker on workerd** (`worker/test/run-workerd-tests.mjs`, 21 checks) | the same Worker on Cloudflare's real runtime, with D1 and the HTML reader |
+| **Worker logic** (`worker/test/run-tests.mjs`, 235 checks) | prices match the site; free tries and plans; exact charge and refund; parallel uses never overdraw; payments settled exactly once, and reported to Google Analytics once, only with consent; sign-in; the sign-up profile and GRIOT's briefing, account by account; documents read once, chosen per question, kept apart by account; the website audit's stages, private areas, scores and strategic read |
+| **Worker on workerd** (`worker/test/run-workerd-tests.mjs`, 24 checks) | the same Worker on Cloudflare's real runtime, with D1 and the HTML reader |
 | **Browser end to end** (over 200 checks) | Try → sign up → welcome steps → use → plan wall → plan or top-up, the Rehearsal Room, the GRIOT workspace, on desktop and phone; the cookie banner, Consent Mode, scrubbed addresses and every Analytics event |
 | **Site structure** | every page parses, local links resolve, structured data is valid |
 

@@ -700,6 +700,30 @@ await test("health responds", async () => {
   eq(r.status, 200); eq(r.data.ok, true);
 });
 
+await test("the API's own address forwards a visitor to the website", async () => {
+  const site = "https://speakpower-commits.github.io/SpeakPower/";
+  // A browser opening the address sends no Origin header.
+  for (const [method, path] of [["GET", "/"], ["GET", ""], ["GET", "//"], ["HEAD", "/"]]) {
+    const r = await call(method, path, { origin: null });
+    eq(r.status, 302, method + " " + JSON.stringify(path));
+    eq(r.headers.get("Location"), site, "sent to the website");
+  }
+  try {
+    env.SITE_URL = "https://speakpower.example/site///";
+    eq((await call("GET", "/", { origin: null })).headers.get("Location"), "https://speakpower.example/site/", "follows SITE_URL");
+    for (const bad of ["javascript:alert(1)", "data:text/html,hi", "not a web address"]) {
+      env.SITE_URL = bad;
+      const r = await call("GET", "/", { origin: null });
+      eq(r.status, 404, "no forwarding to " + bad); eq(r.data.error, "not_found");
+    }
+  } finally { delete env.SITE_URL; }
+  // Nothing else changes: other addresses, other methods and other sites' pages.
+  eq((await call("GET", "/nope", { origin: null })).status, 404, "an unknown path is still not found");
+  eq((await call("POST", "/", { origin: null, body: {} })).status, 404, "POST / is still not found");
+  eq((await call("GET", "/health", { origin: null })).data.ok, true, "health untouched");
+  eq((await call("GET", "/", { origin: "https://evil.example" })).status, 403, "a foreign site's script is still refused");
+});
+
 await test("CORS: allowed origin echoed, other origins refused", async () => {
   const pre = await call("OPTIONS", "/studio/generate");
   eq(pre.status, 204, "preflight");

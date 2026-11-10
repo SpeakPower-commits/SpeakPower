@@ -34,7 +34,8 @@
      FLW_SECRET_KEY   secret, Flutterwave secret key (turns on top-ups)
      FLW_SECRET_HASH  secret, Flutterwave webhook secret hash
      TOPUP_AMOUNTS    var, suggested top-ups, default "50000,100000,250000"
-     SITE_URL         var, where Flutterwave returns customers to
+     SITE_URL         var, where Flutterwave returns customers to, and where
+                      a visitor who opens this API's own address is sent
      PAGESPEED_KEY    secret, optional: adds Google scores to the SEO audit
      AI               Workers AI binding: speech-to-text for the Rehearsal Room
      ANTHROPIC_API_KEY secret, optional: written coaching in the Rehearsal Room
@@ -115,6 +116,14 @@ async function route(request, env, ctx) {
   // A browser request from any site other than SpeakPower is refused outright.
   if (request.headers.get("Origin") && !allowedOrigin(request, env)) {
     return json(request, env, { error: "origin_not_allowed" }, 403);
+  }
+
+  // Someone opened the API's own address in a browser (the link in the
+  // Cloudflare dashboard, say). There is no page here: send them to the site
+  // rather than show a bare "not_found".
+  if ((request.method === "GET" || request.method === "HEAD") && path === "/") {
+    const home = siteHome(env);
+    if (home) return Response.redirect(home, 302);
   }
 
   if (request.method === "GET") {
@@ -5405,6 +5414,17 @@ function topUpAmounts(env) {
 
 function siteUrl(env) {
   return String(env.SITE_URL || "https://speakpower-commits.github.io/SpeakPower").replace(/\/+$/, "");
+}
+
+// The website's home page, for a visitor who opened the API's address. Only
+// ever a web address: a SITE_URL that is not one forwards nowhere.
+function siteHome(env) {
+  try {
+    const home = new URL(siteUrl(env) + "/");
+    return home.protocol === "https:" || home.protocol === "http:" ? home.href : null;
+  } catch (e) {
+    return null;
+  }
 }
 
 // Where Flutterwave sends the customer back to. Only a page on our own site,
