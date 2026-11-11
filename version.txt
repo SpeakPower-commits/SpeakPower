@@ -6,11 +6,12 @@ Open this file on the live site to see which build GitHub Pages is serving:
     https://speakpower-commits.github.io/SpeakPower/version.txt
 
 branch:   claude/studio-griot-live
-build:    Google Analytics with consent (2026-10-14): Consent Mode v2 banner,
-          scrubbed addresses, events, purchases reported by the Worker
-expects:  any page, first visit — an "Analytics cookies?" banner with Accept
-                           and Decline; "Cookie settings" at the foot of
-                           every page and in GRIOT's sidebar
+build:    Your history, and the API's address forwards here (2026-11-11):
+          every member's activity by product; opening the Worker's own
+          address in a browser now lands on this website
+expects:  history.html — the page "Your history."
+          https://speakpower.thomasotieno583.workers.dev — forwards to
+                           this website instead of {"error":"not_found"}
 
 If this file still shows an older build, Pages has not rebuilt yet: wait a
 minute and reload. If it 404s, Pages is serving a different branch.
