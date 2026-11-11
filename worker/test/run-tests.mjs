@@ -1689,6 +1689,90 @@ await test("prices: no page quotes a per-message or per-rehearsal price", async 
   ok(!/var PRICE\b/.test(readFileSync(join(root, "griot-app.js"), "utf8")), "griot-app.js has no message price");
 });
 
+/* ------------------------------------------- craft: made here, not by a template
+   CLAUDE.md holds the standard. These tests check the parts a machine can:
+   no AI-tell phrases, nothing from SpeakPower's own Clarity Audit jargon list,
+   no stock or AI imagery, no placeholder copy, alt text on every image. */
+
+const SITE_ROOT = join(here, "..", "..");
+// Phrases that mark copy as generic or machine-written.
+const AI_TELLS = [
+  /\bunlock(s|ed|ing)?\b/i, /\bunleash/i, /\belevat(e|es|ed|ing)\b/i, /\bseamless(ly)?\b/i, /\beffortless(ly)?\b/i,
+  /\bdelv(e|es|ing)\b/i, /\brevolutioni[sz]/i, /\bcutting[- ]edge\b/i, /\bgame[- ]chang/i, /\bstate[- ]of[- ]the[- ]art\b/i,
+  /\bbest[- ]in[- ]class\b/i, /\bworld[- ]class\b/i, /\bnext[- ]level\b/i, /\bsupercharg/i, /\bsynerg/i, /\bholistic/i,
+  /\brobust\b/i, /\bleverag/i, /\bharness(ing)? the\b/i, /\btapestry\b/i, /\bin today'?s\b/i, /\bfast[- ]paced\b/i,
+  /\blook no further\b/i, /\bdive (in|into)\b/i, /\bwhether you'?re\b/i, /\bempower/i, /\bjourney\b/i,
+  /\b(digital|business|competitive|marketing) landscape\b/i, /\btransform(s|ing)? your\b/i, /\bstreamlin/i,
+  /\binnovative\b/i, /\bit'?s not just\b/i, /\bever[- ]evolving\b/i, /\bmeticulous/i, /\bgroundbreaking\b/i,
+  /\bimagine a world\b/i
+];
+// Other people's words, quoted as they are. Each needs a reason.
+const QUOTED = [
+  /empowering talent/gi // CuePointe's own tagline (index.html, work.html): the client's brand, not our copy
+];
+// What a visitor or a search engine reads: the text, the meta and alt text, and structured data.
+function siteCopy(html) {
+  const extra = [];
+  html.replace(/\s(?:alt|title|aria-label|content)="([^"]*)"/gi, (m, v) => { extra.push(v); return m; });
+  html.replace(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/gi, (m, v) => { extra.push(v); return m; });
+  const body = html.replace(/<script\b[\s\S]*?<\/script>/gi, " ").replace(/<style\b[\s\S]*?<\/style>/gi, " ")
+    .replace(/<!--[\s\S]*?-->/g, " ").replace(/<[^>]+>/g, " ");
+  return (body + " \n " + extra.join(" \n ")).replace(/&mdash;/g, "—").replace(/&amp;/g, "&")
+    .replace(/&#x27;|&#39;|&rsquo;/g, "'").replace(/&[a-z]+;|&#\d+;/g, " ").replace(/\s+/g, " ");
+}
+function sitePages() {
+  const pages = readdirSync(SITE_ROOT).filter((f) => /\.html$/.test(f)).map((f) => [f, siteCopy(readFileSync(join(SITE_ROOT, f), "utf8"))]);
+  pages.push(["llms.txt", readFileSync(join(SITE_ROOT, "llms.txt"), "utf8")]);
+  return pages.map(([f, text]) => [f, QUOTED.reduce((t, re) => t.replace(re, " "), text)]);
+}
+function firstHit(text, re) {
+  const m = text.match(new RegExp(".{0,40}" + re.source + ".{0,30}", "i"));
+  return m ? m[0].trim() : "";
+}
+
+await test("craft: no page reads like generic AI copy", async () => {
+  const pages = sitePages();
+  ok(pages.length > 15, "scanned the site's pages");
+  const hits = [];
+  for (const [f, text] of pages) for (const re of AI_TELLS) if (re.test(text)) hits.push(f + ": \"" + firstHit(text, re) + "\"");
+  ok(!hits.length, "rewrite (see CLAUDE.md, Copy): " + hits.join(" | "));
+});
+
+await test("craft: our pages pass our own Clarity Audit's jargon list", async () => {
+  const src = readFileSync(join(SITE_ROOT, "audit.js"), "utf8");
+  const jargon = JSON.parse("[" + src.match(/var JARGON = \[([\s\S]*?)\];/)[1] + "]");
+  ok(jargon.length > 20, "read the audit's jargon list");
+  const hits = [];
+  for (const [f, text] of sitePages()) {
+    for (const w of jargon) {
+      const re = new RegExp("\\b" + w.replace(/-/g, "[- ]") + "\\b", "i");
+      if (re.test(text)) hits.push(f + ": \"" + firstHit(text, re) + "\"");
+    }
+  }
+  ok(!hits.length, "the Clarity Audit would flag these on a client's site: " + hits.join(" | "));
+});
+
+await test("craft: no stock or AI imagery, no placeholder copy, alt text on every image", async () => {
+  // Image hosts for stock photos, AI-generated images and placeholders.
+  const stock = /unsplash\.com|pexels\.com|pixabay\.com|shutterstock\.com|istockphoto\.com|gettyimages\.|freepik\.com|depositphotos\.com|dreamstime\.com|midjourney\.com|oaidalleapi|lexica\.art|picsum\.photos|placehold\.(co|it)|placeholder\.com|dummyimage\.com/i;
+  const placeholder = /lorem ipsum|\[insert|your company name|john doe|jane doe|\bTODO\b|\bFIXME\b|\bTBD\b/i;
+  const files = readdirSync(SITE_ROOT).filter((f) => /\.html$/.test(f));
+  for (const f of files) {
+    const html = readFileSync(join(SITE_ROOT, f), "utf8");
+    for (const img of html.match(/<img\b[^>]*>/gi) || []) {
+      ok(/\salt="/i.test(img), f + ": an image has no alt text: " + img.slice(0, 100));
+      ok(!stock.test(img), f + ": stock or AI imagery: " + img.slice(0, 100));
+    }
+    ok(!stock.test((html.match(/url\([^)]*\)/gi) || []).join(" ")), f + ": stock or AI imagery in a style");
+    const copy = siteCopy(html);
+    ok(!placeholder.test(copy), f + ": placeholder copy: \"" + firstHit(copy, placeholder) + "\"");
+  }
+  for (const css of readdirSync(SITE_ROOT).filter((f) => /\.css$/.test(f))) {
+    const urls = (readFileSync(join(SITE_ROOT, css), "utf8").match(/url\([^)]*\)/gi) || []).join(" ");
+    ok(!stock.test(urls), css + ": stock or AI imagery");
+  }
+});
+
 await test("prices: the builder page quotes the same pack prices", async () => {
   const builder = readFileSync(join(here, "..", "..", "studio-product.js"), "utf8");
   for (const [key, amount] of Object.entries(PRICES)) {

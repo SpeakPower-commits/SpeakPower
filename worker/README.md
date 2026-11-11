@@ -449,7 +449,7 @@ ALTER TABLE payments ADD COLUMN ga_session_id TEXT;
 cd worker && npm install && cd .. && node --experimental-sqlite worker/test/run-tests.mjs
 ```
 
-The business rules, fast, in plain Node (235 tests): the real `worker.js` against an in-memory D1, with Google, GRIOT, Flutterwave and audited sites faked at the network edge only. Google sign-in is tested with real RS256 signatures, so forged keys, `alg: none` and edited tokens are refused by actual cryptography rather than a stub. It also fails if any page quotes a different price from the Worker.
+The business rules, fast, in plain Node (238 tests): the real `worker.js` against an in-memory D1, with Google, GRIOT, Flutterwave and audited sites faked at the network edge only. Google sign-in is tested with real RS256 signatures, so forged keys, `alg: none` and edited tokens are refused by actual cryptography rather than a stub. It also fails if any page quotes a different price from the Worker.
 
 ```
 cd worker && npm install && npm install --no-save miniflare@4 wrangler@4 && node test/run-workerd-tests.mjs
