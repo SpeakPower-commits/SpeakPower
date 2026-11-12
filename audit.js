@@ -547,13 +547,13 @@
      ---------------------------------------------------------------------- */
 
   var ROUTES = {
-    readability: { service: "Brand Story Builder", href: "studio.html#product-brand-story" },
-    rhythm:      { service: "Speaker Ready Pack", href: "studio.html#product-speaker-ready" },
-    passive:     { service: "SEO Content Starter", href: "studio.html#product-content-seo" },
-    hedging:     { service: "Brand Story Builder", href: "studio.html#product-brand-story" },
-    jargon:      { service: "SEO Content Starter", href: "studio.html#product-content-seo" },
-    evidence:    { service: "Market Development Planner", href: "studio.html#product-market-plan" },
-    nominal:     { service: "Brand Story Builder", href: "studio.html#product-brand-story" }
+    readability: { service: "Brand Story Builder", href: "plans.html#pack-brand-story" },
+    rhythm:      { service: "Speaker Ready Pack", href: "plans.html#pack-speaker-ready" },
+    passive:     { service: "SEO Content Starter", href: "plans.html#pack-content-seo" },
+    hedging:     { service: "Brand Story Builder", href: "plans.html#pack-brand-story" },
+    jargon:      { service: "SEO Content Starter", href: "plans.html#pack-content-seo" },
+    evidence:    { service: "Market Development Planner", href: "plans.html#pack-market-plan" },
+    nominal:     { service: "Brand Story Builder", href: "plans.html#pack-brand-story" }
   };
 
   function costOf(m, measure) {

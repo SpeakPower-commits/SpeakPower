@@ -30,7 +30,9 @@
     "data-story": "Data Story Builder",
     "speaker-ready": "Speaker Ready Pack",
     "griot": "GRIOT",
-    "rehearsal": "Rehearsal Room"
+    "rehearsal": "Rehearsal Room",
+    "video": "Ngoma (AI video editor)",
+    "transcribe": "Transcriber"
   };
 
   function el(tag, className, text) {
@@ -398,7 +400,7 @@
     });
   }
 
-  // The wall GRIOT and the Rehearsal Room show: the plans, never a price per
+  // The wall GRIOT, the Rehearsal Room and the AI Video Editor show: the plans, never a price per
   // use. Choosing one opens checkout and comes straight back to this page.
   function renderPlanWall(host, info) {
     info = info || {};
@@ -410,7 +412,7 @@
     host.appendChild(el("h2", null, info.heading || (m && m.plan ? "Your month's allowance is used" : "Keep going with a plan")));
     var lead = info.message || (m && m.plan ? "It renews on " + dayMonth(m.endsAt) + "." : "Your free tries are used.");
     host.appendChild(el("p", null, lead +
-      " Every plan runs 30 days and includes GRIOT and the Rehearsal Room. Pay by mobile money or card; renewing is one tap."));
+      " Every plan runs 30 days and includes GRIOT, the Rehearsal Room and Ngoma, the AI video editor. Pay by mobile money or card; renewing is one tap."));
 
     var error = el("p", "builder-error");
     error.setAttribute("role", "alert");
@@ -586,7 +588,7 @@
   // pages only, so ?next= can never send anyone off-site.
   function safeNext(value) {
     var v = String(value || "");
-    if (v === "griot-app.html" || v === "rehearse.html" || v === "plans.html") return v;
+    if (v === "griot-app.html" || v === "rehearse.html" || v === "transcribe.html" || v === "video.html" || v === "plans.html" || v === "history.html") return v;
     var m = v.match(/^studio-product\.html\?product=([a-z-]{2,40})$/);
     return m && m[1] !== "griot" && SERVICE_NAMES[m[1]] ? v : null;
   }
@@ -594,7 +596,10 @@
   function nextServiceName(next) {
     if (next === "griot-app.html") return "GRIOT";
     if (next === "rehearse.html") return "the Rehearsal Room";
+    if (next === "transcribe.html") return "the Transcriber";
+    if (next === "video.html") return "the AI Video Editor";
     if (next === "plans.html") return "your plan";
+    if (next === "history.html") return "your history";
     var m = String(next || "").match(/product=([a-z-]+)$/);
     return m ? SERVICE_NAMES[m[1]] : "";
   }

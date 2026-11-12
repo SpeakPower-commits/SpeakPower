@@ -23,7 +23,7 @@
   var errorHost = $("builderError");
   var gate = $("builderGate");
 
-  // Prices are in UGX and must match the Worker's price list and studio.html
+  // Prices are in UGX and must match the Worker's price list and plans.html
   // (the Worker's test suite fails if any of the three disagree).
   var PRODUCTS = {
     "brand-story": {
@@ -325,6 +325,7 @@
         : data.paidWith === "plan"
           ? "Included in your plan — this month's Studio pack."
           : ugx(data.amount) + " from your balance — " + ugx(acct.balance) + " left.";
+    if (data.pack) text += " Kept in your history: open it again any time from Your history.";
     $("outputPaid").textContent = text;
     $("outputPaid").hidden = false;
   }
@@ -343,6 +344,20 @@
       footer: "SpeakPower Studio",
       sections: lastSections.map(function (item) { return { heading: item[0], lines: item.slice(1) }; })
     };
+  }
+
+  // A pack from the member's history: shown as it was made, ready to download again.
+  function openSavedPack(id) {
+    A.call("/pack?id=" + encodeURIComponent(id)).then(function (data) {
+      render(data.sections || []);
+      var saved = new Date((data.at || 0) * 1000).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
+      $("outputTitle").textContent = (data.title || product.title) + " — made " + saved;
+      $("outputPaid").textContent = "From your history. Download it again below, or make a new one with the form.";
+      $("outputPaid").hidden = false;
+      outputHost.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, function (e) {
+      showOutputMessage(e.status === 404 ? "That pack is no longer in your history." : e.message);
+    });
   }
 
   /* ----------------------------------------------------------- validation */
@@ -444,8 +459,14 @@
 
   var running = false;
 
+  // While work runs in this tab, site links open in a new tab and closing asks first (activity.js).
+  var leaveGuard = null;
+  function holdPage() { if (!leaveGuard && window.SPWork) leaveGuard = window.SPWork.guard("Your " + product.title + " is being written…"); }
+  function freePage() { if (leaveGuard) { leaveGuard(); leaveGuard = null; } }
+
   function setBusy(on) {
     running = on;
+    if (on) holdPage(); else freePage();
     generateBtn.disabled = on;
     generateBtn.textContent = on ? (product.busy || "Generating…") : ACTION;
   }
@@ -589,6 +610,8 @@
 
   renderForm();
   restoreDraft();
+  // Answers are also kept while typing, for 30 days: leaving the page never loses them.
+  if (window.SPWork) window.SPWork.watchDraft(form, "studio:" + key);
   drawStatus();
   if (A) {
     A.onChange(drawStatus);
@@ -605,6 +628,9 @@
         var auditId = params.get("audit");
         if (auditId) resumeAudit(auditId);
       }
+      // A pack kept in the member's history, opened again from there.
+      var packId = params.get("pack");
+      if (packId && A.session()) openSavedPack(packId);
     }, drawStatus);
   }
 })();

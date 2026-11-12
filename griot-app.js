@@ -1121,6 +1121,11 @@
 
   var sending = false;
 
+  // While work runs in this tab, site links open in a new tab and closing asks first (activity.js).
+  var leaveGuard = null;
+  function holdPage() { if (!leaveGuard && window.SPWork) leaveGuard = window.SPWork.guard("GRIOT is answering your question…"); }
+  function freePage() { if (leaveGuard) { leaveGuard(); leaveGuard = null; } }
+
   function send() {
     if (sending) return;
     var err = $("gaChatError");
@@ -1135,6 +1140,7 @@
     if (!A.session()) { signedOut("Please sign in again."); return; }
 
     sending = true;
+    holdPage();
     closePops();
     var btn = $("gaSendBtn");
     btn.disabled = true;
@@ -1142,6 +1148,8 @@
     $("gaProject").disabled = true;
     var mine = addMessage("user", message, null, chosenMode ? "You · " + chosenMode.charAt(0).toUpperCase() + chosenMode.slice(1) : "You");
     box.value = "";
+    // Kept until answered: leaving the page now never loses the question.
+    if (window.SPWork) window.SPWork.keepDraft("griot-message", message);
     var pending = thinking();
 
     var payload = { message: message, threadId: getThread(), anonId: SP.anonId, page: location.pathname };
@@ -1167,6 +1175,7 @@
         scrollLog();
       }
       setThread(reply.threadId);
+      if (window.SPWork) window.SPWork.clearDraft("griot-message");
       A.setAccount(reply.account);
       renderAccount(reply.account);
       if (cannotPay()) openTopup();
@@ -1174,6 +1183,7 @@
       pending.stop();
       pending.item.remove();
       // The message was not answered: put it back so nothing typed is lost.
+      if (window.SPWork) window.SPWork.clearDraft("griot-message");
       box.value = message;
       mine.remove();
       if (e.status === 401) { signedOut(e.message); return; }
@@ -1188,6 +1198,7 @@
       showError(err, e.message);
     }).then(function () {
       sending = false;
+      freePage();
       $("gaSendLabel").textContent = "Ask GRIOT";
       $("gaProject").disabled = false;
       if (!cannotPay()) btn.disabled = false;
@@ -1255,7 +1266,11 @@
   // Show the conversation at once, then settle any returning payment and
   // confirm the session — in that order, so a stale balance never wins.
   startChat(A.account());
-  loadWorkspace();
+  // A conversation opened from Your history.
+  var askedThread = (new URLSearchParams(location.search).get("thread") || "").toLowerCase();
+  loadWorkspace().then(function () {
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(askedThread)) openThread(askedThread);
+  });
   A.settleReturn().then(function (result) {
     if (result) notice(result);
     return A.refresh();

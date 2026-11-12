@@ -26,8 +26,8 @@ The browser never sees GRIOT's address or key, never chooses its own tenant, and
 
 | Plan | Price | Fair use in 30 days (shown only in plan details) |
 |---|---|---|
-| Starter | UGX 60,000 | 120 GRIOT questions, 20 rehearsals; keeps 10 documents for GRIOT |
-| Pro | UGX 150,000 | 300 GRIOT questions, 60 rehearsals, 1 Studio pack, 15% off other packs; keeps 50 documents |
+| Starter | UGX 60,000 | 120 GRIOT questions, 20 rehearsals, 10 video edits; keeps 10 documents for GRIOT |
+| Pro | UGX 150,000 | 300 GRIOT questions, 60 rehearsals, 40 video edits, 1 Studio pack, 15% off other packs; keeps 50 documents |
 
 A free account keeps 1 document. Documents are a number held, not a monthly allowance: deleting one frees its place.
 
@@ -160,6 +160,8 @@ Top-up switches on only when `FLW_SECRET_KEY` and `FLW_SECRET_HASH` are both set
 
 Check: `https://<your-worker>/health` returns `{"ok":true}`.
 
+The Worker is the API behind the website, not a page of its own. Opening its bare address (`https://speakpower.thomasotieno583.workers.dev`) in a browser forwards to the website at `SITE_URL`; any other unknown address answers `{"error":"not_found"}`, which is normal.
+
 ### 8. Connect the site
 
 **Done, 7 October 2026:** `apiBase` points at the `speakpower` Worker and `googleClientId` is set, on the preview branch first. Neither is secret. If either is ever emptied, the site behaves as a brochure: no "Sign in" in the header, and the Studio, GRIOT and account pages say they are being connected.
@@ -189,6 +191,16 @@ Then switch `FLW_SECRET_KEY` to the live key, and merge the preview into `main`.
 - **The webhook's secret hash is compared in constant time.**
 - **A bank later** slots in without a schema change: `payments.provider` is `flutterwave` today.
 
+## Your history
+
+`history.html` shows a member everything they have done, by product: **All** (every use, from `runs`), GRIOT conversations, rehearsals, Ngoma edits, Studio packs, SEO audits and payments. Newest first, filtered by date, paged with "Load more", downloadable as CSV. Everything opens where it was made.
+
+- `GET /history?type=all|griot|rehearsal|video|packs|audits|payments&from=&to=&before=&limit=` — one page and a `next` cursor (`"<created_at>:<id>"`). The member's own rows only. GRIOT's conversations come from GRIOT; if it can't be reached, that tab says so and the rest works.
+- **Studio packs are kept until deleted:** `generate()` saves the finished sections in `packs` (never the answers that made them). `GET /pack?id=` reopens one in `studio-product.html?product=…&pack=…`, ready to download as Word or PDF again; `POST /packs/delete {id}` removes it.
+- **Ngoma edits:** `/video/start` also takes `name`, `instruction` and `look`, kept in `video_edits` (which outlives the six-hour job); the page calls `POST /video/finish {job, outputs}` once with what the edit made. The videos themselves never reach the Worker: they open only on the computer that made them.
+- **Rehearsals** reopen as their report via `GET /rehearsal?id=` (`rehearse.html?report=…`); the transcript was never kept.
+- **Switching on**, once, in the D1 console: the "Your history" block at the end of `schema.sql` (`CREATE TABLE IF NOT EXISTS packs …`, `video_edits …` and their indexes). Until it is run, every route still answers: the history lists uses, GRIOT, rehearsals, audits and payments, and packs and Ngoma details are simply not kept yet.
+
 ## The website audit
 
 The audit reads **the whole site**, up to 25 pages, the way a search engine or an AI assistant would, and checks that private areas stay private. It then adds Google Lighthouse with real-visitor speed, and a strategic read written by Claude. Price: UGX 150,000.
@@ -208,7 +220,7 @@ Every stage is safe to call twice:
 - Lighthouse and the strategic read are claimed before they run;
 - only the audit's owner can read it or move it on.
 
-Reports are kept 90 days, then the daily run deletes them.
+Finished reports are kept until their owner deletes them (Your history, `POST /studio/audits/delete`); an audit that never finished is deleted by the daily run after 90 days.
 
 **Private areas.** Only addresses the site itself links to, or the client lists, whose path looks private (`login`, `account`, `admin`, `dashboard`, `cart`, `checkout`…). Each is visited once, without signing in, and classed:
 - **protected:** 401 or 403, a redirect to a sign-in page, `noindex`, or disallowed by robots;
@@ -279,6 +291,42 @@ The Worker also supports sign-in by a 6-digit emailed code. It stays off (`email
 - **The audio is never stored**, nor the transcript: the browser sends it, Whisper reads it, and it is gone. D1 keeps the scores and the coaching (`rehearsals`) so customers see their progress; "Delete my rehearsals" removes them.
 - **CPU:** the browser sends the recording already in base64 (Opus at 32 kbps: three minutes is about 1 MB), so the Worker only parses it, about 1 ms on the free plan's 10 ms allowance.
 - **The `rehearsals` table** is in `schema.sql`; on an existing database run its `CREATE TABLE IF NOT EXISTS rehearsals …` block once in the D1 console. The same goes for `subscriptions`, plus `ALTER TABLE payments ADD COLUMN purpose TEXT NOT NULL DEFAULT 'topup';`.
+
+## The Transcriber
+
+Upload any recording (a board meeting, an interview, a speech; up to 10 hours or 5 GB) and get it back word for word, by speaker. It lives in the Rehearsal Room (`transcribe.html`).
+
+- **How it runs.** The browser sends the file in 8 MB parts (`/transcribe/part`) to a private R2 bucket, `speakpower-audio` (binding `AUDIO`). A part sent again replaces itself, so an upload resumes after a dropped signal. When every part is in (`/transcribe/uploaded`), a **Workflow** (`TRANSCRIBE`, class `TranscribeWorkflow` in `index.js`) gives the engine a signed link to the file that works for six hours and only while that job runs (`/transcribe/audio/<id>`, byte ranges served), shapes the words into paragraphs by speaker with times, caption cues and "check this" marks on words under 60% confidence, keeps them in D1 (`transcripts`, `transcript_parts`), **deletes the audio**, and settles the time to the real length.
+- **The engine** is AssemblyAI Universal-3.5 Pro through the `AI` binding and AI Gateway (`gateway: "default"`, or `AI_GATEWAY`), billed by Cloudflare from prepaid credits: about $0.0038 an audio minute with speaker labels ($0.23 an hour; with Cloudflare's 5% credit fee about UGX 890), plus about UGX 190 an hour when a member types special words.
+- **Time is the currency.** Starter carries 5 hours a month and Pro 20 (`PLANS.transcribe`, minutes; stored in seconds on each period); a free try covers one recording up to 20 minutes; an admin account spends nothing. The time is set aside at the start in one atomic statement, the engine is told to stop there (`audio_end_at`), and the job settles to the real length. A failure, a cancel or an upload left unfinished for a day gives every second back, exactly once (each give-back is guarded on `settled`). A recording longer than the time left is offered "Transcribe the first N minutes".
+- **Safety rails.** `TRANSCRIBE_DAILY_HOURS` (default 40) caps the audio all accounts together can send in a day, checked in the same statement that records the job. If the Cloudflare credit runs out the job stops without retrying and the member's time comes back. The daily cron closes stale uploads and deletes any recording a day old, whatever happened.
+- **Minutes** (summary, key points, decisions, action items with owner and date, chapters) are written by Claude (`claude-opus-5-5`) from the transcript only, in the background, at most three times per recording; about $0.05 to $0.20 each.
+- **Who can use it.** `TRANSCRIBE_OPEN = "admin"` (in `wrangler.toml`): the owner's accounts only, while it is tested on real recordings. `"all"` opens it to members.
+
+**Before the first deploy that includes it**, in this order:
+1. Cloudflare → **Billing**: a credit or debit card on the account (not a prepaid card).
+2. Workers & Pages → **Plans**: the **Workers Paid** plan ($5 a month). Reading back a long transcript and the Workflow need more than the free plan's 10 ms of CPU.
+3. **R2 → Enable R2**, then create the bucket **`speakpower-audio`** (or `npx wrangler r2 bucket create speakpower-audio`). A deploy with the `[[r2_buckets]]` block fails until the bucket exists.
+4. **AI → AI Gateway**: load credits (say $10) and turn on authentication for the `default` gateway.
+5. **D1 console**: run the Transcriber block at the end of `schema.sql` (two `ALTER TABLE subscriptions` lines, the allowance for members already on a plan, and three tables).
+
+## The AI Video Editor
+
+`video.html` edits a raw video **on the customer's own computer**: cutting pauses and "um"s, choosing clips with a free in-browser AI, captions, titles, graphics, the brand kit and the MP4 export never touch the Worker. The Worker does one thing for it: turns the sound into words, with the Rehearsal Room's Whisper and its filler-keeping prompt.
+
+- **One edit is one use**, like a rehearsal: a free try, then the plan's video edits (`PLANS[*].video`: Starter 10, Pro 40). `POST /video/start {seconds}` reserves it (videos up to two hours) and returns a job.
+- **The sound arrives in two-minute pieces**, `POST /video/transcribe {job, index, audio, language}`: 16 kHz mu-law WAV in base64, about 2.6 MB each, so every request stays small and CPU-light. A job allows twice the pieces its length needs, for retries, and closes after six hours. Another account's job is a 404.
+- **Nothing heard, nothing spent:** if no piece could be heard, the page calls `POST /video/refund {job}` and the use is given back (once). A refund is refused while any piece is still with Whisper, so it can never come with a transcript.
+- **The sound and the words are never stored.** `video_jobs` keeps only counts, and is cleared a day after each job ends.
+- **Cost:** Workers AI, about $0.0005 an audio minute; the free 10,000 neurons a day cover roughly 3.5 hours.
+- **Switching on**, once, in the D1 console:
+
+  ```sql
+  ALTER TABLE subscriptions ADD COLUMN video_limit INTEGER NOT NULL DEFAULT 10;
+  ALTER TABLE subscriptions ADD COLUMN video_used INTEGER NOT NULL DEFAULT 0 CHECK (video_used >= 0);
+  ```
+
+  then the `CREATE TABLE IF NOT EXISTS video_jobs …` block from `schema.sql`. Until then `/video/start` fails without spending anything, and the editor still works for members on its in-browser speech model.
 
 ## YouTube research
 
@@ -419,10 +467,10 @@ ALTER TABLE payments ADD COLUMN ga_session_id TEXT;
 cd worker && npm install && cd .. && node --experimental-sqlite worker/test/run-tests.mjs
 ```
 
-The business rules, fast, in plain Node (217 tests): the real `worker.js` against an in-memory D1, with Google, GRIOT, Flutterwave and audited sites faked at the network edge only. Google sign-in is tested with real RS256 signatures, so forged keys, `alg: none` and edited tokens are refused by actual cryptography rather than a stub. It also fails if any page quotes a different price from the Worker.
+The business rules, fast, in plain Node (251 tests): the real `worker.js` against an in-memory D1, with Google, GRIOT, Flutterwave and audited sites faked at the network edge only. Google sign-in is tested with real RS256 signatures, so forged keys, `alg: none` and edited tokens are refused by actual cryptography rather than a stub. It also fails if any page quotes a different price from the Worker.
 
 ```
 cd worker && npm install && npm install --no-save miniflare@4 wrangler@4 && node test/run-workerd-tests.mjs
 ```
 
-The Worker bundled exactly as Workers Builds deploys it (`wrangler deploy --dry-run`), on **workerd**, the engine Cloudflare runs Workers on (23 tests): real D1, the real HTML parser for the SEO audit, WebCrypto sign-in, the exactly-once top-up under truly concurrent notifications, the sign-up profile briefing GRIOT, and a document read and kept as facts. It also audits this site's own pages.
+The Worker bundled exactly as Workers Builds deploys it (`wrangler deploy --dry-run`), on **workerd**, the engine Cloudflare runs Workers on (25 tests): real D1, R2 and the Transcriber's Workflow running one whole recording, the real HTML parser for the SEO audit, WebCrypto sign-in, the exactly-once top-up under truly concurrent notifications, the sign-up profile briefing GRIOT, and a document read and kept as facts. It also audits this site's own pages.

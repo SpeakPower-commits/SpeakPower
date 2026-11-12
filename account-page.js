@@ -72,8 +72,8 @@
       p.textContent = "Every service, with no free tries, plan, balance or document limit. Each use is still listed below, at no charge.";
       var links = document.createElement("div");
       links.className = "builder-actions";
-      [["griot-app.html", "Open GRIOT"], ["rehearse.html", "Rehearsal Room"], ["studio.html", "Studio packs"],
-        ["youtube.html", "YouTube research"]].forEach(function (pair, i) {
+      [["griot-app.html", "Open GRIOT"], ["rehearse.html", "Rehearsal Room"], ["video.html", "Ngoma video editor"], ["plans.html#packs", "Studio packs"],
+        ["history.html", "Your history"], ["youtube.html", "YouTube research"]].forEach(function (pair, i) {
         var a = document.createElement("a");
         a.className = i ? "btn btn-ghost" : "btn btn-primary";
         a.href = pair[0];
@@ -89,7 +89,7 @@
       A.renderPlanWall(host, {
         heading: m && m.next ? "Your " + m.next.name + " plan starts " + A.dayMonth(m.next.startsAt) : "Choose a plan",
         message: Number(acct.trialsRemaining) > 0
-          ? "You still have " + A.triesText(acct.trialsRemaining) + ". When they are used, a plan keeps GRIOT and the Rehearsal Room going."
+          ? "You still have " + A.triesText(acct.trialsRemaining) + ". When they are used, a plan keeps GRIOT, the Rehearsal Room and Ngoma, the AI video editor, going."
           : "Your free tries are used.",
         account: acct,
         returnTo: "account.html",
@@ -109,7 +109,7 @@
     head.appendChild(title);
     head.appendChild(when);
     host.appendChild(head);
-    [["griot", "GRIOT"], ["rehearsal", "Rehearsal Room"]].forEach(function (pair) {
+    [["griot", "GRIOT"], ["rehearsal", "Rehearsal Room"], ["video", "Ngoma video edits"]].forEach(function (pair) {
       var box = document.createElement("div");
       box.className = "usage";
       var name = document.createElement("p");
@@ -201,7 +201,7 @@
     });
     var m = data.account && data.account.membership;
     if (m && m.packDiscount) {
-      $("acPriceNote").textContent = "GRIOT and the Rehearsal Room come with your plan. As a " + m.name +
+      $("acPriceNote").textContent = "GRIOT, the Rehearsal Room and Ngoma, the AI video editor, come with your plan. As a " + m.name +
         " member you pay " + (100 - m.packDiscount) + "% of these prices.";
     }
 
