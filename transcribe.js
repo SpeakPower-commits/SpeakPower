@@ -207,7 +207,7 @@
       if (A.handleProfileRequired(e, "transcribe.html")) return;
       if (e.status === 401) { signedOut(); return; }
       if (e.status === 402) { openTopup(e.data); return; }
-      if (e.code === "transcribe_closed" || e.code === "transcribe_unconfigured") { showClosed(); return; }
+      if (e.code === "transcribe_closed" || e.code === "transcribe_unconfigured") { showUnavailable(account, e.code); return; }
       showError(e.message);
     });
   }
@@ -922,9 +922,31 @@
 
   /* -------------------------------------------------------------- start */
 
-  function showClosed() {
-    panel("trStage", false);
-    panel("trClosed", true);
+  // Not open to this account yet, or not switched on: the upload box stays in
+  // its place, shut, with the reason above it. Never a detour to another room.
+  function showUnavailable(acct, code) {
+    panel("trStage", true);
+    showStep("trPick");
+    var note = $("trNotice");
+    note.textContent = "";
+    // An API from before the Transcriber does not mention it at all.
+    var installed = !!acct && Object.prototype.hasOwnProperty.call(acct, "transcribe") && code !== "transcribe_unconfigured";
+    if (!installed && acct && acct.admin) {
+      note.appendChild(el("strong", null, "Not switched on yet. "));
+      note.appendChild(document.createTextNode("This page is live, but Cloudflare has not installed the part that receives and transcribes " +
+        "recordings: it needs R2 storage on the account. In Cloudflare, open R2 Object Storage and enable it (it asks for a card; " +
+        "this use stays inside R2's free allowance). Uploads open here as soon as it is installed."));
+    } else if (!installed) {
+      note.textContent = "Transcribing switches on here shortly. This is where your audio or video goes.";
+    } else {
+      note.textContent = "Transcribing is being tested on SpeakPower's own recordings first. It opens here to members soon, and plans will carry it.";
+    }
+    note.hidden = false;
+    $("trFile").disabled = true;
+    $("trDrop").classList.add("is-off");
+    panel("trFileInfo", false);
+    panel("trOptions", false);
+    $("trGo").disabled = true;
   }
 
   $("trStartBtn").addEventListener("click", function () { A.requireAccount("transcribe.html"); });
@@ -941,7 +963,7 @@
   }).then(function (acct) {
     if (A.requireAccount("transcribe.html")) return;
     renderAccount(acct);
-    if (!acct || !acct.transcribe) { showClosed(); return; }
+    if (!acct || acct.transcribe !== true) { showUnavailable(acct); return; }
     panel("trStage", true);
     showStep("trPick");
     if (settled && !settled.ok) showError(settled.text);
