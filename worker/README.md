@@ -292,6 +292,24 @@ The Worker also supports sign-in by a 6-digit emailed code. It stays off (`email
 - **CPU:** the browser sends the recording already in base64 (Opus at 32 kbps: three minutes is about 1 MB), so the Worker only parses it, about 1 ms on the free plan's 10 ms allowance.
 - **The `rehearsals` table** is in `schema.sql`; on an existing database run its `CREATE TABLE IF NOT EXISTS rehearsals …` block once in the D1 console. The same goes for `subscriptions`, plus `ALTER TABLE payments ADD COLUMN purpose TEXT NOT NULL DEFAULT 'topup';`.
 
+## The Transcriber
+
+Upload any recording (a board meeting, an interview, a speech; up to 10 hours or 5 GB) and get it back word for word, by speaker. It lives in the Rehearsal Room (`transcribe.html`).
+
+- **How it runs.** The browser sends the file in 8 MB parts (`/transcribe/part`) to a private R2 bucket, `speakpower-audio` (binding `AUDIO`). A part sent again replaces itself, so an upload resumes after a dropped signal. When every part is in (`/transcribe/uploaded`), a **Workflow** (`TRANSCRIBE`, class `TranscribeWorkflow` in `index.js`) gives the engine a signed link to the file that works for six hours and only while that job runs (`/transcribe/audio/<id>`, byte ranges served), shapes the words into paragraphs by speaker with times, caption cues and "check this" marks on words under 60% confidence, keeps them in D1 (`transcripts`, `transcript_parts`), **deletes the audio**, and settles the time to the real length.
+- **The engine** is AssemblyAI Universal-3.5 Pro through the `AI` binding and AI Gateway (`gateway: "default"`, or `AI_GATEWAY`), billed by Cloudflare from prepaid credits: about $0.0038 an audio minute with speaker labels ($0.23 an hour; with Cloudflare's 5% credit fee about UGX 890), plus about UGX 190 an hour when a member types special words.
+- **Time is the currency.** Starter carries 5 hours a month and Pro 20 (`PLANS.transcribe`, minutes; stored in seconds on each period); a free try covers one recording up to 20 minutes; an admin account spends nothing. The time is set aside at the start in one atomic statement, the engine is told to stop there (`audio_end_at`), and the job settles to the real length. A failure, a cancel or an upload left unfinished for a day gives every second back, exactly once (each give-back is guarded on `settled`). A recording longer than the time left is offered "Transcribe the first N minutes".
+- **Safety rails.** `TRANSCRIBE_DAILY_HOURS` (default 40) caps the audio all accounts together can send in a day, checked in the same statement that records the job. If the Cloudflare credit runs out the job stops without retrying and the member's time comes back. The daily cron closes stale uploads and deletes any recording a day old, whatever happened.
+- **Minutes** (summary, key points, decisions, action items with owner and date, chapters) are written by Claude (`claude-opus-5-5`) from the transcript only, in the background, at most three times per recording; about $0.05 to $0.20 each.
+- **Who can use it.** `TRANSCRIBE_OPEN = "admin"` (in `wrangler.toml`): the owner's accounts only, while it is tested on real recordings. `"all"` opens it to members.
+
+**Before the first deploy that includes it**, in this order:
+1. Cloudflare → **Billing**: a credit or debit card on the account (not a prepaid card).
+2. Workers & Pages → **Plans**: the **Workers Paid** plan ($5 a month). Reading back a long transcript and the Workflow need more than the free plan's 10 ms of CPU.
+3. **R2 → Enable R2**, then create the bucket **`speakpower-audio`** (or `npx wrangler r2 bucket create speakpower-audio`). A deploy with the `[[r2_buckets]]` block fails until the bucket exists.
+4. **AI → AI Gateway**: load credits (say $10) and turn on authentication for the `default` gateway.
+5. **D1 console**: run the Transcriber block at the end of `schema.sql` (two `ALTER TABLE subscriptions` lines, the allowance for members already on a plan, and three tables).
+
 ## The AI Video Editor
 
 `video.html` edits a raw video **on the customer's own computer**: cutting pauses and "um"s, choosing clips with a free in-browser AI, captions, titles, graphics, the brand kit and the MP4 export never touch the Worker. The Worker does one thing for it: turns the sound into words, with the Rehearsal Room's Whisper and its filler-keeping prompt.
@@ -449,10 +467,10 @@ ALTER TABLE payments ADD COLUMN ga_session_id TEXT;
 cd worker && npm install && cd .. && node --experimental-sqlite worker/test/run-tests.mjs
 ```
 
-The business rules, fast, in plain Node (238 tests): the real `worker.js` against an in-memory D1, with Google, GRIOT, Flutterwave and audited sites faked at the network edge only. Google sign-in is tested with real RS256 signatures, so forged keys, `alg: none` and edited tokens are refused by actual cryptography rather than a stub. It also fails if any page quotes a different price from the Worker.
+The business rules, fast, in plain Node (251 tests): the real `worker.js` against an in-memory D1, with Google, GRIOT, Flutterwave and audited sites faked at the network edge only. Google sign-in is tested with real RS256 signatures, so forged keys, `alg: none` and edited tokens are refused by actual cryptography rather than a stub. It also fails if any page quotes a different price from the Worker.
 
 ```
 cd worker && npm install && npm install --no-save miniflare@4 wrangler@4 && node test/run-workerd-tests.mjs
 ```
 
-The Worker bundled exactly as Workers Builds deploys it (`wrangler deploy --dry-run`), on **workerd**, the engine Cloudflare runs Workers on (24 tests): real D1, the real HTML parser for the SEO audit, WebCrypto sign-in, the exactly-once top-up under truly concurrent notifications, the sign-up profile briefing GRIOT, and a document read and kept as facts. It also audits this site's own pages.
+The Worker bundled exactly as Workers Builds deploys it (`wrangler deploy --dry-run`), on **workerd**, the engine Cloudflare runs Workers on (25 tests): real D1, R2 and the Transcriber's Workflow running one whole recording, the real HTML parser for the SEO audit, WebCrypto sign-in, the exactly-once top-up under truly concurrent notifications, the sign-up profile briefing GRIOT, and a document read and kept as facts. It also audits this site's own pages.

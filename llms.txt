@@ -27,6 +27,8 @@ POLSΘ (also written POLSSE; Θ, theta, stands for Socioeconomics) is a SpeakPow
 
 - **Rehearsal Room** — https://speakpower-commits.github.io/SpeakPower/rehearse.html
   Practise a pitch, presentation, interview answer, 60-second introduction or toast out loud, for up to three minutes. It returns a Speak Score out of 100: pace, fillers and long pauses measured from the recording (60%), and the message judged through the POLSΘ lenses (40%), with three fixes, a stronger opening line and a 60-second version. The audio is never stored. First 3 tries free; then included in every SpeakPower plan.
+- **Transcriber** — https://speakpower-commits.github.io/SpeakPower/transcribe.html
+  Upload a recording of a meeting, interview or speech, up to 10 hours or 5 GB, and get it written out word for word, each speaker labelled and every paragraph time-stamped. Speakers can be renamed and paragraphs corrected; minutes (summary, decisions, action items with owners and dates, chapters) are written from the transcript on request. Downloads: Word, PDF, text and SRT captions. The recording is deleted once transcribed. One recording up to 20 minutes is a free try; Starter carries 5 hours a month, Pro 20. Being tested on SpeakPower's own recordings before it opens to members.
 
 ## Ngoma (AI Video Editor)
 

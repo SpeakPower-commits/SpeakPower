@@ -11,6 +11,12 @@
 
 .rr-app { display: grid; gap: 1.25rem; }
 
+/* Rehearse · Transcribe a recording: the two rooms, at the top of both pages. */
+.rr-switch { display: inline-flex; flex-wrap: wrap; gap: .3rem; margin: 0 0 1.1rem; padding: .3rem; border: 1px solid var(--band-line); border-radius: 999px; background: var(--glass); }
+.rr-switch a { display: inline-flex; align-items: center; min-height: 40px; padding: .35rem 1rem; border-radius: 999px; font: 500 .92rem/1.2 var(--font-sans); color: var(--ivory); text-decoration: none; }
+.rr-switch a:hover { color: var(--gold-hi); }
+.rr-switch a[aria-current="page"] { background: var(--gold); color: var(--midnight); font-weight: 600; }
+
 /* --------------------------------------------------------------- stage */
 
 .rr-stage {
