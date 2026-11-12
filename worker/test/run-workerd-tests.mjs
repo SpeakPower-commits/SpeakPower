@@ -293,13 +293,14 @@ function youtubeFake(u) {
 
 const ORIGIN = "https://speakpower-commits.github.io";
 // worker.js imports the Anthropic SDK, so it runs here exactly as Workers
-// Builds deploys it: bundled by wrangler first.
+// Builds deploys it: bundled by wrangler first, from its entry, index.js
+// (worker.js plus the Transcriber's Workflow).
 const bundleDir = join(here, "..", ".wrangler", "test-bundle");
 execFileSync("npx", ["wrangler", "deploy", "--dry-run", "--outdir", bundleDir], { cwd: join(here, ".."), stdio: "pipe" });
 
 // A stand-in Workers AI binding with Whisper's output shape: 120 words over
 // 50 seconds, one long pause.
-const FAKE_AI = `export default function () {
+const FAKE_AI = `export default function (env) {
   return {
   async toMarkdown(doc) {
     const raw = new TextDecoder().decode(new Uint8Array(await doc.blob.arrayBuffer())).replace(/^%PDF-1\\.4\\n/, "");
@@ -307,6 +308,20 @@ const FAKE_AI = `export default function () {
       data: raw.split("\\f").map((p, i) => "### Page " + (i + 1) + "\\n" + p).join("\\n\\n") };
   },
   async run(model, input) {
+    if (model === "assemblyai/universal-3.5-pro") {
+      // The Transcriber's engine reads the recording through its signed link,
+      // from the Worker itself, as AssemblyAI would over the internet.
+      const res = await env.API.fetch(input.audio_url, { headers: { Range: "bytes=0-" } });
+      const size = res.ok ? (await res.arrayBuffer()).byteLength : -res.status;
+      const words = []; let t = 300;
+      for (let i = 0; i < 30; i++) {
+        words.push({ text: (i === 2 ? "heard" + size : "w" + i) + (i % 10 === 9 ? "." : ""), start: t, end: t + 200,
+          confidence: 0.9, speaker: i < 20 ? "A" : "B" });
+        t += 300;
+      }
+      return { state: "Completed", result: { status: "completed", language_code: "en", confidence: 0.9, audio_duration: 12,
+        words, text: words.map((w) => w.text).join(" ") } };
+    }
     if (!input || typeof input.audio !== "string") throw new Error("no audio");
     const words = []; let t = 0.4;
     for (let i = 0; i < 120; i++) { if (i === 60) t += 3; words.push({ word: " " + (i === 5 ? "um" : "word"), start: t, end: t + 0.35 }); t += 0.4; }
@@ -318,9 +333,11 @@ const mf = new Miniflare({
   workers: [{
   name: "speakpower",
   modules: true,
-  scriptPath: join(bundleDir, "worker.js"),
+  scriptPath: join(bundleDir, "index.js"),
   compatibilityDate,
   d1Databases: { DB: "speakpower-test" },
+  r2Buckets: { AUDIO: "speakpower-audio" },
+  workflows: { TRANSCRIBE: { name: "speakpower-transcribe", className: "TranscribeWorkflow" } },
   wrappedBindings: { AI: "fake-ai" },
   bindings: {
     ANTHROPIC_API_KEY: "sk-ant-workerd-test",
@@ -335,14 +352,16 @@ const mf = new Miniflare({
     GRIOT_API_KEY: "griot-workerd-key",
     YOUTUBE_API_KEY: "yt-workerd-key",
     YOUTUBE_ADMINS: "yt.owner@example.com",
-    ADMIN_EMAILS: "workerd.boss@example.com"
+    ADMIN_EMAILS: "workerd.boss@example.com",
+    TRANSCRIBE_OPEN: "all"
   },
   outboundService: outbound
   }, {
     // A wrapped binding takes the compatibility date of the Worker using it.
     name: "fake-ai",
     modules: true,
-    script: FAKE_AI
+    script: FAKE_AI,
+    serviceBindings: { API: "speakpower" }
   }]
 });
 
@@ -757,6 +776,39 @@ await test("real D1: an admin account uses packs and documents past every limit,
   const runs = await db.prepare("SELECT paid_with, amount FROM runs WHERE user_id = ?").bind(u.id).all();
   ok(runs.results.length === 4 && runs.results.every((r) => r.paid_with === "admin" && r.amount === 0), JSON.stringify(runs.results));
   eq((await db.prepare("SELECT COUNT(*) AS n FROM documents WHERE user_id = ?").bind(u.id).first()).n, 3);
+});
+
+await test("transcriber: a whole recording on workerd: R2 multipart upload, the Workflow, the signed link, words kept, audio deleted", async () => {
+  const s = await signIn("workerd.voice@example.com");
+  const PART = 8 * 1024 * 1024;
+  const file = new Uint8Array(PART + 1234);
+  file[0] = 1; file[PART] = 2;
+  let r = await call("POST", "/transcribe/start", { token: s.token,
+    body: { name: "Gulu meeting.mp3", bytes: file.length, seconds: 300, mime: "audio/mpeg" } });
+  eq(r.status, 200, "start"); eq(r.data.transcript.parts, 2);
+  const id = r.data.transcript.id;
+  for (let n = 2; n >= 1; n--) {
+    const res = await mf.dispatchFetch("https://api.test/transcribe/part?id=" + id + "&n=" + n, {
+      method: "POST", headers: { Origin: ORIGIN, Authorization: "Bearer " + s.token, "Content-Type": "application/octet-stream" },
+      body: file.subarray((n - 1) * PART, n * PART)
+    });
+    eq(res.status, 200, "part " + n + ": " + (await res.text()));
+  }
+  r = await call("POST", "/transcribe/uploaded", { token: s.token, body: { id } });
+  eq(r.status, 200, "uploaded");
+  // The Workflow runs in the background; the page asks until it is done.
+  let t = null;
+  for (let i = 0; i < 150; i++) {
+    t = (await call("GET", "/transcribe/status?id=" + id, { token: s.token })).data.transcript;
+    if (t.status === "done" || t.status === "failed") break;
+    await new Promise((done) => setTimeout(done, 100));
+  }
+  eq(t.status, "done", "transcribed: " + JSON.stringify(t));
+  const full = (await call("GET", "/transcript?id=" + id, { token: s.token })).data.transcript;
+  ok(full.paragraphs[0].text.includes("heard" + file.length), "the engine read the whole file: " + full.paragraphs[0].text.slice(0, 40));
+  eq(full.speakers.length, 2); eq(full.seconds, 12);
+  eq(await (await mf.getR2Bucket("AUDIO")).head("audio/" + id), null, "the recording is deleted");
+  eq((await user("workerd.voice@example.com")).trials_remaining, 2, "one free try");
 });
 
 await mf.dispose();

@@ -9,7 +9,8 @@ import { DatabaseSync } from "node:sqlite";
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import worker from "../worker.js";
+import { createHmac } from "node:crypto";
+import worker, { runTranscription } from "../worker.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -455,6 +456,15 @@ globalThis.fetch = async (input, init) => {
         stop_reason: net.strategy === "refusal" ? "refusal" : "end_turn", stop_sequence: null,
         content: [{ type: "text", text: net.strategy === "refusal" ? "" : JSON.stringify(STRATEGY_READ) }],
         usage: { input_tokens: 5000, output_tokens: 1200 }
+      }), { headers: { "content-type": "application/json" } });
+    }
+    if (/You write the minutes/.test(JSON.stringify(body.system || ""))) {
+      if (net.minutes === "fail") {
+        return new Response(JSON.stringify({ type: "error", error: { type: "api_error", message: "boom" } }), { status: 500, headers: { "content-type": "application/json" } });
+      }
+      return new Response(JSON.stringify({
+        id: "msg_minutes", type: "message", role: "assistant", model: body.model, stop_reason: "end_turn", stop_sequence: null,
+        content: [{ type: "text", text: JSON.stringify(MINUTES_READ) }], usage: { input_tokens: 3000, output_tokens: 500 }
       }), { headers: { "content-type": "application/json" } });
     }
     if (/You read one document/.test(JSON.stringify(body.system || ""))) {
@@ -4115,6 +4125,541 @@ await test("history: before its tables exist, it still answers, and a pack purch
   } finally {
     db.db.exec("ALTER TABLE packs_hidden RENAME TO packs; ALTER TABLE video_edits_hidden RENAME TO video_edits;");
   }
+});
+
+/* ------------------------------------------------------- the Transcriber */
+
+// A stand-in R2 bucket, in memory, with R2's multipart rules: every part but
+// the last at least 5 MiB and all the same size.
+class FakeR2 {
+  constructor() { this.objects = new Map(); this.uploads = new Map(); this.n = 0; }
+  async createMultipartUpload(key, opts) {
+    const uploadId = "up-" + (++this.n);
+    this.uploads.set(uploadId, { key, parts: new Map(), type: opts && opts.httpMetadata && opts.httpMetadata.contentType });
+    return this.resumeMultipartUpload(key, uploadId);
+  }
+  resumeMultipartUpload(key, uploadId) {
+    const bucket = this;
+    const open = () => {
+      const u = bucket.uploads.get(uploadId);
+      if (!u || u.key !== key) throw new Error("NoSuchUpload");
+      return u;
+    };
+    return {
+      key, uploadId,
+      async uploadPart(n, data) {
+        const u = open();
+        const bytes = new Uint8Array(data instanceof ArrayBuffer ? data : await new Response(data).arrayBuffer());
+        const etag = "etag-" + n + "-" + (++bucket.n);
+        u.parts.set(n, { bytes, etag });
+        return { partNumber: n, etag };
+      },
+      async complete(list) {
+        const u = open();
+        const parts = list.map((p) => {
+          const x = u.parts.get(p.partNumber);
+          if (!x || x.etag !== p.etag) throw new Error("InvalidPart");
+          return x.bytes;
+        });
+        for (const b of parts.slice(0, -1)) if (b.length < 5 * 1024 * 1024 || b.length !== parts[0].length) throw new Error("EntityTooSmall");
+        const all = new Uint8Array(parts.reduce((a, b) => a + b.length, 0));
+        let at = 0;
+        for (const b of parts) { all.set(b, at); at += b.length; }
+        bucket.objects.set(key, { bytes: all, uploaded: new Date() });
+        bucket.uploads.delete(uploadId);
+        return { key, size: all.length };
+      },
+      async abort() { bucket.uploads.delete(uploadId); }
+    };
+  }
+  async head(key) {
+    const o = this.objects.get(key);
+    return o ? { key, size: o.bytes.length, uploaded: o.uploaded } : null;
+  }
+  async get(key, opts) {
+    const o = this.objects.get(key);
+    if (!o) return null;
+    let bytes = o.bytes;
+    let range;
+    const asked = opts && opts.range instanceof Headers ? opts.range.get("Range") : null;
+    const m = asked && /^bytes=(\d+)-(\d*)$/.exec(asked);
+    if (m) {
+      const start = Number(m[1]);
+      const end = m[2] ? Math.min(Number(m[2]), o.bytes.length - 1) : o.bytes.length - 1;
+      range = { offset: start, length: end - start + 1 };
+      bytes = o.bytes.slice(start, end + 1);
+    }
+    return { key, size: o.bytes.length, range, uploaded: o.uploaded, body: new Blob([bytes]).stream() };
+  }
+  async delete(keys) { for (const k of [].concat(keys)) this.objects.delete(k); }
+  async list(opts) {
+    const prefix = (opts && opts.prefix) || "";
+    const keys = Array.from(this.objects.keys()).filter((k) => k.startsWith(prefix)).sort();
+    return { objects: keys.map((k) => ({ key: k, size: this.objects.get(k).bytes.length, uploaded: this.objects.get(k).uploaded })), truncated: false };
+  }
+}
+
+// A stand-in Workflow binding: instances are recorded, and a test runs one
+// the way Workflows would, each step retried up to its limit unless it
+// throws a NonRetryableError (with no waiting here).
+class NonRetryable extends Error {}
+const workflows = { instances: new Map(), fail: false };
+const TRANSCRIBE_BINDING = {
+  async create({ id, params }) {
+    if (workflows.fail) throw new Error("Workflows are unavailable");
+    if (workflows.instances.has(id)) throw new Error("instance.already_exists");
+    workflows.instances.set(id, { id, params });
+    return { id };
+  }
+};
+async function runWorkflow(id) {
+  const instance = workflows.instances.get(id);
+  ok(instance, "no Workflow instance " + id);
+  const steps = [];
+  const step = {
+    async do(name, cfg, fn) {
+      if (typeof cfg === "function") { fn = cfg; cfg = {}; }
+      const limit = cfg && cfg.retries ? cfg.retries.limit : 5;
+      for (let attempt = 1; ; attempt++) {
+        steps.push(name);
+        try { return await fn({ attempt }); }
+        catch (e) { if (e instanceof NonRetryable || attempt > limit) throw e; }
+      }
+    }
+  };
+  return { out: await runTranscription(env, instance.params, step, { NonRetryableError: NonRetryable }), steps };
+}
+
+// The engine's reply: speaker A for 260 words (a sentence every 10), B for
+// 20, A again for 10; one word it was unsure of. 95 seconds of audio.
+const ENGINE_RESULT = (() => {
+  const words = [];
+  let t = 400;
+  const add = (speaker, n, from) => {
+    for (let i = 0; i < n; i++) {
+      const k = from + i;
+      words.push({ text: (k === 3 ? "Otyeno" : "w" + k) + (i % 10 === 9 ? "." : ""), start: t, end: t + 250,
+        confidence: k === 3 ? 0.4 : 0.95, speaker });
+      t += 300;
+    }
+  };
+  add("A", 260, 0); add("B", 20, 260); add("A", 10, 280);
+  const utterances = [];
+  for (const w of words) {
+    const last = utterances[utterances.length - 1];
+    if (last && last.speaker === w.speaker) { last.words.push(w); last.end = w.end; last.text += " " + w.text; }
+    else utterances.push({ speaker: w.speaker, start: w.start, end: w.end, text: w.text, confidence: 0.9, words: [w] });
+  }
+  return { id: "aai-test", status: "completed", language_code: "en", confidence: 0.93, audio_duration: 95,
+    text: words.map((w) => w.text).join(" "), words, utterances };
+})();
+const engine = { mode: "ok", calls: [], heard: [] };
+const whisperRun = env.AI.run;
+env.AI.run = async function (model, input, opts) {
+  if (model !== "assemblyai/universal-3.5-pro") return whisperRun.call(this, model, input, opts);
+  engine.calls.push({ input, opts });
+  // The engine fetches the recording through its signed link, as AssemblyAI does.
+  const res = await worker.fetch(new Request(input.audio_url), env, { waitUntil() {} });
+  engine.heard.push({ status: res.status, bytes: res.status === 200 ? (await res.arrayBuffer()).byteLength : 0 });
+  if (engine.mode === "fail") throw new Error("upstream connect error 503");
+  if (engine.mode === "credit") throw Object.assign(new Error("Insufficient credits"), { status: 402 });
+  if (engine.mode === "pending") return { state: "Queued" };
+  if (engine.during) await engine.during(input);
+  return { state: "Completed", result: ENGINE_RESULT };
+};
+
+// Claude's minutes, as the stand-in Messages API returns them.
+const MINUTES_READ = {
+  summary: "The board approved the Gulu budget and asked Amina to send it to the donors.",
+  key_points: ["Amina presented the Gulu budget."], decisions: ["The Gulu budget is approved."],
+  actions: [{ owner: "Amina", task: "Send the budget to the donors", due: "Friday" }],
+  chapters: [{ title: "The budget", start: 0 }, { title: "Past the end", start: 5000 }]
+};
+net.minutes = "ok";
+const r2 = new FakeR2();
+env.AUDIO = r2;
+env.TRANSCRIBE = TRANSCRIBE_BINDING;
+env.TRANSCRIBE_OPEN = "all";
+const PART = 8 * 1024 * 1024;
+const nowS = () => Math.floor(Date.now() / 1000);
+function fileBytes(size, seed = 7) {
+  const b = new Uint8Array(size);
+  for (let i = 0; i < size; i += 997) b[i] = (i + seed) % 251;
+  return b;
+}
+function setTranscribeLimit(email, seconds) {
+  db.db.prepare("UPDATE subscriptions SET transcribe_limit = ? WHERE user_id = ?").run(seconds, userId(email));
+}
+function tStart(token, over) {
+  return call("POST", "/transcribe/start", { token, body: Object.assign({
+    name: "Board meeting.m4a", bytes: 4000, seconds: 600, mime: "audio/mp4", language: "auto", verbatim: true, speakers: 0,
+    terms: "Otieno, Gulu"
+  }, over || {}) });
+}
+function tPart(token, id, n, bytes) {
+  return call("POST", "/transcribe/part?id=" + id + "&n=" + n, { token, body: bytes, raw: true });
+}
+async function tUpload(token, file, over) {
+  const s = await tStart(token, Object.assign({ bytes: file.length }, over || {}));
+  eq(s.status, 200, "start");
+  const id = s.data.transcript.id;
+  for (let n = 1; n <= s.data.transcript.parts; n++) {
+    eq((await tPart(token, id, n, file.subarray((n - 1) * PART, n * PART))).status, 200, "part " + n);
+  }
+  const u = await call("POST", "/transcribe/uploaded", { token, body: { id } });
+  eq(u.status, 200, "uploaded"); eq(u.data.transcript.status, "queued");
+  return id;
+}
+async function tDone(email) {
+  const s = await signUp(email);
+  givePlan(email, "starter");
+  setTranscribeLimit(email, 18000);
+  const id = await tUpload(s.token, fileBytes(4000));
+  eq((await runWorkflow(id)).out.status, "done");
+  return { s, id };
+}
+// The engine's link, signed the way the Worker signs it.
+function audioLink(id, exp, key = env.SESSION_SECRET) {
+  const sig = createHmac("sha256", "transcribe-audio:" + key).update(id + "." + exp).digest("base64url");
+  return "/transcribe/audio/" + id + "?exp=" + exp + "&sig=" + sig;
+}
+async function rawFetch(path, headers = {}, method = "GET") {
+  const res = await worker.fetch(new Request("https://api.test" + path, { method, headers }), env, { waitUntil() {} });
+  const bytes = method === "HEAD" ? 0 : (await res.arrayBuffer()).byteLength;
+  return { status: res.status, headers: res.headers, bytes };
+}
+const runOf = (id) => db.one("SELECT r.status FROM runs r JOIN transcripts t ON t.run_id = r.id WHERE t.id = ?", id);
+
+await test("transcribe: shut until connected and opened, and a shut tool spends nothing", async () => {
+  const email = "tr-closed@example.com";
+  const s = await signUp(email);
+  delete env.AUDIO; delete env.TRANSCRIBE;
+  try {
+    const r = await tStart(s.token);
+    eq(r.status, 503); eq(r.data.error, "transcribe_unconfigured");
+    eq((await call("GET", "/me", { token: s.token })).data.account.transcribe, false);
+  } finally { env.AUDIO = r2; env.TRANSCRIBE = TRANSCRIBE_BINDING; }
+  env.TRANSCRIBE_OPEN = "admin";
+  try {
+    const r = await tStart(s.token);
+    eq(r.status, 403); eq(r.data.error, "transcribe_closed");
+    eq((await call("GET", "/me", { token: s.token })).data.account.transcribe, false, "a member does not see it yet");
+    env.ADMIN_EMAILS = email;
+    eq((await call("GET", "/me", { token: s.token })).data.account.transcribe, true, "the owner does");
+    const a = await tStart(s.token, { seconds: 7200 });
+    eq(a.status, 200); eq(a.data.paidWith, "admin"); eq(a.data.transcript.seconds, 7200);
+  } finally { delete env.ADMIN_EMAILS; env.TRANSCRIBE_OPEN = "all"; }
+  eq(userRow(email).trials_remaining, 3, "no free try spent");
+});
+
+await test("transcribe: a whole recording: parts in any order, resumed, read through the signed link, settled to its length, audio deleted", async () => {
+  const email = "tr-job@example.com";
+  const s = await signUp(email);
+  givePlan(email, "starter");
+  setTranscribeLimit(email, 18000);
+  const file = fileBytes(PART + 5000);
+  const st = await tStart(s.token, { bytes: file.length, seconds: 600 });
+  eq(st.status, 200); eq(st.data.paidWith, "plan"); eq(st.data.transcript.parts, 2); eq(st.data.transcript.status, "uploading");
+  const id = st.data.transcript.id;
+  eq(periodOf(email).transcribe_used, 600, "600 s set aside");
+  eq((await tPart(s.token, id, 1, file.subarray(0, 1000))).status, 400, "a short part is refused");
+  eq((await tPart(s.token, id, 3, file.subarray(0, 10))).status, 400, "a part out of range is refused");
+  eq((await tPart(s.token, id, 2, file.subarray(PART))).status, 200, "the last part first");
+  let u = await call("POST", "/transcribe/uploaded", { token: s.token, body: { id } });
+  eq(u.status, 409); eq(u.data.error, "parts_missing"); eq(JSON.stringify(u.data.missing), "[1]");
+  eq(JSON.stringify((await call("GET", "/transcribe/status?id=" + id, { token: s.token })).data.transcript.received), "[2]",
+    "after a lost signal the page learns what arrived");
+  eq((await tPart(s.token, id, 1, file.subarray(0, PART))).status, 200);
+  eq((await tPart(s.token, id, 1, file.subarray(0, PART))).status, 200, "a part sent twice replaces itself");
+  u = await call("POST", "/transcribe/uploaded", { token: s.token, body: { id } });
+  eq(u.status, 200); eq(u.data.transcript.status, "queued");
+  eq((await call("POST", "/transcribe/uploaded", { token: s.token, body: { id } })).data.transcript.status, "queued", "asking twice is harmless");
+  eq(r2.objects.get("audio/" + id).bytes.length, file.length, "the file put together");
+  ok(workflows.instances.has(id), "the Workflow started");
+
+  engine.calls.length = 0; engine.heard.length = 0;
+  const { out, steps } = await runWorkflow(id);
+  eq(out.status, "done"); eq(steps.join(","), "transcribe,drop audio");
+  eq(engine.calls.length, 1);
+  const input = engine.calls[0].input;
+  eq(input.speaker_labels, true); eq(input.disfluencies, true); eq(input.language_detection, true);
+  eq(input.audio_end_at, 600000, "never more than was set aside");
+  eq(JSON.stringify(input.keyterms_prompt), '["Otieno","Gulu"]');
+  eq(engine.calls[0].opts.gateway.id, "default", "billed through AI Gateway");
+  eq(engine.heard[0].status, 200); eq(engine.heard[0].bytes, file.length, "the engine read the whole file through its link");
+
+  eq(r2.objects.has("audio/" + id), false, "the recording is deleted");
+  eq(periodOf(email).transcribe_used, 95, "settled to the real 95 seconds");
+  const t = (await call("GET", "/transcript?id=" + id, { token: s.token })).data.transcript;
+  eq(t.status, "done"); eq(t.seconds, 95); eq(t.version, 1); eq(t.words, 290); eq(t.language, "en");
+  eq(t.paragraphs.length, 5, "a long turn split where sentences end");
+  eq(JSON.stringify(t.speakers.map((x) => x.id)), '["A","B"]'); eq(t.speakers[0].name, "Speaker A");
+  ok(t.speakers[0].seconds > t.speakers[1].seconds, "talk time per speaker");
+  eq(t.paragraphs[3].speaker, "B");
+  const p0 = t.paragraphs[0];
+  eq(p0.text.split(" ").length, 120);
+  eq(p0.cues[0][0], 0); eq(p0.cues.length, 12, "a cue at each sentence");
+  ok(p0.cues.every((c, i) => i === 0 || (c[0] > p0.cues[i - 1][0] && c[1] > p0.cues[i - 1][1])), "cues in order");
+  eq(p0.unsure.length, 1); eq(p0.text.substr(p0.unsure[0][0], p0.unsure[0][1]), "Otyeno", "the unsure word is marked");
+  eq((await rawFetch(audioLink(id, nowS() + 600))).status, 404, "the link dies with the job");
+  const list = await call("GET", "/transcripts", { token: s.token });
+  eq(list.data.open, true); eq(list.data.transcripts[0].id, id); eq(list.data.transcripts[0].paragraphs, undefined, "a list carries no words");
+});
+
+await test("transcribe: a free try covers one recording up to 20 minutes; a longer one is offered its first part", async () => {
+  const email = "tr-try@example.com";
+  const s = await signUp(email);
+  let r = await tStart(s.token, { seconds: 1500 });
+  eq(r.status, 402); eq(r.data.error, "plan_required"); eq(r.data.availableSeconds, 1200); eq(r.data.neededSeconds, 1500);
+  ok(/first 20 min/.test(r.data.message), r.data.message);
+  eq(userRow(email).trials_remaining, 3, "nothing spent on a refusal");
+  r = await tStart(s.token, { seconds: 1500, partial: true });
+  eq(r.status, 200); eq(r.data.partial, true); eq(r.data.paidWith, "trial"); eq(r.data.transcript.seconds, 1200);
+  eq(userRow(email).trials_remaining, 2);
+  r = await tStart(s.token, { seconds: null });
+  eq(r.status, 200, "a length the browser could not read"); eq(r.data.transcript.seconds, 1200); eq(r.data.partial, true);
+  noTrials(email);
+  r = await tStart(s.token, { seconds: 300 });
+  eq(r.status, 402); eq(r.data.availableSeconds, 0); ok(/free tries are used/.test(r.data.message), r.data.message);
+  for (const bad of [{ bytes: 0 }, { bytes: 6 * 1024 * 1024 * 1024 }, { seconds: 11 * 3600 }]) {
+    eq((await tStart(s.token, bad)).status, 400, JSON.stringify(bad));
+  }
+});
+
+await test("transcribe: parallel starts never pass the plan's hours", async () => {
+  const email = "tr-race@example.com";
+  const s = await signUp(email);
+  givePlan(email, "starter");
+  setTranscribeLimit(email, 18000);
+  noTrials(email);
+  const rs = await Promise.all([1, 2, 3].map(() => tStart(s.token, { seconds: 7000 })));
+  eq(rs.filter((r) => r.status === 200).length, 2); eq(rs.filter((r) => r.status === 402).length, 1);
+  eq(periodOf(email).transcribe_used, 14000);
+});
+
+await test("transcribe: a failing engine, or Cloudflare credit running out, gives every second back and deletes the audio", async () => {
+  const email = "tr-fail@example.com";
+  const s = await signUp(email);
+  givePlan(email, "starter");
+  setTranscribeLimit(email, 18000);
+  let id = await tUpload(s.token, fileBytes(4000));
+  engine.mode = "fail"; engine.calls.length = 0;
+  try {
+    const { out } = await runWorkflow(id);
+    eq(out.status, "failed"); eq(engine.calls.length, 2, "tried twice");
+  } finally { engine.mode = "ok"; }
+  let t = (await call("GET", "/transcribe/status?id=" + id, { token: s.token })).data.transcript;
+  eq(t.status, "failed"); ok(/Nothing was charged/.test(t.message), t.message);
+  eq(periodOf(email).transcribe_used, 0, "every second back"); eq(r2.objects.has("audio/" + id), false, "audio deleted");
+  eq(runOf(id).status, "refunded");
+
+  id = await tUpload(s.token, fileBytes(4000));
+  engine.mode = "credit"; engine.calls.length = 0;
+  try {
+    eq((await runWorkflow(id)).out.reason, "out_of_credit"); eq(engine.calls.length, 1, "never retried");
+  } finally { engine.mode = "ok"; }
+  t = (await call("GET", "/transcribe/status?id=" + id, { token: s.token })).data.transcript;
+  ok(/paused on our side/.test(t.message), t.message);
+  eq(periodOf(email).transcribe_used, 0);
+
+  const email2 = "tr-fail2@example.com";
+  const s2 = await signUp(email2);
+  id = await tUpload(s2.token, fileBytes(4000));
+  eq(userRow(email2).trials_remaining, 2);
+  engine.mode = "pending";
+  try { eq((await runWorkflow(id)).out.status, "failed", "an unfinished reply is never asked again (that would bill twice)"); }
+  finally { engine.mode = "ok"; }
+  eq(userRow(email2).trials_remaining, 3, "the free try is back");
+});
+
+await test("transcribe: a step run again after the words are kept neither stores nor charges twice", async () => {
+  const email = "tr-again@example.com";
+  const { id } = await tDone(email);
+  eq(periodOf(email).transcribe_used, 95);
+  engine.calls.length = 0;
+  eq((await runWorkflow(id)).out.status, "done");
+  eq(engine.calls.length, 0, "the engine is not asked again");
+  eq(periodOf(email).transcribe_used, 95, "charged once");
+  eq(db.one("SELECT COUNT(*) AS n FROM transcript_parts WHERE transcript_id = ?", id).n, 1);
+  // A job cancelled while uploading is given back once, however often it is closed.
+  const s = await signUp("tr-cancel@example.com");
+  const st = await tStart(s.token);
+  const cid = st.data.transcript.id;
+  eq(userRow("tr-cancel@example.com").trials_remaining, 2);
+  eq((await call("POST", "/transcribe/cancel", { token: s.token, body: { id: cid } })).data.transcript.status, "cancelled");
+  eq((await call("POST", "/transcribe/cancel", { token: s.token, body: { id: cid } })).status, 409);
+  const pending = [];
+  await worker.scheduled({}, env, { waitUntil: (p) => pending.push(p) });
+  await Promise.all(pending);
+  eq(userRow("tr-cancel@example.com").trials_remaining, 3, "given back exactly once");
+  ok(!Array.from(r2.uploads.values()).some((u) => u.key === "audio/" + cid), "the upload is aborted");
+});
+
+await test("transcribe: a job the cron closed while the engine worked is neither kept nor given back twice", async () => {
+  const email = "tr-late@example.com";
+  const s = await signUp(email);
+  givePlan(email, "starter");
+  setTranscribeLimit(email, 18000);
+  const id = await tUpload(s.token, fileBytes(4000));
+  db.db.prepare("UPDATE subscriptions SET transcribe_used = transcribe_used + 2000 WHERE user_id = ?").run(userId(email)); // other recordings
+  eq(periodOf(email).transcribe_used, 2600);
+  // While the engine works, a day passes and the cron closes the job, giving its 600 s back.
+  engine.during = async () => {
+    db.db.prepare("UPDATE transcripts SET created_at = created_at - 2 * 86400 WHERE id = ?").run(id);
+    const pending = [];
+    await worker.scheduled({}, env, { waitUntil: (p) => pending.push(p) });
+    await Promise.all(pending);
+  };
+  try { await runWorkflow(id); } finally { engine.during = null; }
+  eq(periodOf(email).transcribe_used, 2000, "given back once, not again when the words arrived");
+  eq(db.one("SELECT status FROM transcripts WHERE id = ?", id).status, "failed");
+  eq(db.one("SELECT COUNT(*) AS n FROM transcript_parts WHERE transcript_id = ?", id).n, 0, "nothing kept for a closed job");
+});
+
+await test("transcribe: the engine's link works only signed, unexpired and for its own job, with byte ranges", async () => {
+  const email = "tr-link@example.com";
+  const s = await signUp(email);
+  const id = await tUpload(s.token, fileBytes(4000));
+  const exp = nowS() + 600;
+  let r = await rawFetch(audioLink(id, exp));
+  eq(r.status, 200); eq(r.bytes, 4000); eq(r.headers.get("Accept-Ranges"), "bytes"); eq(r.headers.get("Content-Type"), "audio/mp4");
+  r = await rawFetch(audioLink(id, exp), { Range: "bytes=10-19" });
+  eq(r.status, 206); eq(r.bytes, 10); eq(r.headers.get("Content-Range"), "bytes 10-19/4000");
+  r = await rawFetch(audioLink(id, exp), {}, "HEAD");
+  eq(r.status, 200); eq(r.headers.get("Content-Length"), "4000");
+  eq((await rawFetch(audioLink(id, nowS() - 5))).status, 404, "expired");
+  const link = audioLink(id, exp);
+  const flipped = link.slice(0, -1) + (link.slice(-1) === "A" ? "B" : "A");
+  eq((await rawFetch(flipped)).status, 404, "tampered");
+  eq((await rawFetch(audioLink(id, exp, "another-secret-0123456789abcdef-0123456789"))).status, 404, "another key");
+  eq((await rawFetch(audioLink(id, exp + 1).replace("exp=" + (exp + 1), "exp=" + exp))).status, 404, "a signature moved to another time");
+  const other = crypto.randomUUID();
+  eq((await rawFetch(audioLink(id, exp).replace(id, other))).status, 404, "another job");
+  eq((await call("GET", "/me", { token: link.split("sig=")[1] })).status, 401, "a link is not a session");
+});
+
+await test("transcribe: only its owner reaches it; names, moved paragraphs and edits are version-checked and survive a reload", async () => {
+  const { s, id } = await tDone("tr-edit@example.com");
+  const other = await signUp("tr-other@example.com");
+  for (const [m, p, b] of [["GET", "/transcript?id=" + id], ["GET", "/transcribe/status?id=" + id],
+    ["POST", "/transcribe/save", { id, version: 1 }], ["POST", "/transcribe/minutes", { id }], ["POST", "/transcripts/delete", { id }],
+    ["POST", "/transcribe/uploaded", { id }], ["POST", "/transcribe/cancel", { id }]]) {
+    eq((await call(m, p, { token: other.token, body: b })).status, 404, m + " " + p);
+  }
+  eq((await tPart(other.token, id, 1, new Uint8Array(10))).status, 404, "a part for another account's upload");
+  eq((await call("GET", "/transcripts", { token: other.token })).data.transcripts.length, 0);
+
+  const save = await call("POST", "/transcribe/save", { token: s.token, body: { id, version: 1,
+    speakers: [{ id: "A", name: "Otieno <img src=x onerror=alert(1)>" }, { id: "B", name: "Amina" }],
+    edits: [{ i: 0, text: "w0 w1 w2 Otieno w4 w5 w6 w7 w8 w9. Corrected by hand." }, { i: 1, speaker: "C" }, { i: 99, text: "nothing here" }] } });
+  eq(save.status, 200); eq(save.data.version, 2); eq(JSON.stringify(save.data.changed.sort()), "[0,1]");
+  const stale = await call("POST", "/transcribe/save", { token: s.token, body: { id, version: 1, speakers: [{ id: "A", name: "X" }] } });
+  eq(stale.status, 409); eq(stale.data.error, "version_conflict");
+  const t = (await call("GET", "/transcript?id=" + id, { token: s.token })).data.transcript;
+  eq(t.version, 2);
+  eq(t.speakers[0].name, "Otieno <img src=x onerror=alert(1)>", "a name is kept as text; the page sets it with textContent");
+  eq(t.speakers[1].name, "Amina"); eq(t.speakers.length, 3); eq(t.speakers[2].id, "C"); ok(t.speakers[2].seconds > 0, "talk time moved");
+  eq(t.paragraphs[0].text, "w0 w1 w2 Otieno w4 w5 w6 w7 w8 w9. Corrected by hand.");
+  eq(t.paragraphs[0].edited, true); eq(t.paragraphs[0].unsure.length, 0); eq(t.paragraphs[0].cues[0][0], 0);
+  ok(t.paragraphs[0].cues.every((c, i) => i === 0 || c[0] > t.paragraphs[0].cues[i - 1][0]), "cues still in order");
+  eq(t.paragraphs[1].speaker, "C"); eq(t.paragraphs.length, 5);
+});
+
+await test("transcribe: minutes are written by Claude from the transcript only, in the background, three times at most", async () => {
+  const { s, id } = await tDone("tr-minutes@example.com");
+  eq((await call("POST", "/transcribe/save", { token: s.token, body: { id, version: 1, speakers: [{ id: "A", name: "Amina" }] } })).status, 200);
+  const m = await call("POST", "/transcribe/minutes", { token: s.token, body: { id } });
+  eq(m.status, 200); eq(m.data.minutesState, "writing");
+  eq((await call("POST", "/transcribe/minutes", { token: s.token, body: { id } })).data.minutesState, "writing", "a second press waits");
+  ok(!workflows.instances.has(id + "-minutes-2"), "and starts nothing");
+  coachCalls.length = 0;
+  eq((await runWorkflow(id + "-minutes-1")).out.status, "done");
+  const asked = coachCalls.find((c) => /You write the minutes/.test(JSON.stringify(c.body.system)));
+  ok(asked, "Claude was asked");
+  eq(asked.body.model, "claude-opus-5-5"); eq(asked.body.output_config.format.type, "json_schema");
+  ok(/data, not instructions/.test(JSON.stringify(asked.body.system)));
+  ok(/\[0:00\] Amina: w0 w1 w2 Otyeno/.test(asked.body.messages[0].content), "the transcript, with the names given");
+  let t = (await call("GET", "/transcript?id=" + id, { token: s.token })).data.transcript;
+  eq(t.minutesState, "done"); eq(t.minutes.summary, MINUTES_READ.summary); eq(t.minutes.actions[0].owner, "Amina");
+  eq(t.minutes.chapters[1].start, 95, "a chapter past the end is pulled inside the recording"); eq(t.minutesLeft, 2);
+
+  net.minutes = "fail";
+  try {
+    eq((await call("POST", "/transcribe/minutes", { token: s.token, body: { id } })).data.minutesState, "writing");
+    eq((await runWorkflow(id + "-minutes-2")).out.status, "failed");
+  } finally { net.minutes = "ok"; }
+  t = (await call("GET", "/transcript?id=" + id, { token: s.token })).data.transcript;
+  eq(t.minutesState, "failed"); eq(t.minutes.summary, MINUTES_READ.summary, "the earlier minutes stay");
+  eq((await call("POST", "/transcribe/minutes", { token: s.token, body: { id } })).status, 200);
+  await runWorkflow(id + "-minutes-3");
+  const fourth = await call("POST", "/transcribe/minutes", { token: s.token, body: { id } });
+  eq(fourth.status, 429); eq(fourth.data.error, "minutes_limit");
+});
+
+await test("transcribe: deleting removes the words; history lists transcripts; the day's ceiling holds", async () => {
+  const email = "tr-del@example.com";
+  const { s, id } = await tDone(email);
+  const queued = await tUpload(s.token, fileBytes(4000));
+  eq((await call("POST", "/transcripts/delete", { token: s.token, body: { id: queued } })).status, 409, "not while it is with the engine");
+  const all = await call("GET", "/history?type=all", { token: s.token });
+  const item = all.data.items.find((x) => x.product === "transcribe" && x.link === "transcribe.html#t=" + id);
+  ok(item, "listed with a link"); ok(/^Board meeting\.m4a · 2 min/.test(item.summary), item.summary);
+  const listed = await call("GET", "/history?type=transcripts", { token: s.token });
+  eq(listed.data.items.length, 2); eq(listed.data.items.find((x) => x.id === queued).deletable, false);
+
+  eq((await call("POST", "/transcripts/delete", { token: s.token, body: { id } })).data.deleted, true);
+  eq((await call("GET", "/transcript?id=" + id, { token: s.token })).status, 404);
+  eq(db.one("SELECT COUNT(*) AS n FROM transcript_parts WHERE transcript_id = ?", id).n, 0, "the words are gone");
+  const row = db.one("SELECT name, speakers_json, minutes_json, status FROM transcripts WHERE id = ?", id);
+  eq(row.name, ""); eq(row.speakers_json, "[]"); eq(row.status, "deleted");
+  eq((await call("GET", "/history?type=transcripts", { token: s.token })).data.items.length, 1);
+  const after = (await call("GET", "/history?type=all", { token: s.token })).data.items.filter((x) => x.product === "transcribe");
+  ok(after.some((x) => x.summary === "Deleted" && x.link === null), "the use stays, without its name");
+
+  const dayStart = nowS() - (nowS() % 86400);
+  const used = db.one("SELECT COALESCE(SUM(reserved_seconds), 0) AS n FROM transcripts WHERE created_at >= ? AND status NOT IN ('cancelled', 'failed')", dayStart).n;
+  env.TRANSCRIBE_DAILY_HOURS = String((used + 1000) / 3600);
+  try {
+    const before = periodOf(email).transcribe_used;
+    eq((await tStart(s.token, { seconds: 600 })).status, 200);
+    const full = await tStart(s.token, { seconds: 600 });
+    eq(full.status, 503); eq(full.data.error, "busy_today");
+    eq(periodOf(email).transcribe_used, before + 600, "the refused one is given back");
+  } finally { delete env.TRANSCRIBE_DAILY_HOURS; }
+});
+
+await test("transcribe: the daily cron closes a day-old upload with its time back and deletes any day-old recording", async () => {
+  const email = "tr-cron@example.com";
+  const s = await signUp(email);
+  const st = await tStart(s.token);
+  const id = st.data.transcript.id;
+  db.db.prepare("UPDATE transcripts SET created_at = created_at - 2 * 86400 WHERE id = ?").run(id);
+  r2.objects.set("audio/stray-old", { bytes: new Uint8Array(10), uploaded: new Date(Date.now() - 2 * 86400 * 1000) });
+  r2.objects.set("audio/stray-new", { bytes: new Uint8Array(10), uploaded: new Date() });
+  const pending = [];
+  await worker.scheduled({}, env, { waitUntil: (p) => pending.push(p) });
+  await Promise.all(pending);
+  eq(db.one("SELECT status FROM transcripts WHERE id = ?", id).status, "cancelled");
+  eq(userRow(email).trials_remaining, 3, "the try is back");
+  eq(r2.objects.has("audio/stray-old"), false, "a day-old recording is deleted");
+  eq(r2.objects.has("audio/stray-new"), true, "a fresh one is not");
+  r2.objects.delete("audio/stray-new");
+});
+
+await test("transcribe: a plan bought carries its hours (Starter 5, Pro 20), shown as a share of the month", async () => {
+  const email = "tr-buy@example.com";
+  const s = await signUp(email);
+  flw.checkouts.length = 0;
+  const r = await planCheckout(s.token, "pro", { returnTo: "transcribe.html" });
+  eq(r.status, 200);
+  eq(flw.checkouts[0].body.redirect_url, "https://speakpower-commits.github.io/SpeakPower/transcribe.html", "transcribe.html is a return page");
+  const tx = pay(r.data.txRef, { amount: 150000 });
+  eq((await webhook(charge(tx, r.data.txRef), env.FLW_SECRET_HASH)).status, 200);
+  eq(periodOf(email).transcribe_limit, 72000, "20 hours, in seconds");
+  const plans = (await call("GET", "/plans")).data.plans;
+  eq(plans.find((p) => p.key === "starter").transcribe, 300); eq(plans.find((p) => p.key === "pro").transcribe, 1200);
+  db.db.prepare("UPDATE subscriptions SET transcribe_used = 36000 WHERE user_id = ?").run(userId(email));
+  eq((await call("GET", "/me", { token: s.token })).data.account.membership.usage.transcribe, 50);
 });
 
 console.log("\n" + passed + " passed, " + failures.length + " failed\n");
