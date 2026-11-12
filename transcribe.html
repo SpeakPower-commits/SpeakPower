@@ -52,8 +52,7 @@
 <!-- Shown only when the site has no Worker configured. -->
 <div class="studio-builder-panel" id="trOffline" hidden>
 <h2>The Transcriber opens here shortly.</h2>
-<p>It is being connected. Until then, the Rehearsal Room scores a three-minute pitch.</p>
-<div class="builder-actions"><a class="btn btn-ghost" href="rehearse.html">Open the Rehearsal Room</a></div>
+<p>It is being connected. Once it is, this is where you choose an audio or video file to transcribe.</p>
 </div>
 
 <!-- Signed out: one button to the shared sign-up page, which comes straight back. -->
@@ -63,15 +62,9 @@
 <div class="builder-actions"><button class="btn btn-primary" id="trStartBtn" type="button">Sign in and choose a recording</button></div>
 </div>
 
-<!-- Open to SpeakPower's own account while it is tested on real recordings. -->
-<div class="studio-builder-panel" id="trClosed" hidden>
-<h2>The Transcriber opens to members soon.</h2>
-<p>It is being tested on SpeakPower's own recordings first: board meetings, interviews and speeches with Ugandan voices. Your plan will carry it the day it opens. Until then, the Rehearsal Room scores a three-minute pitch.</p>
-<div class="builder-actions"><a class="btn btn-ghost" href="rehearse.html">Open the Rehearsal Room</a></div>
-</div>
-
 <div class="rr-stage tr-stage dark glow" id="trStage" hidden>
 <p class="rr-status" id="trStatus"></p>
+<p class="tr-notice" id="trNotice" role="status" hidden></p>
 <div class="usage usage--dark" id="trUsage" hidden></div>
 
 <div id="trPick">
