@@ -25,6 +25,7 @@ It pairs a human practice (communication strategy, public speaking, brand narrat
 | Product | What it does | Price | Status |
 |---|---|---|---|
 | **Rehearsal Room** | Speak for up to three minutes; get pace, fillers, pauses, a Speak Score and a stronger opening line | In every plan | Live |
+| **Transcriber** (in the Rehearsal Room) | Send a board meeting, interview or speech up to 10 hours: every word back by speaker, time-stamped; rename speakers, correct paragraphs, search, play along; minutes (decisions, action items with owners, chapters) by Claude; Word, PDF, text and SRT downloads. The recording is deleted once transcribed | A first recording up to 20 minutes is a free try; Starter 5 hours a month, Pro 20 | Owner testing |
 | **Ngoma** (AI Video Editor) | Named after the talking drum that carried messages. Upload a raw podcast or interview and say what you want: pauses and "um"s cut, the best moments as 9:16 clips designed in a chosen look (Classic, Modern, Karaoke, Clean): captions in five styles, emojis, icons, key-point cards, counting numbers, building lists, punch-in zooms, the brand kit and the user's own Canva stickers, plus the post text. Emoji pictures: Noto Emoji (Apache-2.0); icons: Lucide (ISC). Edited in the browser; only the sound goes to the Worker's Whisper. Every step and finished video is saved in the browser (`video/edits.js`), so leaving, reloading or closing the tab pauses an edit and "Your edits" resumes it without a second transcription | In every plan | New |
 | **GRIOT** | A strategy advisor that remembers your goals and labels fact from inference; choose its lenses, ask it to **Challenge**, **Diagnose** or **Plan**, add documents with **+**, download any answer or conversation as Word or PDF, and browse your conversations, memory and decisions | In every plan | Live |
 | **Studio packs** | Brand Story, Website SEO Audit, Market Plan, SEO Content Starter, Data Story, Speaker Ready Pack | UGX 75,000 to 150,000 each | Live |
@@ -97,6 +98,7 @@ sequenceDiagram
 ├── index.html · services.html · work.html · about.html · contact.html   marketing pages
 ├── studio.html · studio-product.html/.js                                Studio catalogue and builders
 ├── rehearse.html · rehearse.js · rehearse.css                          the Rehearsal Room
+├── transcribe.html · transcribe.js · transcribe.css                    the Transcriber (Rehearsal Room)
 ├── studio-griot.html · griot-app.html/.js/.css                          GRIOT page; the GRIOT OS app: chat, projects, Memory, Decisions, Documents
 ├── griot-proverbs.js                                                    the nine proverbs GRIOT shows while it thinks (edit to add your engero)
 ├── account.html · account.js · account-page.js                          sign-up, membership, balance, profile
@@ -159,8 +161,8 @@ Full setup, step by step: [`worker/README.md`](worker/README.md).
 
 | Suite | What it proves |
 |---|---|
-| **Worker logic** (`worker/test/run-tests.mjs`, 235 checks) | prices match the site; free tries and plans; exact charge and refund; parallel uses never overdraw; payments settled exactly once, and reported to Google Analytics once, only with consent; sign-in; the sign-up profile and GRIOT's briefing, account by account; documents read once, chosen per question, kept apart by account; the website audit's stages, private areas, scores and strategic read |
-| **Worker on workerd** (`worker/test/run-workerd-tests.mjs`, 24 checks) | the same Worker on Cloudflare's real runtime, with D1 and the HTML reader |
+| **Worker logic** (`worker/test/run-tests.mjs`, 251 checks) | every page passes the craft checks (no AI-tell phrases, nothing from our own Clarity Audit's jargon list, no stock or AI imagery, alt text everywhere); prices match the site; free tries and plans; exact charge and refund; parallel uses never overdraw; payments settled exactly once, and reported to Google Analytics once, only with consent; sign-in; the sign-up profile and GRIOT's briefing, account by account; documents read once, chosen per question, kept apart by account; the website audit's stages, private areas, scores and strategic read; the Transcriber's time set aside, settled and given back exactly once, its resumable upload, signed audio link and privacy |
+| **Worker on workerd** (`worker/test/run-workerd-tests.mjs`, 25 checks) | the same Worker on Cloudflare's real runtime, with D1, R2, the Transcriber's Workflow and the HTML reader |
 | **Browser end to end** (over 200 checks) | Try → sign up → welcome steps → use → plan wall → plan or top-up, the Rehearsal Room, the GRIOT workspace, on desktop and phone; the cookie banner, Consent Mode, scrubbed addresses and every Analytics event |
 | **Site structure** | every page parses, local links resolve, structured data is valid |
 
@@ -206,6 +208,7 @@ GRIOT is named after West Africa's griot (*jeli*): the keeper of memory, adviser
 
 ## Principles
 
+- **Made here, not by a template.** Copy names its reader and carries a number, a name or an example; real photographs only; the product's own output leads. If a sentence would still work with a competitor's name in it, it is rewritten. The full standard is in [`CLAUDE.md`](CLAUDE.md), and the craft tests check the parts a machine can, including that our pages pass our own Clarity Audit.
 - **Proof before claims.** Case studies follow *Problem → Strategy → Build → Outcome*, and numbers appear only when they are documented and attributable.
 - **Secrets stay server-side.** No key, token or password in any file the browser can read.
 - **Private by default.** The Clarity Audit runs in the browser; documents are never uploaded. Rehearsal audio is scored, then discarded.

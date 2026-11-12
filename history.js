@@ -18,7 +18,7 @@
 
   var PAID = { trial: "Free try", plan: "Plan", balance: "Balance", admin: "Admin", "": "" };
   var NAMES = {
-    griot: "GRIOT", rehearsal: "Rehearsal Room", video: "Ngoma", payment: "Payment", "seo-audit": "SEO audit",
+    griot: "GRIOT", rehearsal: "Rehearsal Room", video: "Ngoma", transcribe: "Transcriber", payment: "Payment", "seo-audit": "SEO audit",
     "brand-story": "Brand Story", "market-plan": "Market Plan", "content-seo": "SEO Content Starter",
     "data-story": "Data Story", "speaker-ready": "Speaker Ready Pack"
   };
@@ -27,6 +27,7 @@
     griot: "Your conversations with GRIOT. Open one to read it and carry on.",
     packs: "Every Studio pack you have made, kept until you delete it. Open one to read it or download it again as Word or PDF.",
     audits: "Finished audit reports are kept until you delete them.",
+    transcripts: "The words of every recording you sent, kept until you delete them. The recordings themselves were deleted as soon as they were transcribed.",
     all: "Every use of every product, newest first."
   };
 
@@ -108,10 +109,11 @@
   }
 
   function remove(item, tr, button) {
-    var what = item.type === "packs" ? "this " + (item.title || "pack") : "this audit report";
+    var what = item.type === "packs" ? "this " + (item.title || "pack")
+      : item.type === "transcripts" ? "the transcript of " + (item.title || "this recording") : "this audit report";
     if (!window.confirm("Delete " + what + " from your history? It cannot be brought back.")) return;
     button.disabled = true;
-    var path = item.type === "packs" ? "/packs/delete" : "/studio/audits/delete";
+    var path = item.type === "packs" ? "/packs/delete" : item.type === "transcripts" ? "/transcripts/delete" : "/studio/audits/delete";
     A.call(path, { id: item.id }).then(function () {
       state.items = state.items.filter(function (x) { return x !== item; });
       tr.remove();

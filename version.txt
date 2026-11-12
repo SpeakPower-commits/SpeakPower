@@ -6,12 +6,11 @@ Open this file on the live site to see which build GitHub Pages is serving:
     https://speakpower-commits.github.io/SpeakPower/version.txt
 
 branch:   claude/studio-griot-live
-build:    Your history, and the API's address forwards here (2026-11-11):
-          every member's activity by product; opening the Worker's own
-          address in a browser now lands on this website
-expects:  history.html — the page "Your history."
-          https://speakpower.thomasotieno583.workers.dev — forwards to
-                           this website instead of {"error":"not_found"}
+build:    The Transcriber (2026-11-12): any recording, word for word, by
+          speaker, in the Rehearsal Room; open to the owner's account
+          while it is tested
+expects:  transcribe.html — "Upload the meeting. Get every word, by speaker."
+          rehearse.html — a Rehearse · Transcribe a recording switch
 
 If this file still shows an older build, Pages has not rebuilt yet: wait a
 minute and reload. If it 404s, Pages is serving a different branch.

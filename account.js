@@ -31,7 +31,8 @@
     "speaker-ready": "Speaker Ready Pack",
     "griot": "GRIOT",
     "rehearsal": "Rehearsal Room",
-    "video": "Ngoma (AI video editor)"
+    "video": "Ngoma (AI video editor)",
+    "transcribe": "Transcriber"
   };
 
   function el(tag, className, text) {
@@ -587,7 +588,7 @@
   // pages only, so ?next= can never send anyone off-site.
   function safeNext(value) {
     var v = String(value || "");
-    if (v === "griot-app.html" || v === "rehearse.html" || v === "video.html" || v === "plans.html" || v === "history.html") return v;
+    if (v === "griot-app.html" || v === "rehearse.html" || v === "transcribe.html" || v === "video.html" || v === "plans.html" || v === "history.html") return v;
     var m = v.match(/^studio-product\.html\?product=([a-z-]{2,40})$/);
     return m && m[1] !== "griot" && SERVICE_NAMES[m[1]] ? v : null;
   }
@@ -595,6 +596,7 @@
   function nextServiceName(next) {
     if (next === "griot-app.html") return "GRIOT";
     if (next === "rehearse.html") return "the Rehearsal Room";
+    if (next === "transcribe.html") return "the Transcriber";
     if (next === "video.html") return "the AI Video Editor";
     if (next === "plans.html") return "your plan";
     if (next === "history.html") return "your history";

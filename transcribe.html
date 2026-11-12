@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transcriber · Board Meetings Written Out by Speaker | SpeakPower</title>
+<meta name="description" content="Upload a board meeting, donor call or speech, up to 10 hours. Get every word written out, each speaker labelled and time-stamped, then minutes with decisions and actions.">
+<link rel="canonical" href="https://speakpower-commits.github.io/SpeakPower/transcribe.html">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="theme-color" content="#0a1020">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="SpeakPower">
+<meta property="og:locale" content="en_UG">
+<meta property="og:title" content="Transcriber · Every word, by speaker">
+<meta property="og:description" content="Send the recording of a meeting or a speech. Get it back word for word, by speaker, with minutes.">
+<meta property="og:url" content="https://speakpower-commits.github.io/SpeakPower/transcribe.html">
+<meta property="og:image" content="https://speakpower-commits.github.io/SpeakPower/assets/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="assets/logo-mark.png?v=4" sizes="160x160">
+<link rel="shortcut icon" type="image/png" href="assets/logo-mark.png?v=4">
+<link rel="apple-touch-icon" href="assets/logo-mark.png?v=4">
+<link rel="manifest" href="site.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="commercial.css">
+<link rel="stylesheet" href="rehearse.css">
+<link rel="stylesheet" href="transcribe.css">
+<script>document.documentElement.classList.add("js");</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><div class="wrap">
+<a href="index.html" class="logo" aria-label="SpeakPower — home"><img class="logo-mark" src="assets/logo-mark.png" alt="" width="160" height="160"><span class="logo-text">Speak<span>Power</span></span></a>
+<nav class="nav-links" id="navLinks" aria-label="Primary">
+<a href="index.html">Home</a><a href="services.html">Services</a><a href="studio.html" aria-current="page">Studio</a><a href="plans.html">Plans</a><a href="work.html">Work</a><a href="about.html">About</a><a href="https://speakpower1.blogspot.com" target="_blank" rel="noopener">Insights</a><a href="contact.html" class="nav-cta">Book a discovery call</a>
+</nav>
+<button class="nav-toggle" id="navToggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">&#9776;</button>
+</div></header>
+
+<main id="main">
+<div class="page-hero tr-hero"><div class="wrap">
+<nav class="rr-switch" aria-label="Rehearsal Room"><a href="rehearse.html">Rehearse</a><a href="transcribe.html" aria-current="page">Transcribe a recording</a></nav>
+<p class="greeting" data-greeting hidden></p>
+<h1>Upload the meeting. <em>Get every word, by speaker.</em></h1>
+<p>Send a board meeting, a donor call or a speech, up to 10 hours. It comes back word for word, each speaker labelled and time-stamped, with minutes one tap away. A first recording of up to 20 minutes is a free try; Starter carries 5 hours a month and Pro 20.</p>
+</div></div>
+
+<section style="padding-top:0"><div class="wrap rr-app">
+
+<!-- Shown only when the site has no Worker configured. -->
+<div class="studio-builder-panel" id="trOffline" hidden>
+<h2>The Transcriber opens here shortly.</h2>
+<p>It is being connected. Until then, the Rehearsal Room scores a three-minute pitch.</p>
+<div class="builder-actions"><a class="btn btn-ghost" href="rehearse.html">Open the Rehearsal Room</a></div>
+</div>
+
+<!-- Signed out: one button to the shared sign-up page, which comes straight back. -->
+<div class="studio-builder-panel rr-start" id="trStart" hidden>
+<h2>Your first recording is free, up to 20 minutes.</h2>
+<p>Sign in with Google to start. No card and no app: choose the file from your phone or laptop.</p>
+<div class="builder-actions"><button class="btn btn-primary" id="trStartBtn" type="button">Sign in and choose a recording</button></div>
+</div>
+
+<!-- Open to SpeakPower's own account while it is tested on real recordings. -->
+<div class="studio-builder-panel" id="trClosed" hidden>
+<h2>The Transcriber opens to members soon.</h2>
+<p>It is being tested on SpeakPower's own recordings first: board meetings, interviews and speeches with Ugandan voices. Your plan will carry it the day it opens. Until then, the Rehearsal Room scores a three-minute pitch.</p>
+<div class="builder-actions"><a class="btn btn-ghost" href="rehearse.html">Open the Rehearsal Room</a></div>
+</div>
+
+<div class="rr-stage tr-stage dark glow" id="trStage" hidden>
+<p class="rr-status" id="trStatus"></p>
+<div class="usage usage--dark" id="trUsage" hidden></div>
+
+<div id="trPick">
+<h2 class="rr-step"><span>1</span> Choose the recording</h2>
+<label class="tr-drop" id="trDrop" for="trFile">
+<input type="file" id="trFile" accept="audio/*,video/*,.m4a,.mp3,.wav,.aac,.ogg,.opus,.amr,.flac,.mp4,.mov,.webm,.3gp">
+<span class="tr-drop-main">Drop an audio or video file here, or tap to choose one</span>
+<span class="tr-drop-note">MP3, M4A, WAV, WhatsApp voice notes and phone videos. Up to 10 hours or 5 GB.</span>
+</label>
+<div class="tr-file" id="trFileInfo" hidden><p class="tr-file-name" id="trFileName"></p><p class="tr-file-meta" id="trFileMeta"></p></div>
+<div class="tr-options" id="trOptions" hidden>
+<label class="tr-field">Language
+<select id="trLanguage"><option value="auto">Work it out from the recording</option><option value="en">English</option><option value="sw">Swahili (new: check the result)</option><option value="fr">French</option><option value="ar">Arabic</option><option value="es">Spanish</option><option value="pt">Portuguese</option><option value="de">German</option></select>
+</label>
+<label class="tr-field">How many people speak
+<select id="trSpeakers"><option value="0">Work it out from the voices</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select>
+</label>
+<fieldset class="tr-field tr-style"><legend>Words</legend>
+<label><input type="radio" name="trStyle" value="verbatim" checked> Word for word: every "um" and "uh" kept</label>
+<label><input type="radio" name="trStyle" value="clean"> Clean: the fillers left out</label>
+</fieldset>
+<label class="tr-field tr-terms">Names and special words <span>(optional, separated by commas)</span>
+<textarea id="trTerms" rows="2" maxlength="4000" placeholder="Otieno, Kyambogo, POLSΘ, MTN MoMo"></textarea>
+</label>
+</div>
+<div class="builder-actions"><button class="btn btn-gold" id="trGo" type="button" disabled>Transcribe this recording</button></div>
+</div>
+
+<div id="trUpload" hidden>
+<h2 class="rr-step"><span>2</span> Sending <span class="rr-moment-name" id="trUpName"></span></h2>
+<div class="tr-bar" id="trBar" role="progressbar" aria-label="Upload" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="trBarFill"></i></div>
+<p class="tr-progress" id="trProgress" aria-live="polite"></p>
+<p class="rr-tip">Keep this tab open until the file is sent. If the signal drops, it carries on from the last piece that arrived.</p>
+<div class="builder-actions"><button class="btn btn-ghost" id="trCancel" type="button">Cancel</button></div>
+</div>
+
+<div id="trWorking" class="rr-scoring" hidden>
+<div class="rr-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+<p id="trWorkingText" aria-live="polite">Transcribing…</p>
+</div>
+
+<p class="builder-error rr-error" id="trError" role="alert" hidden></p>
+</div>
+
+<div class="studio-builder-panel" id="trTopup" hidden></div>
+
+<article class="tr-view" id="trView" hidden aria-labelledby="trTitle">
+<header class="tr-head">
+<p class="tr-kicker">Transcript</p>
+<h2 id="trTitle"></h2>
+<p class="tr-meta" id="trMeta"></p>
+<div class="tr-actions" id="trActions"></div>
+<p class="tr-saved" id="trSaved" aria-live="polite"></p>
+</header>
+<section class="tr-speakers" aria-labelledby="trSpeakersTitle">
+<h3 id="trSpeakersTitle">Speakers</h3>
+<p class="tr-hint">Type a name once and it changes everywhere. A paragraph under the wrong speaker moves with the name beside it.</p>
+<ul class="tr-speaker-list" id="trSpeakerList"></ul>
+</section>
+<section class="tr-minutes" id="trMinutes" hidden aria-labelledby="trMinutesTitle"></section>
+<div class="tr-tools">
+<label class="tr-search">Find in the transcript <input type="search" id="trSearch" autocomplete="off"></label>
+<span class="tr-hits" id="trHits" aria-live="polite"></span>
+</div>
+<div class="tr-player" id="trPlayer"></div>
+<ol class="tr-paras" id="trParas"></ol>
+</article>
+
+<section class="tr-list" id="trListWrap" hidden aria-labelledby="trListTitle">
+<h2 id="trListTitle">Your transcripts</h2>
+<ul class="tr-list-items" id="trList"></ul>
+</section>
+
+</div></section>
+
+<section><div class="wrap">
+<div class="section-head" data-reveal><span class="eyebrow">What to expect</span><h2>Close to every word, and honest about the rest.</h2></div>
+<div class="tr-expect" data-reveal>
+<p>On a clear English recording, expect nearly every word to come back right. A phone left far from the speakers, a noisy room or two people talking at once lower that. Voices are told apart as Speaker A, B, C and on, for any number of people; two similar voices, or a one-word reply, are sometimes mixed up.</p>
+<ul class="tr-expect-list">
+<li><strong>Words the engine was unsure of</strong> are underlined, so you check those first.</li>
+<li><strong>Names and special words</strong> typed before you send the file help the engine spell them your way.</li>
+<li><strong>Every paragraph can be corrected</strong> or moved to another speaker, and every speaker renamed. The changes are kept.</li>
+<li><strong>The recording is deleted</strong> as soon as it is transcribed. Only the words are kept, until you delete them.</li>
+</ul>
+</div>
+</div></section>
+
+<section style="padding-top:0"><div class="wrap">
+<div class="section-head" data-reveal><span class="eyebrow">What it costs</span><h2>Hours of recording, not a price per file.</h2></div>
+<div class="tr-cost" data-reveal>
+<table>
+<thead><tr><th scope="col">How you pay</th><th scope="col">Recording time</th><th scope="col">What else comes with it</th></tr></thead>
+<tbody>
+<tr><td>Free try</td><td>One recording, up to 20 minutes</td><td>One of the 3 free tries every account gets, shared across SpeakPower</td></tr>
+<tr><td>Starter, UGX 60,000 for 30 days</td><td>5 hours</td><td>GRIOT, the Rehearsal Room and Ngoma</td></tr>
+<tr><td>Pro, UGX 150,000 for 30 days</td><td>20 hours</td><td>Everything in Starter, more of each, and one Studio pack a month</td></tr>
+</tbody>
+</table>
+<p class="tr-cost-note">A recording is counted to the second it actually lasted. One that cannot be transcribed is not counted at all. Pay by MTN MoMo, Airtel Money or card.</p>
+</div>
+</div></section>
+
+<section style="padding-top:0"><div class="wrap">
+<div class="section-head" data-reveal><span class="eyebrow">Questions</span><h2>Before you send a recording.</h2></div>
+<div class="rr-faq" data-reveal>
+<details class="rr-faq-item"><summary>Is my recording kept?</summary><p>No. It is held in a private store only while it is transcribed, then deleted; anything left over is deleted within a day whatever happens. The words are kept in your account until you delete them, with one button.</p></details>
+<details class="rr-faq-item"><summary>How long does it take?</summary><p>Sending takes as long as your connection needs for the file: an hour of audio as an MP3 is about 60 MB. Transcribing an hour usually takes a few minutes. You can close the page once the file is sent; the transcript waits under Your transcripts and in Your history.</p></details>
+<details class="rr-faq-item"><summary>Which languages does it understand?</summary><p>English is the strongest, including East African accents. French, Arabic, Spanish, Portuguese and German are recognised too, and the language can be worked out from the recording. Swahili is new: check the result before you share it. Luganda is not supported yet.</p></details>
+<details class="rr-faq-item"><summary>How are the minutes written?</summary><p>Press Write the minutes and Claude reads the transcript, with the names you gave the speakers, and writes a summary, the key points, the decisions, the action items with who and by when, and chapters that jump to their place. It uses only what was said: no advice and no invented names, dates or figures.</p></details>
+<details class="rr-faq-item"><summary>What can I download?</summary><p>Word and PDF for the transcript and the minutes, plain text, and SRT captions for a video. Copy all puts the whole transcript on your clipboard.</p></details>
+</div>
+</div></section>
+</main>
+
+<footer class="site-footer"><div class="wrap"><div class="footer-grid">
+<div><h4>SpeakPower</h4><p class="footer-tagline">Articulate is key.</p><p>Brand storytelling and market development, backed by SEO, writing, design, data, programming and public speaking. Kampala, Uganda.</p></div>
+<div><h4>Explore</h4><div class="footer-links"><a href="index.html">Home</a><a href="services.html">Services</a><a href="studio.html">Studio</a><a href="plans.html">Plans</a><a href="work.html">Work</a><a href="about.html">About</a><a href="https://speakpower1.blogspot.com" target="_blank" rel="noopener">Insights</a><a href="contact.html">Contact</a></div></div>
+<div><h4>Contact</h4><div class="footer-links"><a href="tel:+256743482588">+256 743 482 588</a><a href="mailto:thomasotieno583@gmail.com">thomasotieno583@gmail.com</a><a href="https://wa.me/256743482588" target="_blank" rel="noopener">WhatsApp</a></div></div>
+<div><h4>Follow</h4><div class="footer-links"><a href="https://www.linkedin.com/in/otieno-thomas-a39b1b21b/" target="_blank" rel="noopener">LinkedIn</a><a href="https://www.instagram.com/otienothomas8/" target="_blank" rel="noopener">Instagram</a><a href="https://www.tiktok.com/@otom323" target="_blank" rel="noopener">TikTok</a></div></div>
+</div><div class="footer-bottom">&copy; 2026 SpeakPower. All rights reserved.</div></div></footer>
+<script src="site-config.js"></script>
+<script src="analytics.js"></script>
+<script src="script.js"></script>
+<script src="activity.js"></script>
+<script src="account.js"></script>
+<script src="export.js"></script>
+<script src="transcribe.js"></script>
+<script type="application/ld+json">
+{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "SpeakPower Transcriber", "applicationCategory": "BusinessApplication", "operatingSystem": "Web", "url": "https://speakpower-commits.github.io/SpeakPower/transcribe.html", "description": "Upload a recording of a meeting, interview or speech, up to 10 hours, and get it written out word for word by speaker, with time stamps and minutes.", "offers": [{"@type": "Offer", "price": "0", "priceCurrency": "UGX", "description": "One recording up to 20 minutes, as one of the 3 free tries"}, {"@type": "Offer", "price": "60000", "priceCurrency": "UGX", "description": "Starter plan: 5 hours of recordings in 30 days", "url": "https://speakpower-commits.github.io/SpeakPower/plans.html"}], "provider": {"@type": "ProfessionalService", "name": "SpeakPower", "url": "https://speakpower-commits.github.io/SpeakPower/"}}
+</script>
+</body>
+</html>

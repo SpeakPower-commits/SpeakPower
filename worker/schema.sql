@@ -133,11 +133,16 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   --   ALTER TABLE subscriptions ADD COLUMN video_limit INTEGER NOT NULL DEFAULT 10;
   --   ALTER TABLE subscriptions ADD COLUMN video_used INTEGER NOT NULL DEFAULT 0 CHECK (video_used >= 0);
   video_limit     INTEGER NOT NULL DEFAULT 10,
+  -- Transcriber: seconds of audio a period carries, and has used (Starter
+  -- 5 hours, Pro 20). On an existing database, run the Transcriber block at
+  -- the end of this file.
+  transcribe_limit INTEGER NOT NULL DEFAULT 0,
   pack_limit      INTEGER NOT NULL DEFAULT 0,
   pack_discount   INTEGER NOT NULL DEFAULT 0,
   griot_used      INTEGER NOT NULL DEFAULT 0 CHECK (griot_used >= 0),
   rehearsal_used  INTEGER NOT NULL DEFAULT 0 CHECK (rehearsal_used >= 0),
   video_used      INTEGER NOT NULL DEFAULT 0 CHECK (video_used >= 0),
+  transcribe_used INTEGER NOT NULL DEFAULT 0 CHECK (transcribe_used >= 0),
   packs_used      INTEGER NOT NULL DEFAULT 0 CHECK (packs_used >= 0),
   tx_ref          TEXT NOT NULL UNIQUE,
   created_at      INTEGER NOT NULL
@@ -388,3 +393,70 @@ CREATE TABLE IF NOT EXISTS video_edits (
 CREATE INDEX IF NOT EXISTS idx_video_edits_user ON video_edits (user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_video_edits_run ON video_edits (run_id);
 CREATE INDEX IF NOT EXISTS idx_runs_user_id ON runs (user_id, id);
+
+-- Transcriber (added 12 Nov 2026). On an existing database, run this block
+-- once in the D1 console. The two ALTERs fail harmlessly if run twice; every
+-- other statement is idempotent. Until it is run, the Transcriber says it
+-- opens shortly and nothing else changes.
+--   ALTER TABLE subscriptions ADD COLUMN transcribe_limit INTEGER NOT NULL DEFAULT 0;
+--   ALTER TABLE subscriptions ADD COLUMN transcribe_used INTEGER NOT NULL DEFAULT 0 CHECK (transcribe_used >= 0);
+--   UPDATE subscriptions SET transcribe_limit = CASE plan WHEN 'starter' THEN 18000 WHEN 'pro' THEN 72000 ELSE 0 END
+--     WHERE ends_at > unixepoch() AND transcribe_limit = 0;
+
+-- One recording sent to the Transcriber. The audio lives in R2 only while it
+-- is transcribed (audio_key is cleared once it is deleted); the words live in
+-- transcript_parts. Times are seconds. settled = 1 once the time set aside is
+-- final (kept, or given back): every give-back is guarded on it.
+CREATE TABLE IF NOT EXISTS transcripts (
+  id               TEXT PRIMARY KEY,
+  user_id          TEXT NOT NULL,
+  run_id           INTEGER,
+  paid_with        TEXT NOT NULL,             -- plan | trial | admin
+  subscription_id  INTEGER,
+  reserved_seconds INTEGER NOT NULL,          -- set aside at the start; the engine stops here
+  seconds          INTEGER NOT NULL DEFAULT 0, -- what was transcribed, and kept
+  settled          INTEGER NOT NULL DEFAULT 0,
+  name             TEXT NOT NULL DEFAULT '',
+  bytes            INTEGER NOT NULL,
+  mime             TEXT NOT NULL DEFAULT '',
+  options_json     TEXT NOT NULL DEFAULT '{}', -- language, word for word, speakers, special words
+  status           TEXT NOT NULL,             -- uploading | queued | transcribing | done | failed | cancelled | deleted
+  error            TEXT,
+  upload_id        TEXT,
+  audio_key        TEXT,
+  api_base         TEXT,
+  speakers_json    TEXT NOT NULL DEFAULT '[]',
+  language         TEXT,
+  confidence       REAL,
+  words            INTEGER NOT NULL DEFAULT 0,
+  parts            INTEGER NOT NULL DEFAULT 0,
+  version          INTEGER NOT NULL DEFAULT 1,
+  minutes_json     TEXT,
+  minutes_state    TEXT,                      -- writing | done | failed
+  minutes_count    INTEGER NOT NULL DEFAULT 0,
+  minutes_at       INTEGER,
+  created_at       INTEGER NOT NULL,
+  uploaded_at      INTEGER,
+  finished_at      INTEGER,
+  updated_at       INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_transcripts_user ON transcripts (user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_transcripts_day ON transcripts (created_at, status);
+CREATE INDEX IF NOT EXISTS idx_transcripts_run ON transcripts (run_id);
+
+-- The paragraphs of a finished transcript, as JSON, in pieces under 200 KB.
+CREATE TABLE IF NOT EXISTS transcript_parts (
+  transcript_id TEXT NOT NULL,
+  n             INTEGER NOT NULL,
+  body          TEXT NOT NULL,
+  PRIMARY KEY (transcript_id, n)
+);
+
+-- The parts of a file that have arrived, so an upload can resume.
+CREATE TABLE IF NOT EXISTS transcript_uploads (
+  transcript_id TEXT NOT NULL,
+  n             INTEGER NOT NULL,
+  etag          TEXT NOT NULL,
+  bytes         INTEGER NOT NULL,
+  PRIMARY KEY (transcript_id, n)
+);
